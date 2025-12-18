@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Leads Profissional - Prospecção Estratégica</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Ícones -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- FIREBASE SDKs (Adicionado para compatibilidade com GitHub/Firebase) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- Biblioteca para Exportar Excel (SheetJS) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+    <!-- SISTEMA DE LOGIN -->
+    <section id="auth-section">
+        <div class="auth-container">
+            <div class="auth-box" id="login-box">
+                <h2>Acesso ao Sistema</h2>
+                <p>Gerador de Leads Profissional</p>
+                <form id="login-form">
+                    <input type="email" id="login-email" placeholder="Seu e-mail" required>
+                    <input type="password" id="login-password" placeholder="Sua senha" required>
+                    <button type="submit" class="btn-primary">Entrar</button>
+                </form>
+                <div class="auth-links">
+                    <a href="#" id="link-register">Criar conta</a> | 
+                    <a href="#" id="link-forgot">Esqueci minha senha</a>
+                </div>
+            </div>
+
+            <div class="auth-box hidden" id="register-box">
+                <h2>Criar Conta</h2>
+                <form id="register-form">
+                    <input type="text" id="reg-name" placeholder="Seu Nome Completo" required>
+                    <input type="email" id="reg-email" placeholder="Seu e-mail" required>
+                    <input type="password" id="reg-password" placeholder="Crie uma senha" required>
+                    <button type="submit" class="btn-primary">Cadastrar</button>
+                </form>
+                <div class="auth-links">
+                    <a href="#" id="link-login-reg">Voltar para Login</a>
+                </div>
+            </div>
+
+            <div class="auth-box hidden" id="forgot-box">
+                <h2>Recuperar Senha</h2>
+                <p>Informe seu e-mail para receber as instruções.</p>
+                <form id="forgot-form">
+                    <input type="email" id="forgot-email" placeholder="E-mail cadastrado" required>
+                    <button type="submit" class="btn-primary">Recuperar</button>
+                </form>
+                <div class="auth-links">
+                    <a href="#" id="link-login-forgot">Voltar para Login</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- APLICAÇÃO PRINCIPAL (Visível apenas após login) -->
+    <section id="app-section" class="hidden">
+        <header>
+            <div class="header-content">
+                <div class="user-info">
+                    <span>Olá, <strong id="user-name-display">Visitante</strong></span>
+                </div>
+                <div class="header-actions">
+                    <!-- Botão Admin (Invisível por padrão) -->
+                    <button id="btn-admin-reset" class="btn-outline hidden" style="border-color: red; color: red;">
+                        <i class="fas fa-ban"></i> Zerar Licença (Admin)
+                    </button>
+                    
+                    <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
+                    <button id="btn-logout" class="btn-outline">Sair</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="search-panel">
+                <h1>Filtro de Leads (ICP)</h1>
+                <p>Localize potenciais clientes e gere oportunidades reais.</p>
+                
+                <form id="lead-search-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="niche">Nicho / Profissão</label>
+                            <input type="text" id="niche" placeholder="Ex: Restaurantes, Advogados..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="city">Cidade</label>
+                            <input type="text" id="city" placeholder="Ex: São Paulo">
+                        </div>
+                        <div class="form-group">
+                            <label for="state">Estado (UF)</label>
+                            <select id="state">
+                                <option value="">Todos</option>
+                                <option value="AC">Acre</option>
+                                <option value="AL">Alagoas</option>
+                                <option value="AP">Amapá</option>
+                                <option value="AM">Amazonas</option>
+                                <option value="BA">Bahia</option>
+                                <option value="CE">Ceará</option>
+                                <option value="DF">Distrito Federal</option>
+                                <option value="ES">Espírito Santo</option>
+                                <option value="GO">Goiás</option>
+                                <option value="MA">Maranhão</option>
+                                <option value="MT">Mato Grosso</option>
+                                <option value="MS">Mato Grosso do Sul</option>
+                                <option value="MG">Minas Gerais</option>
+                                <option value="PA">Pará</option>
+                                <option value="PB">Paraíba</option>
+                                <option value="PR">Paraná</option>
+                                <option value="PE">Pernambuco</option>
+                                <option value="PI">Piauí</option>
+                                <option value="RJ">Rio de Janeiro</option>
+                                <option value="RN">Rio Grande do Norte</option>
+                                <option value="RS">Rio Grande do Sul</option>
+                                <option value="RO">Rondônia</option>
+                                <option value="RR">Roraima</option>
+                                <option value="SC">Santa Catarina</option>
+                                <option value="SP">São Paulo</option>
+                                <option value="SE">Sergipe</option>
+                                <option value="TO">Tocantins</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="limit">Quantidade (Máx 200)</label>
+                            <input type="number" id="limit" value="10" min="1" max="200">
+                        </div>
+                    </div>
+
+                    <!-- SELEÇÃO DE TEMPLATE NA BUSCA -->
+                    <div class="form-group template-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label for="message-template-input">Mensagem de Abordagem (Editável)</label>
+                            <small class="input-hint" style="margin:0;">Variáveis: {nicho}, {cidade}, {estado}</small>
+                        </div>
+                        <textarea id="message-template-input" rows="8"></textarea>
+                        <div class="template-controls-mini">
+                            <button type="button" id="btn-load-default-msg" class="btn-action">Restaurar Texto Padrão</button>
+                        </div>
+                    </div>
+
+                    <!-- Botão de Busca com ID específico para controle de estado -->
+                    <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
+                </form>
+                
+                <!-- Status da API -->
+                <div id="api-status-warning" class="warning-box hidden">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <span id="api-warning-text">Chave API não configurada. Exibindo <strong>leads fictícios</strong>.</span>
+                </div>
+                <div id="api-status-success" class="success-box hidden">
+                    <i class="fas fa-check-circle"></i> API Ativa e Válida (Expira em: <span id="api-expiry-date"></span>)
+                </div>
+                <div id="api-status-expired" class="error-box hidden">
+                    <i class="fas fa-clock"></i> Licença de 30 dias Expirada. <button id="btn-revalidate-trigger" class="btn-link">Revalidar Agora</button>
+                </div>
+            </div>
+
+            <div class="results-panel hidden" id="results-panel">
+                <div class="results-header">
+                    <h2>Resultados Encontrados <span id="result-count">0</span></h2>
+                    <!-- BOTÕES DE EXPORTAÇÃO -->
+                    <div class="export-buttons">
+                        <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
+                        <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table id="leads-table">
+                        <thead>
+                            <tr>
+                                <th>Nome do Negócio</th>
+                                <th>Nicho</th>
+                                <th>Localização</th>
+                                <th>Contato</th>
+                                <th>Digital</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-body">
+                            <!-- Leads serão inseridos aqui -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal de Configuração -->
+        <div id="config-modal" class="modal hidden">
+            <div class="modal-content large-modal">
+                <span class="close-modal">&times;</span>
+                <h3>Configurações do Sistema</h3>
+                
+                <div class="config-tabs">
+                    <button class="tab-btn active" data-tab="tab-api">API & Acesso</button>
+                    <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
+                </div>
+
+                <!-- TAB API -->
+                <div id="tab-api" class="tab-content active">
+                    <div class="config-section">
+                        <h4>Configuração da API de Busca</h4>
+                        <p>Insira sua chave da API de Busca (provedor externo) para obter dados reais.</p>
+                        <input type="text" id="api-key-input" placeholder="Cole sua API Key aqui (ex: 8847d...)">
+                        <button id="save-api-key" class="btn-primary">Salvar a chave</button>
+                        <p id="api-validation-msg" class="validation-msg"></p>
+                        
+                        <div class="api-help">
+                            <p>Não tem uma chave?</p>
+                            <a href="https://wa.me/5534997824990?text=Olá,%20gostaria%20de%20solicitar%20a%20chave%20API%20para%20o%20Gerador%20de%20Leads." target="_blank" class="btn-whatsapp">
+                                <i class="fab fa-whatsapp"></i> Solicitar Chave API pelo WhatsApp
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Área de Revalidação -->
+                    <div id="revalidation-area" class="config-section hidden revalidation-box">
+                        <h4>🔐 Liberação de Acesso (Senha/Contra-Senha)</h4>
+                        <p>Para ativar ou renovar os 30 dias de acesso a dados reais, gere o código e informe a contra-senha.</p>
+                        <div class="challenge-box">
+                            <p>Número Gerado: <strong id="challenge-number" class="highlight-number">---</strong></p>
+                            <button id="btn-generate-challenge" class="btn-secondary">Gerar Número</button>
+                        </div>
+                        <div class="response-box">
+                            <label>Contra-senha:</label>
+                            <input type="number" id="challenge-response" placeholder="Informe a Contra-Senha">
+                            <button id="btn-verify-challenge" class="btn-primary">Liberar Acesso</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB TEMPLATES -->
+                <div id="tab-templates" class="tab-content">
+                    <div class="config-section">
+                        <h4>Gerenciar Modelos de Mensagem</h4>
+                        <p>Cadastre textos para usar nas abordagens.</p>
+                        
+                        <div class="new-template-form">
+                            <input type="text" id="new-template-name" placeholder="Nome do Modelo (ex: Abordagem Formal)">
+                            <textarea id="new-template-content" rows="6" placeholder="Texto da mensagem com variáveis {nicho}, {cidade}..."></textarea>
+                            <button id="btn-save-template" class="btn-secondary">Adicionar Modelo</button>
+                        </div>
+
+                        <div class="templates-list-container">
+                            <h5>Modelos Salvos</h5>
+                            <ul id="templates-list" class="templates-list">
+                                <!-- Lista gerada via JS -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Abordagem -->
+        <div id="message-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal-msg">&times;</span>
+                <h3>Gerador de Abordagem</h3>
+                <div class="message-box">
+                    <textarea id="generated-message" rows="8"></textarea>
+                </div>
+                <button id="copy-message" class="btn-secondary">Copiar Mensagem</button>
+                <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp-action">Enviar no WhatsApp</a>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2025 Gerador de Leads Profissional. Todos os direitos reservados.</p>
+            <a href="https://www.websitelog.com.br" target="_blank">www.websitelog.com.br</a>
+        </footer>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>
