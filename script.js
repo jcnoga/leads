@@ -124,14 +124,10 @@ function checkAuth() {
         appSection.classList.remove('hidden');
         document.getElementById('user-name-display').innerText = state.user.name;
         
-        const btnAdminAdd10 = document.getElementById('btn-admin-add-10');
-        
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
-            if(btnAdminAdd10) btnAdminAdd10.classList.remove('hidden');
         } else {
             btnAdminReset.classList.add('hidden');
-            if(btnAdminAdd10) btnAdminAdd10.classList.add('hidden');
         }
     } else {
         authSection.classList.remove('hidden');
@@ -191,14 +187,6 @@ function resetAccess() {
         updateSearchButtonState();
         alert("Saldo zerado.");
     }
-}
-
-function adminAdd10Leads() {
-    state.leadsBalance += 10;
-    localStorage.setItem('leads_balance', state.leadsBalance);
-    updateApiStatusUI();
-    updateSearchButtonState();
-    alert("10 Leads autorizados/adicionados com sucesso.");
 }
 
 // --- Gerenciamento de Templates ---
@@ -434,7 +422,6 @@ async function searchLeads(event) {
 
     let leads = [];
 
-    // Busca Real (se tiver saldo e chave)
     if (state.apiKey && state.leadsBalance > 0) {
         leads = await fetchRealLeads(query, limit);
         
@@ -446,29 +433,17 @@ async function searchLeads(event) {
             updateApiStatusUI();
             updateResultsBadge(true);
             
-            // NÃO SALVA MAIS AUTOMATICAMENTE NO FIREBASE AQUI
+            saveLeadsToFirestore(leads, niche);
         } else {
             updateResultsBadge(true); 
         }
     } else {
-        // Busca Fictícia
         leads = generateMockLeads(niche, city, stateInput, limit);
         updateResultsBadge(false);
     }
 
     state.leads = leads;
     renderLeads(leads);
-}
-
-// --- Nova Função: Salvar Manual ---
-function saveCurrentLeadsManual() {
-    if (state.leads.length === 0) {
-        return; // Silencioso se vazio
-    }
-    
-    const niche = state.lastSearch.niche || "Nicho Geral";
-    saveLeadsToFirestore(state.leads, niche);
-    // Sem alert() conforme solicitado
 }
 
 // --- PERSISTÊNCIA FIREBASE ---
@@ -533,12 +508,13 @@ function saveLeadDetails() {
     lead.leadStatus = detailStatus.value;
     lead.followUpNotes = detailNotes.value;
     
-    // Feedback visual e fecha
+    // Feedback visual
     alert("Alterações salvas localmente para este lead.");
     leadDetailsModal.classList.add('hidden');
     
-    // Re-renderiza para atualizar status visual na tabela
-    renderLeads(state.leads);
+    // Nota: Se fosse para atualizar no Firebase individualmente, precisaríamos do ID do documento.
+    // Como o fluxo atual salva em lote na busca e aqui estamos editando o resultado da busca,
+    // a persistência real da edição ocorreria se baixássemos o banco de leads atualizado.
 }
 
 function deleteLead(index) {
@@ -549,7 +525,7 @@ function deleteLead(index) {
     }
 }
 
-// --- GERENCIAMENTO DO BANCO DE LEADS (Modal - Código mantido mas não usado na UI) ---
+// --- GERENCIAMENTO DO BANCO DE LEADS (Modal) ---
 async function openDatabaseModal() {
     if (!state.user) return alert("Você precisa estar logado.");
     
@@ -750,15 +726,6 @@ function renderLeads(leads) {
     leads.forEach((lead, index) => {
         const row = document.createElement('tr');
         
-        // Configuração de Status
-        const status = lead.leadStatus || 'Novo'; // Se não tiver, é Novo
-        let statusClass = 'status-novo';
-        if (status === 'Contatado') statusClass = 'status-contatado';
-        if (status === 'Interessado') statusClass = 'status-interessado';
-        if (status === 'Negociação') statusClass = 'status-negociacao';
-        if (status === 'Convertido') statusClass = 'status-convertido';
-        if (status === 'Não interessado') statusClass = 'status-nao-interessado';
-
         // Link Site
         const siteLink = lead.website 
             ? `<a href="${lead.website}" target="_blank"><i class="fas fa-external-link-alt"></i> Visitar</a>` 
@@ -769,7 +736,7 @@ function renderLeads(leads) {
             ? `<button class="btn-action" onclick="openMessageModal(${index})" title="Gerar Abordagem"><i class="fab fa-whatsapp"></i></button>`
             : '<button class="btn-action" disabled style="opacity:0.5"><i class="fab fa-whatsapp"></i></button>';
 
-        // Botões de Ação
+        // Botões de Ação Solicitados
         const actions = `
             <div class="actions-cell">
                 ${whatsappLink}
@@ -778,20 +745,11 @@ function renderLeads(leads) {
             </div>
         `;
 
-        // Formatação da primeira coluna (Nome + Status + Nicho/Endereço)
-        const nameCell = `
-            <strong>${lead.name}</strong> <span class="badge-status ${statusClass}">${status}</span>
-            <div class="lead-sub-info">
-                ${lead.niche} • ${lead.address}
-            </div>
-        `;
-
         row.innerHTML = `
-            <td>${nameCell}</td>
-            <td>
-                <div><i class="fas fa-phone"></i> ${lead.phone}</div>
-                <div style="font-size:0.85rem">${siteLink}</div>
-            </td>
+            <td><strong>${lead.name}</strong></td>
+            <td>${lead.niche}</td>
+            <td>${lead.address}</td>
+            <td>${lead.phone}</td>
             <td>${actions}</td>
         `;
         leadsBody.appendChild(row);
@@ -874,10 +832,8 @@ function setupEventListeners() {
         updateApiStatusUI();
     };
     
-    // REDIRECIONAMENTO DE BOTÃO DO HEADER
-    // AGORA CHAMA saveCurrentLeadsManual (salvar) em vez de openDatabaseModal (gerenciar/excluir)
-    document.getElementById('btn-database').onclick = saveCurrentLeadsManual;
-    
+    // DB Modal
+    document.getElementById('btn-database').onclick = openDatabaseModal;
     document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
     document.getElementById('btn-download-delete-xlsx').onclick = () => downloadAndDelete('xlsx');
     
@@ -885,12 +841,6 @@ function setupEventListeners() {
     document.getElementById('btn-save-details').onclick = saveLeadDetails;
     document.getElementById('btn-cancel-details').onclick = () => leadDetailsModal.classList.add('hidden');
     
-    // Botão Manual Save (Results Panel)
-    document.getElementById('btn-save-manual').onclick = saveCurrentLeadsManual;
-    
-    // Botão Admin Add 10 Leads
-    document.getElementById('btn-admin-add-10').onclick = adminAdd10Leads;
-
     document.querySelector('.close-modal').onclick = () => document.getElementById('config-modal').classList.add('hidden');
     document.querySelector('.close-modal-db').onclick = () => document.getElementById('database-modal').classList.add('hidden');
     document.querySelector('.close-modal-details').onclick = () => document.getElementById('lead-details-modal').classList.add('hidden');
