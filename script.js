@@ -6,13 +6,14 @@
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
 // SUBSTITUA COM SUAS CHAVES REAIS DO FIREBASE CONSOLE
 const firebaseConfig = {
-    apiKey: "SUA_API_KEY",
-    authDomain: "seu-projeto.firebaseapp.com",
-    projectId: "seu-projeto",
-    storageBucket: "seu-projeto.appspot.com",
-    messagingSenderId: "SEU_SENDER_ID",
-    appId: "SEU_APP_ID"
+  apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
+  authDomain: "projeto-bfed3.firebaseapp.com",
+  projectId: "projeto-bfed3",
+  storageBucket: "projeto-bfed3.firebasestorage.app",
+  messagingSenderId: "785289237066",
+  appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
 };
+
 
 // --- Configurações Iniciais ---
 const API_VALIDITY_DAYS = 30;
