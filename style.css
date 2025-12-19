@@ -185,10 +185,24 @@ main {
     background: var(--primary-hover);
 }
 
+.btn-primary-outline {
+    background: transparent;
+    color: var(--primary-color);
+    padding: 8px 16px;
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-primary-outline:hover {
+    background-color: #eff6ff;
+}
+
 /* Botão desabilitado vermelho */
 .btn-disabled-red {
     background-color: var(--error) !important;
-    /* cursor: not-allowed !important; */ /* Comentado pois o botão deve estar funcional para clicar e abrir config */
+    /* cursor: not-allowed !important; */ 
 }
 
 .btn-secondary {
@@ -408,7 +422,7 @@ td a {
     max-width: 700px;
 }
 
-.close-modal, .close-modal-msg {
+.close-modal, .close-modal-msg, .close-modal-db {
     position: absolute;
     top: 10px;
     right: 15px;
@@ -565,6 +579,58 @@ td a {
 
 .response-box input {
     flex: 1;
+}
+
+/* Database Modal Styles */
+.db-filter-box {
+    margin-bottom: 20px;
+}
+
+.db-filter-box label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.db-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-action-db {
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 1rem;
+}
+
+.btn-csv {
+    background-color: #fff0eb;
+    color: var(--csv-color);
+    border: 1px solid var(--csv-color);
+}
+
+.btn-csv:hover {
+    background-color: var(--csv-color);
+    color: white;
+}
+
+.btn-excel {
+    background-color: #ecfdf5;
+    color: var(--excel-color);
+    border: 1px solid var(--excel-color);
+}
+
+.btn-excel:hover {
+    background-color: var(--excel-color);
+    color: white;
 }
 
 /* Footer */

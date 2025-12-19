@@ -1,9 +1,10 @@
 /**
  * GERADOR DE LEADS PROFISSIONAL
- * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads)
+ * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads + Firebase DB)
  */
 
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
+// SUBSTITUA COM SUAS CHAVES REAIS DO FIREBASE CONSOLE
 const firebaseConfig = {
     apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
     authDomain: "projeto-bfed3.firebaseapp.com",
@@ -24,7 +25,7 @@ const DEFAULT_TEMPLATES = [
 // --- Estado da Aplicação ---
 const state = {
     apiKey: localStorage.getItem('serper_api_key') || '',
-    leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0, // NOVO: Saldo de leads
+    leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0,
     user: null, 
     leads: [],
     lastSearch: { niche: '', city: '', state: '' },
@@ -33,10 +34,11 @@ const state = {
 };
 
 // --- Inicializa Firebase ---
-let auth;
+let auth, db;
 try {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
+    db = firebase.firestore();
 } catch (e) {
     console.error("Erro ao inicializar Firebase.", e);
 }
@@ -61,8 +63,14 @@ const btnAdminReset = document.getElementById('btn-admin-reset');
 const btnSearchLeads = document.getElementById('btn-search-leads');
 const dataSourceBadge = document.getElementById('data-source-badge');
 
+// Elements for Recharging
 const btnWhatsappRequest = document.getElementById('btn-whatsapp-request');
 const leadsQuantityInput = document.getElementById('leads-quantity');
+
+// Elements for Database Modal
+const databaseModal = document.getElementById('database-modal');
+const dbNicheSelect = document.getElementById('db-niche-select');
+const dbStatusMsg = document.getElementById('db-status-msg');
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -84,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
     
-    // Recuperar template
     const savedMsg = localStorage.getItem('current_draft_message');
     if (savedMsg) {
         messageTemplateInput.value = savedMsg;
@@ -127,10 +134,8 @@ function register(name, email, password) {
     if (!auth) return alert("Firebase não configurado.");
     auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-            // Brinde Inicial: 100 Leads
             localStorage.setItem('leads_balance', 100);
             state.leadsBalance = 100;
-
             return userCredential.user.updateProfile({
                 displayName: name
             });
@@ -246,12 +251,10 @@ function renderTemplatesList() {
 
 // --- Validação e Gerenciamento da API e Leads ---
 function isApiActive() {
-    // API Ativa se: Tiver chave E saldo > 0
     return (state.apiKey && state.leadsBalance > 0);
 }
 
 function updateSearchButtonState() {
-    // Botão sempre habilitado, mas muda o texto indicativo
     btnSearchLeads.disabled = false;
     btnSearchLeads.classList.remove('btn-disabled-red');
 
@@ -263,22 +266,19 @@ function updateSearchButtonState() {
 }
 
 function updateApiStatusUI() {
-    // Esconde todos
     apiStatusWarning.classList.add('hidden');
     apiStatusSuccess.classList.add('hidden');
     apiStatusExpired.classList.add('hidden');
     
-    // Área de recarga sempre disponível se houver chave
     const revalidationArea = document.getElementById('revalidation-area');
     
     if (!state.apiKey) {
         apiStatusWarning.classList.remove('hidden');
-        revalidationArea.classList.add('hidden'); // Sem chave, não mostra recarga
+        revalidationArea.classList.add('hidden');
         updateSearchButtonState();
         return;
     }
 
-    // Tem chave. Verifica Saldo.
     revalidationArea.classList.remove('hidden'); 
 
     if (state.leadsBalance > 0) {
@@ -340,7 +340,7 @@ async function testApiKey(key) {
     }
 }
 
-// --- Recarga de Leads (Matemática Atualizada) ---
+// --- Recarga de Leads ---
 function generateChallenge() {
     state.challengeNumber = Math.floor(Math.random() * 901) + 100;
     document.getElementById('challenge-number').innerText = state.challengeNumber;
@@ -359,7 +359,6 @@ function updateWhatsappLink() {
 
 function verifyChallenge() {
     const responseInput = document.getElementById('challenge-response').value.trim();
-    // Formato esperado: HASH-QTD
     
     if (!responseInput.includes('-')) {
         return alert("Formato inválido. Use o formato fornecido pelo suporte (Ex: 12345-500).");
@@ -373,7 +372,6 @@ function verifyChallenge() {
 
     if (isNaN(providedHash) || isNaN(leadsQty)) return alert("Código inválido.");
 
-    // Fórmula: (random + 13) * 9 + 1954 + leads
     const expectedHash = (state.challengeNumber + 13) * 9 + 1954 + leadsQty;
 
     if (providedHash === expectedHash) {
@@ -385,7 +383,6 @@ function verifyChallenge() {
         updateApiStatusUI();
         document.getElementById('config-modal').classList.add('hidden');
         
-        // Limpa campos
         document.getElementById('leads-quantity').value = '';
         document.getElementById('challenge-response').value = '';
         state.challengeNumber = 0;
@@ -412,9 +409,8 @@ async function searchLeads(event) {
 
     let leads = [];
 
-    // SE Tiver Chave E Saldo > 0 -> Busca Real
+    // Busca Real (se tiver saldo e chave)
     if (state.apiKey && state.leadsBalance > 0) {
-        // Tenta buscar reais
         leads = await fetchRealLeads(query, limit);
         
         if (leads.length > 0) {
@@ -423,20 +419,158 @@ async function searchLeads(event) {
             if (state.leadsBalance < 0) state.leadsBalance = 0;
             localStorage.setItem('leads_balance', state.leadsBalance);
             
-            updateApiStatusUI(); // Atualiza contador na tela
-            updateResultsBadge(true); // Badge Real
+            updateApiStatusUI();
+            updateResultsBadge(true);
+            
+            // SALVA NO FIREBASE
+            saveLeadsToFirestore(leads, niche);
         } else {
-            // Se API real não retornou nada, mantém badge neutro ou avisa
             updateResultsBadge(true); 
         }
     } else {
-        // Sem chave OU sem saldo -> Busca Fictícia
+        // Busca Fictícia
         leads = generateMockLeads(niche, city, stateInput, limit);
-        updateResultsBadge(false); // Badge Simulado
+        updateResultsBadge(false);
     }
 
     state.leads = leads;
     renderLeads(leads);
+}
+
+// --- PERSISTÊNCIA FIREBASE ---
+async function saveLeadsToFirestore(leads, niche) {
+    if (!state.user || !state.user.uid) return;
+
+    try {
+        const batch = db.batch();
+        leads.forEach(lead => {
+            const docRef = db.collection('users').doc(state.user.uid).collection('leads').doc();
+            batch.set(docRef, {
+                ...lead,
+                searchNiche: niche,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        await batch.commit();
+        console.log("Leads salvos no Firebase com sucesso.");
+    } catch (error) {
+        console.error("Erro ao salvar leads no Firebase:", error);
+    }
+}
+
+// --- GERENCIAMENTO DO BANCO DE LEADS ---
+async function openDatabaseModal() {
+    if (!state.user) return alert("Você precisa estar logado.");
+    
+    databaseModal.classList.remove('hidden');
+    dbStatusMsg.innerText = "Carregando nichos...";
+    dbNicheSelect.innerHTML = '<option value="">Carregando...</option>';
+
+    try {
+        // Busca todos os leads para extrair nichos únicos (não eficiente para muitos dados, mas funcional para MVP)
+        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads').get();
+        const niches = new Set();
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.searchNiche) niches.add(data.searchNiche);
+        });
+
+        dbNicheSelect.innerHTML = '<option value="">Selecione um Nicho</option>';
+        niches.forEach(niche => {
+            const option = document.createElement('option');
+            option.value = niche;
+            option.innerText = niche;
+            dbNicheSelect.appendChild(option);
+        });
+        
+        dbStatusMsg.innerText = "";
+    } catch (error) {
+        console.error("Erro ao carregar nichos:", error);
+        dbStatusMsg.innerText = "Erro ao carregar banco de dados.";
+        dbStatusMsg.style.color = "red";
+    }
+}
+
+async function downloadAndDelete(type) {
+    const niche = dbNicheSelect.value;
+    if (!niche) return alert("Selecione um nicho para baixar e limpar.");
+
+    if (!confirm(`Tem certeza? Isso irá baixar os leads do nicho "${niche}" e apagá-los do sistema.`)) return;
+
+    dbStatusMsg.innerText = "Processando...";
+    
+    try {
+        // 1. Buscar Leads
+        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
+            .where('searchNiche', '==', niche)
+            .get();
+
+        if (snapshot.empty) {
+            dbStatusMsg.innerText = "Nenhum lead encontrado para este nicho.";
+            return;
+        }
+
+        const leadsData = [];
+        const batch = db.batch();
+
+        snapshot.forEach(doc => {
+            leadsData.push(doc.data());
+            batch.delete(doc.ref); // Prepara para deletar
+        });
+
+        // 2. Exportar
+        if (type === 'csv') {
+            exportDataToCSV(leadsData, `db_leads_${niche}.csv`);
+        } else {
+            exportDataToXLSX(leadsData, `db_leads_${niche}.xlsx`);
+        }
+
+        // 3. Deletar do banco
+        await batch.commit();
+        
+        dbStatusMsg.innerText = "Sucesso! Leads baixados e removidos.";
+        dbStatusMsg.style.color = "green";
+        
+        // Atualiza lista
+        setTimeout(openDatabaseModal, 1000);
+
+    } catch (error) {
+        console.error("Erro no processo:", error);
+        dbStatusMsg.innerText = "Erro ao processar. Tente novamente.";
+        dbStatusMsg.style.color = "red";
+    }
+}
+
+// Funções auxiliares de exportação genérica
+function exportDataToCSV(data, filename) {
+    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating"];
+    const rows = data.map(lead => [
+        `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`
+    ]);
+    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
+    rows.forEach(row => csvContent += row.join(",") + "\r\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function exportDataToXLSX(data, filename) {
+    const dataForSheet = data.map(lead => ({
+        "Nome do Negócio": lead.name,
+        "Nicho": lead.niche,
+        "Endereço": lead.address,
+        "Telefone": lead.phone,
+        "Site": lead.website || "",
+        "Avaliação": lead.rating || ""
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+    XLSX.writeFile(workbook, filename);
 }
 
 function updateResultsBadge(isReal) {
@@ -577,38 +711,15 @@ function openMessageModal(leadIndex) {
     modal.classList.remove('hidden');
 }
 
-// --- Funções de Exportação ---
+// --- Funções de Exportação (Panel) ---
 function exportToCSV() {
     if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
-    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating"];
-    const rows = state.leads.map(lead => [
-        `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`
-    ]);
-    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
-    rows.forEach(row => csvContent += row.join(",") + "\r\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `leads_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportDataToCSV(state.leads, `leads_${Date.now()}.csv`);
 }
 
 function exportToXLSX() {
     if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
-    const dataForSheet = state.leads.map(lead => ({
-        "Nome do Negócio": lead.name,
-        "Nicho": lead.niche,
-        "Endereço": lead.address,
-        "Telefone": lead.phone,
-        "Site": lead.website || "",
-        "Avaliação": lead.rating || ""
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-    XLSX.writeFile(workbook, `leads_${Date.now()}.xlsx`);
+    exportDataToXLSX(state.leads, `leads_${Date.now()}.xlsx`);
 }
 
 // --- Gerenciamento de Eventos UI ---
@@ -643,7 +754,14 @@ function setupEventListeners() {
         document.getElementById('config-modal').classList.remove('hidden');
         updateApiStatusUI();
     };
+    
+    // DB Modal
+    document.getElementById('btn-database').onclick = openDatabaseModal;
+    document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
+    document.getElementById('btn-download-delete-xlsx').onclick = () => downloadAndDelete('xlsx');
+    
     document.querySelector('.close-modal').onclick = () => document.getElementById('config-modal').classList.add('hidden');
+    document.querySelector('.close-modal-db').onclick = () => document.getElementById('database-modal').classList.add('hidden');
     document.querySelector('.close-modal-msg').onclick = () => document.getElementById('message-modal').classList.add('hidden');
 
     document.getElementById('save-api-key').onclick = validateAndSaveApiKey;

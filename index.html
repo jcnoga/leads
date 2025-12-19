@@ -7,10 +7,12 @@
     <link rel="stylesheet" href="style.css">
     <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-	    <!-- FIREBASE SDKs (Adicionado para compatibilidade com GitHub/Firebase) -->
+    
+    <!-- FIREBASE SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
     <!-- Biblioteca para Exportar Excel (SheetJS) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -72,6 +74,9 @@
                     <button id="btn-admin-reset" class="btn-outline hidden" style="border-color: red; color: red;">
                         <i class="fas fa-trash"></i> Zerar Saldo (Admin)
                     </button>
+                    
+                    <!-- NOVO BOTÃO: Banco de Dados -->
+                    <button id="btn-database" class="btn-primary-outline"><i class="fas fa-database"></i> Banco de Leads</button>
                     
                     <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
                     <button id="btn-logout" class="btn-outline">Sair</button>
@@ -169,7 +174,7 @@
             <div class="results-panel hidden" id="results-panel">
                 <div class="results-header">
                     <h2>Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
-                    <!-- BOTÕES DE EXPORTAÇÃO -->
+                    <!-- BOTÕES DE EXPORTAÇÃO DA BUSCA ATUAL -->
                     <div class="export-buttons">
                         <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
                         <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
@@ -274,6 +279,33 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- NOVO MODAL: Gerenciar Banco de Leads -->
+        <div id="database-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal-db">&times;</span>
+                <h3>📦 Gerenciar Banco de Leads</h3>
+                <p>Selecione um nicho para baixar e remover do banco de dados.</p>
+                
+                <div class="db-filter-box">
+                    <label for="db-niche-select">Filtrar por Nicho salvo:</label>
+                    <select id="db-niche-select">
+                        <option value="">Carregando nichos...</option>
+                    </select>
+                </div>
+
+                <div class="db-actions">
+                    <button id="btn-download-delete-csv" class="btn-action-db btn-csv">
+                        <i class="fas fa-file-csv"></i> Baixar CSV e Limpar
+                    </button>
+                    <button id="btn-download-delete-xlsx" class="btn-action-db btn-excel">
+                        <i class="fas fa-file-excel"></i> Baixar Excel e Limpar
+                    </button>
+                </div>
+                
+                <div id="db-status-msg" class="validation-msg" style="margin-top:10px;"></div>
             </div>
         </div>
 
