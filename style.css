@@ -18,6 +18,14 @@
     --whatsapp: #25D366;
     --excel-color: #1D6F42;
     --csv-color: #E44D25;
+    
+    /* Cores de Status */
+    --status-novo: #3b82f6;
+    --status-contatado: #eab308;
+    --status-interessado: #22c55e;
+    --status-negociacao: #a855f7;
+    --status-convertido: #15803d;
+    --status-nao-interessado: #ef4444;
 }
 
 * {
@@ -105,6 +113,7 @@ header {
 .header-actions {
     display: flex;
     gap: 10px;
+    align-items: center;
 }
 
 /* Main Content */
@@ -313,6 +322,22 @@ main {
     font-size: 0.85rem;
 }
 
+/* Admin Buttons */
+.btn-admin-danger {
+    color: var(--error-text);
+    border-color: var(--error-text);
+}
+.btn-admin-danger:hover {
+    background-color: #fef2f2;
+}
+.btn-admin-success {
+    color: var(--success-text);
+    border-color: var(--success-text);
+}
+.btn-admin-success:hover {
+    background-color: #f0fdf4;
+}
+
 .full-width {
     width: 100%;
 }
@@ -407,6 +432,7 @@ th, td {
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid var(--border);
+    vertical-align: top;
 }
 
 th {
@@ -423,6 +449,56 @@ td .actions-cell {
     display: flex;
     gap: 5px;
 }
+
+/* New Lead Info Layout Styles */
+.lead-info-primary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+
+.lead-name {
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.lead-info-secondary {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.lead-niche {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.lead-separator {
+    color: #cbd5e1;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    text-transform: uppercase;
+}
+
+.status-novo { background-color: var(--status-novo); }
+.status-contatado { background-color: var(--status-contatado); }
+.status-interessado { background-color: var(--status-interessado); }
+.status-negociacao { background-color: var(--status-negociacao); }
+.status-convertido { background-color: var(--status-convertido); }
+.status-nao-interessado { background-color: var(--status-nao-interessado); }
+
 
 /* Modal */
 .modal {
@@ -750,4 +826,56 @@ footer a {
 /* Utilities */
 .hidden {
     display: none !important;
+}
+/* ... (Mantenha todo o CSS anterior) ... */
+
+/* Novos Estilos para o Botão Salvar (abaixo do Buscar) */
+.btn-success {
+    background: var(--success);
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-success:hover {
+    background: var(--success-text);
+}
+
+/* Estilos para a Área de Filtros */
+.filters-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    background-color: #f1f5f9;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--secondary-color);
+}
+
+.filter-group input, 
+.filter-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.9rem;
+    background-color: white;
 }

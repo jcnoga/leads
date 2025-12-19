@@ -70,13 +70,13 @@
                     <span>Olá, <strong id="user-name-display">Visitante</strong></span>
                 </div>
                 <div class="header-actions">
-                    <!-- Botão Admin (Invisível por padrão) -->
-                    <button id="btn-admin-reset" class="btn-outline hidden" style="border-color: red; color: red;">
-                        <i class="fas fa-trash"></i> Zerar Saldo (Admin)
+                    <!-- Botões Admin (Invisíveis por padrão) -->
+                    <button id="btn-admin-add" class="btn-outline btn-admin-success hidden">
+                        <i class="fas fa-plus-circle"></i> +10 Leads
                     </button>
-                    
-                    <!-- BOTÃO RENOMEADO -->
-                    <button id="btn-database" class="btn-primary-outline"><i class="fas fa-save"></i> Salvar Leads</button>
+                    <button id="btn-admin-reset" class="btn-outline btn-admin-danger hidden">
+                        <i class="fas fa-trash"></i> Zerar Saldo
+                    </button>
                     
                     <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
                     <button id="btn-logout" class="btn-outline">Sair</button>
@@ -133,8 +133,9 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="limit">Quantidade (Máx 200)</label>
-                            <input type="number" id="limit" value="10" min="1" max="200">
+                            <label for="limit">Quantidade (Máx 100)</label>
+                            <!-- ALTERADO: value para 100 e max para 100 -->
+                            <input type="number" id="limit" value="100" min="1" max="100">
                         </div>
                     </div>
 
@@ -152,6 +153,11 @@
 
                     <!-- Botão de Busca -->
                     <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
+                    
+                    <!-- Botão Salvar Leads -->
+                    <button type="button" id="btn-save-db-direct" class="btn-success full-width" style="margin-top: 10px;">
+                        <i class="fas fa-save"></i> Salvar Leads
+                    </button>
                 </form>
                 
                 <!-- Status da API / Leads -->
@@ -162,7 +168,7 @@
                 
                 <div id="api-status-success" class="success-box hidden">
                     <i class="fas fa-database"></i> 
-                    <span style="flex:1;">API Ativa. <strong>Saldo de Leads: <span id="leads-balance-display">0</span></strong></span>
+                    <span style="flex:1;">API Ativa (<span id="api-provider-badge">Serper</span>). <strong>Saldo de Leads: <span id="leads-balance-display">0</span></strong></span>
                 </div>
 
                 <div id="api-status-expired" class="error-box hidden">
@@ -180,14 +186,40 @@
                         <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
                     </div>
                 </div>
+
+                <!-- ÁREA DE FILTROS -->
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label for="filter-text">Buscar (Nome/Geral)</label>
+                        <input type="text" id="filter-text" placeholder="Digite para filtrar...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-status">Status</label>
+                        <select id="filter-status">
+                            <option value="">Todos</option>
+                            <option value="Novo">Novo</option>
+                            <option value="Contatado">Contatado</option>
+                            <option value="Interessado">Interessado</option>
+                            <option value="Negociação">Negociação</option>
+                            <option value="Convertido">Convertido</option>
+                            <option value="Não interessado">Não interessado</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-niche">Nicho</label>
+                        <select id="filter-niche">
+                            <option value="">Todos</option>
+                            <!-- Preenchido via JS -->
+                        </select>
+                    </div>
+                </div>
                 
                 <div class="table-responsive">
                     <table id="leads-table">
                         <thead>
                             <tr>
-                                <th>Nome do Negócio</th>
-                                <th>Nicho</th>
-                                <th>Localização</th>
+                                <th>Empresa / Status</th>
+                                <th>Detalhes (Nicho, Local)</th>
                                 <th>Contato</th>
                                 <th>Ações</th>
                             </tr>
@@ -215,9 +247,19 @@
                 <div id="tab-api" class="tab-content active">
                     <div class="config-section">
                         <h4>Configuração da API de Busca</h4>
-                        <p>Insira sua chave da API de Busca para habilitar a conexão com dados reais.</p>
-                        <input type="text" id="api-key-input" placeholder="Cole sua API Key aqui (ex: 8847d...)">
-                        <button id="save-api-key" class="btn-primary">Salvar a chave</button>
+                        <p>Selecione qual chave de API deseja utilizar para buscar dados reais.</p>
+                        
+                        <!-- ALTERADO: Input substituído por Select -->
+                        <div class="form-group">
+                            <label for="api-provider-select">Selecione a Chave:</label>
+                            <select id="api-provider-select" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                                <option value="">-- Selecionar --</option>
+                                <option value="KEY_1">Chave 1 (Serper)</option>
+                                <option value="KEY_2">Chave 2 (SerpAPI)</option>
+                            </select>
+                        </div>
+                        
+                        <button id="save-api-key" class="btn-primary" style="margin-top: 10px;">Salvar Preferência</button>
                         <p id="api-validation-msg" class="validation-msg"></p>
                     </div>
 
@@ -281,11 +323,11 @@
             </div>
         </div>
 
-        <!-- MODAL: Gerenciar Banco de Leads (Exportar e Limpar) -->
+        <!-- MODAL: Gerenciar Banco de Leads (Mantido no HTML para funcionamento) -->
         <div id="database-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-db">&times;</span>
-                <h3>📦 Salvar Leads (Banco de Dados)</h3>
+                <h3>📦 Gerenciar Banco de Dados</h3>
                 <p>Selecione um nicho para baixar e remover do banco de dados.</p>
                 
                 <div class="db-filter-box">

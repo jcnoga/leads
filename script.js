@@ -5,12 +5,20 @@
 
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
-    apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
-    authDomain: "projeto-bfed3.firebaseapp.com",
-    projectId: "projeto-bfed3",
-    storageBucket: "projeto-bfed3.firebasestorage.app",
-    messagingSenderId: "785289237066",
-    appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
+};
+
+// --- CHAVES DE API (DEFINIDAS NO CÓDIGO) ---
+// Preencha as chaves abaixo conforme a documentação
+const API_KEYS_CONFIG = {
+    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a", // Insira sua chave Serper
+    KEY_2: "SUA_CHAVE_SERPAPI_AQUI" // Insira sua chave SerpAPI
 };
 
 // --- Configurações Iniciais ---
@@ -23,15 +31,22 @@ const DEFAULT_TEMPLATES = [
 
 // --- Estado da Aplicação ---
 const state = {
-    apiKey: localStorage.getItem('serper_api_key') || '',
+    // Carrega a preferência de provedor, mas usa as chaves do código
+    providerId: localStorage.getItem('selected_provider_id') || '', 
+    apiKey: '', // Será preenchido dinamicamente baseado no providerId
     leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0,
     user: null, 
     leads: [],
     lastSearch: { niche: '', city: '', state: '' },
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
     challengeNumber: 0,
-    currentLeadIndex: null // Para gerenciar edição
+    currentLeadIndex: null 
 };
+
+// Inicializa a apiKey correta se houver provider salvo
+if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
+    state.apiKey = API_KEYS_CONFIG[state.providerId];
+}
 
 // --- Inicializa Firebase ---
 let auth, db;
@@ -54,12 +69,17 @@ const apiStatusWarning = document.getElementById('api-status-warning');
 const apiStatusSuccess = document.getElementById('api-status-success');
 const apiStatusExpired = document.getElementById('api-status-expired');
 const leadsBalanceDisplay = document.getElementById('leads-balance-display');
+const apiProviderBadge = document.getElementById('api-provider-badge'); // Novo badge
 
 const leadsBody = document.getElementById('leads-body');
 const resultsPanel = document.getElementById('results-panel');
 const resultCount = document.getElementById('result-count');
 const messageTemplateInput = document.getElementById('message-template-input');
+
+// Admin Buttons
 const btnAdminReset = document.getElementById('btn-admin-reset');
+const btnAdminAdd = document.getElementById('btn-admin-add');
+
 const btnSearchLeads = document.getElementById('btn-search-leads');
 const dataSourceBadge = document.getElementById('data-source-badge');
 
@@ -85,6 +105,11 @@ const detailAddress = document.getElementById('detail-address');
 const detailStatus = document.getElementById('detail-status');
 const detailNotes = document.getElementById('detail-notes');
 
+// Elements for Filters
+const filterText = document.getElementById('filter-text');
+const filterStatus = document.getElementById('filter-status');
+const filterNiche = document.getElementById('filter-niche');
+
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
     if (auth) {
@@ -104,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     setupEventListeners();
+    setupFilterListeners();
     
     const savedMsg = localStorage.getItem('current_draft_message');
     if (savedMsg) {
@@ -126,8 +152,10 @@ function checkAuth() {
         
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
+            btnAdminAdd.classList.remove('hidden');
         } else {
             btnAdminReset.classList.add('hidden');
+            btnAdminAdd.classList.add('hidden');
         }
     } else {
         authSection.classList.remove('hidden');
@@ -186,6 +214,16 @@ function resetAccess() {
         updateApiStatusUI();
         updateSearchButtonState();
         alert("Saldo zerado.");
+    }
+}
+
+function addAdminLeads() {
+    if (confirm("ADMIN: Adicionar 10 leads ao saldo?")) {
+        state.leadsBalance += 10;
+        localStorage.setItem('leads_balance', state.leadsBalance);
+        updateApiStatusUI();
+        updateSearchButtonState();
+        alert("10 leads adicionados.");
     }
 }
 
@@ -297,6 +335,11 @@ function updateApiStatusUI() {
     if (state.leadsBalance > 0) {
         apiStatusSuccess.classList.remove('hidden');
         leadsBalanceDisplay.innerText = state.leadsBalance;
+        
+        // Atualiza badge do provedor
+        if (apiProviderBadge) {
+            apiProviderBadge.innerText = state.providerId === 'KEY_2' ? 'SerpAPI' : 'Serper';
+        }
     } else {
         apiStatusExpired.classList.remove('hidden');
     }
@@ -305,52 +348,36 @@ function updateApiStatusUI() {
 }
 
 async function validateAndSaveApiKey() {
-    const keyInput = document.getElementById('api-key-input');
+    const providerSelect = document.getElementById('api-provider-select');
     const msg = document.getElementById('api-validation-msg');
-    const key = keyInput.value.trim();
+    
+    const selectedProvider = providerSelect.value;
 
-    if (!key) {
-        alert("Insira uma chave API.");
+    if (!selectedProvider) {
+        alert("Selecione uma chave de API.");
+        return;
+    }
+
+    const key = API_KEYS_CONFIG[selectedProvider];
+    
+    if (!key || key.includes("SUA_CHAVE")) {
+        msg.innerText = "Chave não configurada no código-fonte. Contate o administrador.";
+        msg.style.color = "red";
         return;
     }
 
     msg.innerText = "Validando chave...";
     msg.style.color = "blue";
 
-    const isValid = await testApiKey(key);
-
-    if (isValid) {
-        state.apiKey = key;
-        localStorage.setItem('serper_api_key', key);
-        
-        msg.innerText = "Chave salva com sucesso! Adquira créditos abaixo para usar dados reais.";
-        msg.style.color = "orange";
-        
-        updateApiStatusUI();
-    } else {
-        msg.innerText = "Chave Inválida. Verifique e tente novamente.";
-        msg.style.color = "red";
-        alert("A chave informada não é válida.");
-    }
-}
-
-async function testApiKey(key) {
-    const url = 'https://google.serper.dev/search';
-    const myHeaders = new Headers();
-    myHeaders.append("X-API-KEY", key);
-    myHeaders.append("Content-Type", "application/json");
-    const raw = JSON.stringify({ "q": "test" });
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: myHeaders,
-            body: raw
-        });
-        return response.ok; 
-    } catch (error) {
-        return false;
-    }
+    // Simulação de validação da chave (ou teste real se possível)
+    state.providerId = selectedProvider;
+    state.apiKey = key;
+    localStorage.setItem('selected_provider_id', selectedProvider);
+    
+    msg.innerText = "Preferência salva com sucesso! Adquira créditos abaixo para usar dados reais.";
+    msg.style.color = "orange";
+    
+    updateApiStatusUI();
 }
 
 // --- Recarga de Leads ---
@@ -409,6 +436,9 @@ function verifyChallenge() {
 async function searchLeads(event) {
     event.preventDefault();
     
+    filterText.value = "";
+    filterStatus.value = "";
+    
     const niche = document.getElementById('niche').value;
     const city = document.getElementById('city').value;
     const stateInput = document.getElementById('state').value;
@@ -423,7 +453,13 @@ async function searchLeads(event) {
     let leads = [];
 
     if (state.apiKey && state.leadsBalance > 0) {
-        leads = await fetchRealLeads(query, limit);
+        
+        // Decide qual função chamar baseado na chave selecionada
+        if (state.providerId === 'KEY_2') {
+            leads = await fetchSerpAPILeads(query, limit); // Nova função
+        } else {
+            leads = await fetchSerperLeads(query, limit); // Função existente (renomeada/mantida)
+        }
         
         if (leads.length > 0) {
             state.leadsBalance -= leads.length;
@@ -432,7 +468,6 @@ async function searchLeads(event) {
             
             updateApiStatusUI();
             updateResultsBadge(true);
-            
             saveLeadsToFirestore(leads, niche);
         } else {
             updateResultsBadge(true); 
@@ -443,22 +478,67 @@ async function searchLeads(event) {
     }
 
     state.leads = leads;
-    renderLeads(leads);
+    
+    populateNicheFilter(leads);
+    applyFilters(); 
+}
+
+// --- LOGICA DE FILTRO ---
+function setupFilterListeners() {
+    filterText.addEventListener('input', applyFilters);
+    filterStatus.addEventListener('change', applyFilters);
+    filterNiche.addEventListener('change', applyFilters);
+}
+
+function populateNicheFilter(leads) {
+    const niches = new Set(leads.map(l => l.niche));
+    filterNiche.innerHTML = '<option value="">Todos</option>';
+    niches.forEach(n => {
+        const option = document.createElement('option');
+        option.value = n;
+        option.innerText = n;
+        filterNiche.appendChild(option);
+    });
+}
+
+function applyFilters() {
+    const txt = filterText.value.toLowerCase();
+    const st = filterStatus.value;
+    const ni = filterNiche.value;
+
+    const indexedLeads = state.leads.map((lead, index) => ({...lead, _originalIndex: index}));
+
+    const filtered = indexedLeads.filter(lead => {
+        const matchesText = (
+            lead.name.toLowerCase().includes(txt) || 
+            lead.niche.toLowerCase().includes(txt) ||
+            lead.address.toLowerCase().includes(txt)
+        );
+        const matchesStatus = st ? lead.leadStatus === st : true;
+        const matchesNiche = ni ? lead.niche === ni : true;
+
+        return matchesText && matchesStatus && matchesNiche;
+    });
+
+    renderLeads(filtered);
 }
 
 // --- PERSISTÊNCIA FIREBASE ---
-async function saveLeadsToFirestore(leads, niche) {
+async function saveLeadsToFirestore(leads, niche = 'Manual') {
     if (!state.user || !state.user.uid) return;
 
     try {
         const batch = db.batch();
         leads.forEach(lead => {
+            const leadToSave = { ...lead };
+            delete leadToSave._originalIndex;
+
             const docRef = db.collection('users').doc(state.user.uid).collection('leads').doc();
             batch.set(docRef, {
-                ...lead,
+                ...leadToSave,
                 searchNiche: niche,
-                leadStatus: 'Novo', // Status inicial padrão
-                followUpNotes: '',
+                leadStatus: lead.leadStatus || 'Novo',
+                followUpNotes: lead.followUpNotes || '',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
@@ -469,12 +549,20 @@ async function saveLeadsToFirestore(leads, niche) {
     }
 }
 
-// --- GERENCIAMENTO DE LEADS (NOVA FUNCIONALIDADE) ---
+async function saveCurrentLeadsToDB() {
+    if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
+    if(!confirm("Deseja salvar a lista exibida no Banco de Dados?")) return;
+    
+    const niche = state.lastSearch.niche || 'Lista Manual';
+    await saveLeadsToFirestore(state.leads, niche);
+    alert("Leads salvos no banco de dados com sucesso!");
+}
+
+// --- GERENCIAMENTO DE LEADS ---
 function openLeadDetails(index) {
     state.currentLeadIndex = index;
     const lead = state.leads[index];
     
-    // Preencher campos
     detailName.innerText = lead.name;
     detailNicheBadge.innerText = lead.niche;
     detailPhone.innerText = lead.phone || 'Não informado';
@@ -492,7 +580,6 @@ function openLeadDetails(index) {
     detailActivity.innerText = lead.niche;
     detailAddress.innerText = lead.address || "Endereço não disponível";
 
-    // Valores padrão ou salvos (se estivéssemos recarregando do banco, mas aqui é da sessão)
     detailStatus.value = lead.leadStatus || "Novo";
     detailNotes.value = lead.followUpNotes || "";
 
@@ -503,29 +590,23 @@ function saveLeadDetails() {
     if (state.currentLeadIndex === null) return;
     
     const lead = state.leads[state.currentLeadIndex];
-    
-    // Atualiza estado local
     lead.leadStatus = detailStatus.value;
     lead.followUpNotes = detailNotes.value;
     
-    // Feedback visual
     alert("Alterações salvas localmente para este lead.");
     leadDetailsModal.classList.add('hidden');
-    
-    // Nota: Se fosse para atualizar no Firebase individualmente, precisaríamos do ID do documento.
-    // Como o fluxo atual salva em lote na busca e aqui estamos editando o resultado da busca,
-    // a persistência real da edição ocorreria se baixássemos o banco de leads atualizado.
+    applyFilters();
 }
 
 function deleteLead(index) {
     if (confirm("Tem certeza que deseja excluir este lead da lista atual?")) {
         state.leads.splice(index, 1);
-        renderLeads(state.leads);
+        applyFilters(); 
         document.getElementById('result-count').innerText = state.leads.length;
     }
 }
 
-// --- GERENCIAMENTO DO BANCO DE LEADS (Modal) ---
+// --- GERENCIAMENTO DO BANCO DE LEADS ---
 async function openDatabaseModal() {
     if (!state.user) return alert("Você precisa estar logado.");
     
@@ -603,12 +684,15 @@ async function downloadAndDelete(type) {
     }
 }
 
-// Funções auxiliares de exportação genérica
 function exportDataToCSV(data, filename) {
     const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating", "Status", "Notas"];
-    const rows = data.map(lead => [
-        `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`, `"${lead.leadStatus || ''}"`, `"${lead.followUpNotes || ''}"`
-    ]);
+    const rows = data.map(lead => {
+        const l = { ...lead };
+        delete l._originalIndex;
+        return [
+            `"${l.name}"`, `"${l.niche}"`, `"${l.address}"`, `"${l.phone}"`, `"${l.website || ''}"`, `"${l.rating || ''}"`, `"${l.leadStatus || ''}"`, `"${l.followUpNotes || ''}"`
+        ];
+    });
     let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
     rows.forEach(row => csvContent += row.join(",") + "\r\n");
     const encodedUri = encodeURI(csvContent);
@@ -647,8 +731,9 @@ function updateResultsBadge(isReal) {
     }
 }
 
-// --- Integração API Serper ---
-async function fetchRealLeads(query, limit) {
+// --- INTEGRAÇÃO API 1: SERPER (CHAVE 1) ---
+// Função existente, apenas renomeada para clareza (compatível com chave 1)
+async function fetchSerperLeads(query, limit) {
     const url = 'https://google.serper.dev/places';
     
     const myHeaders = new Headers();
@@ -668,7 +753,7 @@ async function fetchRealLeads(query, limit) {
             body: raw
         });
         
-        if (!response.ok) throw new Error("Falha na API");
+        if (!response.ok) throw new Error("Falha na API Serper");
 
         const result = await response.json();
         
@@ -680,14 +765,59 @@ async function fetchRealLeads(query, limit) {
                 phone: place.phoneNumber || 'Não informado',
                 website: place.website,
                 rating: place.rating,
-                ratingCount: place.userRatingsTotal || 0 // Adicionado conforme solicitação
+                ratingCount: place.userRatingsTotal || 0,
+                leadStatus: 'Novo'
             }));
         } else {
             return [];
         }
     } catch (error) {
-        console.error('Erro na requisição:', error);
-        alert('Erro ao conectar com a API. Verifique sua conexão.');
+        console.error('Erro na requisição Serper:', error);
+        alert('Erro ao conectar com a API Serper.');
+        return [];
+    }
+}
+
+// --- INTEGRAÇÃO API 2: SERPAPI (CHAVE 2) ---
+// Nova função solicitada
+async function fetchSerpAPILeads(query, limit) {
+    // URL base da SerpAPI
+    // Nota: Geralmente SerpAPI requer proxy para chamadas frontend por CORS, ou uso de JSONP/Bibliotecas.
+    // Implementação direta via fetch assumindo que o ambiente suporte ou use proxy.
+    const baseUrl = 'https://serpapi.com/search.json';
+    const params = new URLSearchParams({
+        engine: 'google_local',
+        q: query,
+        hl: 'pt-br',
+        gl: 'br',
+        num: limit, // SerpAPI usa 'num' para limite
+        api_key: state.apiKey
+    });
+
+    try {
+        const response = await fetch(`${baseUrl}?${params.toString()}`);
+        
+        if (!response.ok) throw new Error("Falha na API SerpAPI");
+
+        const result = await response.json();
+        
+        if (result.local_results) {
+            return result.local_results.map(place => ({
+                name: place.title,
+                niche: place.type || 'Nicho Geral',
+                address: place.address,
+                phone: place.phone || 'Não informado',
+                website: place.website,
+                rating: place.rating,
+                ratingCount: place.reviews,
+                leadStatus: 'Novo'
+            }));
+        } else {
+            return [];
+        }
+    } catch (error) {
+        console.error('Erro na requisição SerpAPI:', error);
+        alert('Erro ao conectar com a API SerpAPI. Verifique CORS/Proxy.');
         return [];
     }
 }
@@ -707,13 +837,19 @@ function generateMockLeads(niche, city, uf, count) {
             phone: fakePhone,
             website: `https://www.exemplo${i}.com.br`,
             rating: (Math.random() * 2 + 3).toFixed(1),
-            ratingCount: Math.floor(Math.random() * 200) // Simulado
+            ratingCount: Math.floor(Math.random() * 200),
+            leadStatus: 'Novo'
         });
     }
     return leads;
 }
 
 // --- Renderização ---
+function getStatusClass(status) {
+    const slug = status.toLowerCase().replace(/\s+/g, '-');
+    return `status-${slug}`;
+}
+
 function renderLeads(leads) {
     leadsBody.innerHTML = '';
     resultCount.innerText = leads.length;
@@ -723,32 +859,44 @@ function renderLeads(leads) {
         return;
     }
 
-    leads.forEach((lead, index) => {
+    leads.forEach((lead, i) => {
         const row = document.createElement('tr');
+        const actualIndex = (lead._originalIndex !== undefined) ? lead._originalIndex : i;
         
-        // Link Site
         const siteLink = lead.website 
             ? `<a href="${lead.website}" target="_blank"><i class="fas fa-external-link-alt"></i> Visitar</a>` 
             : '<span class="text-muted">-</span>';
 
-        // Botão Abordar (Whats)
         const whatsappLink = lead.phone && lead.phone !== 'Não informado' 
-            ? `<button class="btn-action" onclick="openMessageModal(${index})" title="Gerar Abordagem"><i class="fab fa-whatsapp"></i></button>`
+            ? `<button class="btn-action" onclick="openMessageModal(${actualIndex})" title="Gerar Abordagem"><i class="fab fa-whatsapp"></i></button>`
             : '<button class="btn-action" disabled style="opacity:0.5"><i class="fab fa-whatsapp"></i></button>';
 
-        // Botões de Ação Solicitados
         const actions = `
             <div class="actions-cell">
                 ${whatsappLink}
-                <button class="btn-manage" onclick="openLeadDetails(${index})" title="Gerenciar Lead"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteLead(${index})" title="Excluir Lead"><i class="fas fa-trash-alt"></i></button>
+                <button class="btn-manage" onclick="openLeadDetails(${actualIndex})" title="Gerenciar Lead"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteLead(${actualIndex})" title="Excluir Lead"><i class="fas fa-trash-alt"></i></button>
             </div>
         `;
 
+        const status = lead.leadStatus || 'Novo';
+        const statusClass = getStatusClass(status);
+        let cityState = lead.address;
+        
         row.innerHTML = `
-            <td><strong>${lead.name}</strong></td>
-            <td>${lead.niche}</td>
-            <td>${lead.address}</td>
+            <td>
+                <div class="lead-info-primary">
+                    <span class="lead-name">${lead.name}</span>
+                    <span class="status-badge ${statusClass}">${status}</span>
+                </div>
+            </td>
+            <td>
+                <div class="lead-info-secondary">
+                    <span class="lead-niche">${lead.niche}</span>
+                    <span class="lead-separator">•</span>
+                    <span>${cityState}</span>
+                </div>
+            </td>
             <td>${lead.phone}</td>
             <td>${actions}</td>
         `;
@@ -827,13 +975,23 @@ function setupEventListeners() {
     });
 
     document.getElementById('btn-config').onclick = () => {
-        document.getElementById('api-key-input').value = state.apiKey;
+        // Carrega seleção salva
+        if(state.providerId) {
+            document.getElementById('api-provider-select').value = state.providerId;
+        }
         document.getElementById('config-modal').classList.remove('hidden');
         updateApiStatusUI();
     };
     
-    // DB Modal
-    document.getElementById('btn-database').onclick = openDatabaseModal;
+    // DB Modals e Saves
+    document.getElementById('btn-save-db-direct').onclick = saveCurrentLeadsToDB;
+    
+    // O botão btn-db-manager foi removido do HTML, mas mantemos o listener condicional
+    const btnDbManager = document.getElementById('btn-db-manager');
+    if (btnDbManager) {
+        btnDbManager.onclick = openDatabaseModal;
+    }
+
     document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
     document.getElementById('btn-download-delete-xlsx').onclick = () => downloadAndDelete('xlsx');
     
@@ -847,7 +1005,10 @@ function setupEventListeners() {
     document.querySelector('.close-modal-msg').onclick = () => document.getElementById('message-modal').classList.add('hidden');
 
     document.getElementById('save-api-key').onclick = validateAndSaveApiKey;
+    
+    // ADMIN Events
     document.getElementById('btn-admin-reset').onclick = resetAccess;
+    document.getElementById('btn-admin-add').onclick = addAdminLeads;
     
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
