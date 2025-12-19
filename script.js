@@ -1,6 +1,6 @@
 /**
  * GERADOR DE LEADS PROFISSIONAL
- * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads + Firebase DB + Gestão Detalhada)
+ * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads + Firebase DB + Gestão Detalhada + Dashboard + Histórico)
  */
 
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
@@ -26,11 +26,12 @@ const state = {
     apiKey: localStorage.getItem('serper_api_key') || '',
     leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0,
     user: null, 
-    leads: [],
+    allLeads: [], // Armazena todo o histórico carregado
+    leads: [], // Leads atualmente exibidos
     lastSearch: { niche: '', city: '', state: '' },
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
     challengeNumber: 0,
-    currentLeadIndex: null // Para gerenciar edição
+    currentLeadIndex: null
 };
 
 // --- Inicializa Firebase ---
@@ -85,6 +86,15 @@ const detailAddress = document.getElementById('detail-address');
 const detailStatus = document.getElementById('detail-status');
 const detailNotes = document.getElementById('detail-notes');
 
+// Elements for Dashboard
+const metricTotal = document.getElementById('metric-total');
+const metricNew = document.getElementById('metric-new');
+const metricProgress = document.getElementById('metric-progress');
+const metricRate = document.getElementById('metric-rate');
+const metricConverted = document.getElementById('metric-converted');
+const batchFilter = document.getElementById('batch-filter');
+const btnRefreshHistory = document.getElementById('btn-refresh-history');
+
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
     if (auth) {
@@ -96,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     uid: user.uid
                 };
                 checkAuth();
+                loadLeadHistory(); // Carrega histórico ao logar
             } else {
                 state.user = null;
                 checkAuth();
@@ -113,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateApiStatusUI();
-    renderTemplatesList();
+    // Renderiza inicialmente vazio ou cache
     updateSearchButtonState(); 
 });
 
@@ -124,14 +135,10 @@ function checkAuth() {
         appSection.classList.remove('hidden');
         document.getElementById('user-name-display').innerText = state.user.name;
         
-        const btnAdminAdd10 = document.getElementById('btn-admin-add-10');
-        
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
-            if(btnAdminAdd10) btnAdminAdd10.classList.remove('hidden');
         } else {
             btnAdminReset.classList.add('hidden');
-            if(btnAdminAdd10) btnAdminAdd10.classList.add('hidden');
         }
     } else {
         authSection.classList.remove('hidden');
@@ -191,14 +198,6 @@ function resetAccess() {
         updateSearchButtonState();
         alert("Saldo zerado.");
     }
-}
-
-function adminAdd10Leads() {
-    state.leadsBalance += 10;
-    localStorage.setItem('leads_balance', state.leadsBalance);
-    updateApiStatusUI();
-    updateSearchButtonState();
-    alert("10 Leads autorizados/adicionados com sucesso.");
 }
 
 // --- Gerenciamento de Templates ---
@@ -432,47 +431,70 @@ async function searchLeads(event) {
     leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
 
-    let leads = [];
+    // Create a new batch ID for this search
+    const batchId = Date.now().toString();
 
-    // Busca Real (se tiver saldo e chave)
+    let newLeads = [];
+
+    // Busca Real
     if (state.apiKey && state.leadsBalance > 0) {
-        leads = await fetchRealLeads(query, limit);
+        newLeads = await fetchRealLeads(query, limit);
         
-        if (leads.length > 0) {
-            state.leadsBalance -= leads.length;
+        if (newLeads.length > 0) {
+            state.leadsBalance -= newLeads.length;
             if (state.leadsBalance < 0) state.leadsBalance = 0;
             localStorage.setItem('leads_balance', state.leadsBalance);
             
             updateApiStatusUI();
             updateResultsBadge(true);
             
-            // NÃO SALVA MAIS AUTOMATICAMENTE NO FIREBASE AQUI
+            // Adiciona batchId e data aos leads antes de salvar
+            newLeads = newLeads.map(l => ({ ...l, batchId: batchId }));
+            
+            saveLeadsToFirestore(newLeads, niche, batchId);
         } else {
             updateResultsBadge(true); 
         }
     } else {
-        // Busca Fictícia
-        leads = generateMockLeads(niche, city, stateInput, limit);
+        // Busca Fictícia (não salva no banco)
+        newLeads = generateMockLeads(niche, city, stateInput, limit);
         updateResultsBadge(false);
     }
 
-    state.leads = leads;
-    renderLeads(leads);
+    // Atualiza estado: Adiciona novos ao topo ou substitui view se for "current search"
+    // Aqui vamos definir state.leads como o resultado atual para visualização imediata
+    state.leads = newLeads;
+    
+    // Se for real, adiciona ao histórico local também para manipulação rápida
+    if(state.apiKey && state.leadsBalance > 0) {
+        state.allLeads = [...newLeads, ...state.allLeads];
+        updateBatchSelector(); // Atualiza o dropdown com o novo lote
+    }
+
+    renderLeads(state.leads);
 }
 
 // --- Nova Função: Salvar Manual ---
 function saveCurrentLeadsManual() {
     if (state.leads.length === 0) {
-        return; // Silencioso se vazio
+        return; 
     }
     
     const niche = state.lastSearch.niche || "Nicho Geral";
-    saveLeadsToFirestore(state.leads, niche);
-    // Sem alert() conforme solicitado
+    const batchId = Date.now().toString();
+    
+    // Adiciona ID se não tiver (ex: simulados sendo salvos propositalmente? Normalmente não, mas ok)
+    // Se já tiver batchId (veio do real), mantém.
+    const leadsToSave = state.leads.map(l => ({
+        ...l,
+        batchId: l.batchId || batchId
+    }));
+
+    saveLeadsToFirestore(leadsToSave, niche, batchId);
 }
 
 // --- PERSISTÊNCIA FIREBASE ---
-async function saveLeadsToFirestore(leads, niche) {
+async function saveLeadsToFirestore(leads, niche, batchId) {
     if (!state.user || !state.user.uid) return;
 
     try {
@@ -482,24 +504,128 @@ async function saveLeadsToFirestore(leads, niche) {
             batch.set(docRef, {
                 ...lead,
                 searchNiche: niche,
-                leadStatus: 'Novo', // Status inicial padrão
+                batchId: batchId || Date.now().toString(),
+                leadStatus: 'Novo', 
                 followUpNotes: '',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
         await batch.commit();
         console.log("Leads salvos no Firebase com sucesso.");
+        // Atualiza histórico após salvar
+        setTimeout(loadLeadHistory, 1000); 
     } catch (error) {
         console.error("Erro ao salvar leads no Firebase:", error);
     }
 }
 
-// --- GERENCIAMENTO DE LEADS (NOVA FUNCIONALIDADE) ---
+// --- CARREGAR HISTÓRICO (DASHBOARD & FILTRO) ---
+async function loadLeadHistory() {
+    if (!state.user || !state.user.uid) return;
+    
+    try {
+        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
+            .orderBy('createdAt', 'desc')
+            .get();
+
+        const loadedLeads = [];
+        snapshot.forEach(doc => {
+            loadedLeads.push({ id: doc.id, ...doc.data() });
+        });
+
+        state.allLeads = loadedLeads;
+        updateBatchSelector();
+        // Se não tiver busca atual, mostra todos
+        if(state.leads.length === 0) {
+             state.leads = loadedLeads;
+             renderLeads(state.leads);
+        } else {
+             // Atualiza dashboard mesmo se estiver vendo busca atual
+             updateDashboardMetrics(state.leads);
+        }
+
+    } catch (error) {
+        console.error("Erro ao carregar histórico:", error);
+    }
+}
+
+function updateBatchSelector() {
+    // Agrupar leads por BatchId ou Data/Nicho
+    const batches = {};
+    
+    state.allLeads.forEach(lead => {
+        // Usa batchId se existir, senão agrupa por dia
+        let key = lead.batchId;
+        if (!key) {
+             // Fallback para leads antigos sem batchId
+             const date = lead.createdAt ? new Date(lead.createdAt.seconds * 1000).toLocaleDateString() : 'Antigos';
+             key = `${date}_${lead.searchNiche}`; 
+        }
+
+        if (!batches[key]) {
+            // Tenta pegar data legível
+            let labelDate = "Data Desconhecida";
+            if (lead.createdAt && lead.createdAt.seconds) {
+                 labelDate = new Date(lead.createdAt.seconds * 1000).toLocaleString();
+            }
+            batches[key] = {
+                id: key,
+                label: `${lead.searchNiche} - ${labelDate}`,
+                leads: []
+            };
+        }
+        batches[key].leads.push(lead);
+    });
+
+    // Popula o Select
+    batchFilter.innerHTML = '<option value="all">Todos os Leads</option>';
+    
+    Object.values(batches).forEach(batch => {
+        const option = document.createElement('option');
+        option.value = batch.id;
+        option.innerText = `${batch.label} (${batch.leads.length})`;
+        batchFilter.appendChild(option);
+    });
+
+    // Listener para filtro
+    batchFilter.onchange = (e) => {
+        const val = e.target.value;
+        if (val === 'all') {
+            state.leads = state.allLeads;
+        } else {
+            // Filtra localmente baseado no agrupamento feito
+            state.leads = batches[val].leads;
+        }
+        renderLeads(state.leads);
+    };
+    
+    // Atualiza botão de refresh
+    btnRefreshHistory.onclick = loadLeadHistory;
+}
+
+function updateDashboardMetrics(currentLeads) {
+    const total = currentLeads.length;
+    const novos = currentLeads.filter(l => !l.leadStatus || l.leadStatus === 'Novo').length;
+    const convertidos = currentLeads.filter(l => l.leadStatus === 'Convertido').length;
+    
+    // Em andamento: Contatado, Interessado, Negociação
+    const progressStatus = ['Contatado', 'Interessado', 'Negociação'];
+    const emAndamento = currentLeads.filter(l => progressStatus.includes(l.leadStatus)).length;
+
+    const rate = total > 0 ? ((convertidos / total) * 100).toFixed(1) : 0;
+
+    metricTotal.innerText = total;
+    metricNew.innerText = novos;
+    metricProgress.innerText = emAndamento;
+    metricConverted.innerText = convertidos;
+    metricRate.innerText = `${rate}%`;
+}
+
+// --- GERENCIAMENTO DE LEADS ---
 function openLeadDetails(index) {
     state.currentLeadIndex = index;
     const lead = state.leads[index];
     
-    // Preencher campos
     detailName.innerText = lead.name;
     detailNicheBadge.innerText = lead.niche;
     detailPhone.innerText = lead.phone || 'Não informado';
@@ -517,7 +643,6 @@ function openLeadDetails(index) {
     detailActivity.innerText = lead.niche;
     detailAddress.innerText = lead.address || "Endereço não disponível";
 
-    // Valores padrão ou salvos (se estivéssemos recarregando do banco, mas aqui é da sessão)
     detailStatus.value = lead.leadStatus || "Novo";
     detailNotes.value = lead.followUpNotes || "";
 
@@ -533,98 +658,57 @@ function saveLeadDetails() {
     lead.leadStatus = detailStatus.value;
     lead.followUpNotes = detailNotes.value;
     
-    // Feedback visual e fecha
-    alert("Alterações salvas localmente para este lead.");
-    leadDetailsModal.classList.add('hidden');
+    // Atualiza no Firebase se tiver ID (lead real)
+    if (lead.id && state.user) {
+        db.collection('users').doc(state.user.uid).collection('leads').doc(lead.id).update({
+            leadStatus: lead.leadStatus,
+            followUpNotes: lead.followUpNotes
+        }).then(() => {
+            console.log("Lead atualizado no Firebase");
+        }).catch(err => console.error(err));
+    }
     
-    // Re-renderiza para atualizar status visual na tabela
+    alert("Alterações salvas.");
+    leadDetailsModal.classList.add('hidden');
     renderLeads(state.leads);
 }
 
 function deleteLead(index) {
-    if (confirm("Tem certeza que deseja excluir este lead da lista atual?")) {
+    if (confirm("Tem certeza que deseja excluir este lead?")) {
+        const lead = state.leads[index];
+        
+        // Remove do Firebase se existir
+        if (lead.id && state.user) {
+            db.collection('users').doc(state.user.uid).collection('leads').doc(lead.id).delete()
+            .then(() => {
+                console.log("Lead deletado do Firebase");
+            }).catch(err => console.error(err));
+        }
+
+        // Remove local
         state.leads.splice(index, 1);
+        
+        // Remove do histórico global também para manter sinc
+        if (lead.id) {
+            state.allLeads = state.allLeads.filter(l => l.id !== lead.id);
+        }
+        
         renderLeads(state.leads);
-        document.getElementById('result-count').innerText = state.leads.length;
+        // Atualiza filtro para refletir contagem correta
+        updateBatchSelector();
     }
 }
 
-// --- GERENCIAMENTO DO BANCO DE LEADS (Modal - Código mantido mas não usado na UI) ---
-async function openDatabaseModal() {
-    if (!state.user) return alert("Você precisa estar logado.");
-    
-    databaseModal.classList.remove('hidden');
-    dbStatusMsg.innerText = "Carregando nichos...";
-    dbNicheSelect.innerHTML = '<option value="">Carregando...</option>';
-
-    try {
-        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads').get();
-        const niches = new Set();
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.searchNiche) niches.add(data.searchNiche);
-        });
-
-        dbNicheSelect.innerHTML = '<option value="">Selecione um Nicho</option>';
-        niches.forEach(niche => {
-            const option = document.createElement('option');
-            option.value = niche;
-            option.innerText = niche;
-            dbNicheSelect.appendChild(option);
-        });
-        
-        dbStatusMsg.innerText = "";
-    } catch (error) {
-        console.error("Erro ao carregar nichos:", error);
-        dbStatusMsg.innerText = "Erro ao carregar banco de dados.";
-        dbStatusMsg.style.color = "red";
-    }
+// --- Funções de Exportação ---
+function exportToCSV() {
+    if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
+    // Exporta o que está na tela (filtrado ou não)
+    exportDataToCSV(state.leads, `leads_export_${Date.now()}.csv`);
 }
 
-async function downloadAndDelete(type) {
-    const niche = dbNicheSelect.value;
-    if (!niche) return alert("Selecione um nicho para baixar e limpar.");
-
-    if (!confirm(`Tem certeza? Isso irá baixar os leads do nicho "${niche}" e apagá-los do sistema.`)) return;
-
-    dbStatusMsg.innerText = "Processando...";
-    
-    try {
-        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
-            .where('searchNiche', '==', niche)
-            .get();
-
-        if (snapshot.empty) {
-            dbStatusMsg.innerText = "Nenhum lead encontrado para este nicho.";
-            return;
-        }
-
-        const leadsData = [];
-        const batch = db.batch();
-
-        snapshot.forEach(doc => {
-            leadsData.push(doc.data());
-            batch.delete(doc.ref); 
-        });
-
-        if (type === 'csv') {
-            exportDataToCSV(leadsData, `db_leads_${niche}.csv`);
-        } else {
-            exportDataToXLSX(leadsData, `db_leads_${niche}.xlsx`);
-        }
-
-        await batch.commit();
-        
-        dbStatusMsg.innerText = "Sucesso! Leads baixados e removidos.";
-        dbStatusMsg.style.color = "green";
-        
-        setTimeout(openDatabaseModal, 1000);
-
-    } catch (error) {
-        console.error("Erro no processo:", error);
-        dbStatusMsg.innerText = "Erro ao processar. Tente novamente.";
-        dbStatusMsg.style.color = "red";
-    }
+function exportToXLSX() {
+    if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
+    exportDataToXLSX(state.leads, `leads_export_${Date.now()}.xlsx`);
 }
 
 // Funções auxiliares de exportação genérica
@@ -704,7 +788,7 @@ async function fetchRealLeads(query, limit) {
                 phone: place.phoneNumber || 'Não informado',
                 website: place.website,
                 rating: place.rating,
-                ratingCount: place.userRatingsTotal || 0 // Adicionado conforme solicitação
+                ratingCount: place.userRatingsTotal || 0 
             }));
         } else {
             return [];
@@ -742,6 +826,9 @@ function renderLeads(leads) {
     leadsBody.innerHTML = '';
     resultCount.innerText = leads.length;
 
+    // Atualiza dashboard sempre que renderizar
+    updateDashboardMetrics(leads);
+
     if (leads.length === 0) {
         leadsBody.innerHTML = '<tr><td colspan="6">Nenhum lead encontrado.</td></tr>';
         return;
@@ -750,8 +837,7 @@ function renderLeads(leads) {
     leads.forEach((lead, index) => {
         const row = document.createElement('tr');
         
-        // Configuração de Status
-        const status = lead.leadStatus || 'Novo'; // Se não tiver, é Novo
+        const status = lead.leadStatus || 'Novo';
         let statusClass = 'status-novo';
         if (status === 'Contatado') statusClass = 'status-contatado';
         if (status === 'Interessado') statusClass = 'status-interessado';
@@ -778,7 +864,6 @@ function renderLeads(leads) {
             </div>
         `;
 
-        // Formatação da primeira coluna (Nome + Status + Nicho/Endereço)
         const nameCell = `
             <strong>${lead.name}</strong> <span class="badge-status ${statusClass}">${status}</span>
             <div class="lead-sub-info">
@@ -830,17 +915,6 @@ function openMessageModal(leadIndex) {
     modal.classList.remove('hidden');
 }
 
-// --- Funções de Exportação (Panel) ---
-function exportToCSV() {
-    if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
-    exportDataToCSV(state.leads, `leads_${Date.now()}.csv`);
-}
-
-function exportToXLSX() {
-    if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
-    exportDataToXLSX(state.leads, `leads_${Date.now()}.xlsx`);
-}
-
 // --- Gerenciamento de Eventos UI ---
 function setupEventListeners() {
     document.getElementById('link-register').onclick = (e) => { e.preventDefault(); toggleAuthBox('register'); };
@@ -874,8 +948,8 @@ function setupEventListeners() {
         updateApiStatusUI();
     };
     
-    // REDIRECIONAMENTO DE BOTÃO DO HEADER
-    // AGORA CHAMA saveCurrentLeadsManual (salvar) em vez de openDatabaseModal (gerenciar/excluir)
+    // DB Modal (CÓDIGO ANTIGO MANTIDO, MAS SEM BOTÃO PARA CHAMAR)
+    // O botão do header agora chama saveCurrentLeadsManual
     document.getElementById('btn-database').onclick = saveCurrentLeadsManual;
     
     document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
@@ -885,11 +959,8 @@ function setupEventListeners() {
     document.getElementById('btn-save-details').onclick = saveLeadDetails;
     document.getElementById('btn-cancel-details').onclick = () => leadDetailsModal.classList.add('hidden');
     
-    // Botão Manual Save (Results Panel)
+    // Botão Manual Save
     document.getElementById('btn-save-manual').onclick = saveCurrentLeadsManual;
-    
-    // Botão Admin Add 10 Leads
-    document.getElementById('btn-admin-add-10').onclick = adminAdd10Leads;
 
     document.querySelector('.close-modal').onclick = () => document.getElementById('config-modal').classList.add('hidden');
     document.querySelector('.close-modal-db').onclick = () => document.getElementById('database-modal').classList.add('hidden');

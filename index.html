@@ -70,15 +70,12 @@
                     <span>Olá, <strong id="user-name-display">Visitante</strong></span>
                 </div>
                 <div class="header-actions">
-                    <!-- Botões Admin (Invisíveis por padrão) -->
-                    <button id="btn-admin-add-10" class="btn-outline hidden" style="border-color: green; color: green;">
-                        <i class="fas fa-plus-circle"></i> +10 Leads (Admin)
-                    </button>
+                    <!-- Botão Admin (Invisível por padrão) -->
                     <button id="btn-admin-reset" class="btn-outline hidden" style="border-color: red; color: red;">
                         <i class="fas fa-trash"></i> Zerar Saldo (Admin)
                     </button>
                     
-                    <!-- Botão de Gerenciamento do Banco (Abre Modal) -->
+                    <!-- Botão Salvar Leads -->
                     <button id="btn-database" class="btn-primary-outline"><i class="fas fa-save"></i> Salvar Leads</button>
                     
                     <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
@@ -175,9 +172,51 @@
             </div>
 
             <div class="results-panel hidden" id="results-panel">
+                
+                <!-- PAINEL RESUMIDO DE INDICADORES (NOVO) -->
+                <div class="dashboard-stats">
+                    <div class="dash-header">
+                        <h3><i class="fas fa-chart-pie"></i> Resumo de Leads</h3>
+                    </div>
+                    <div class="dash-grid">
+                        <div class="dash-card">
+                            <span class="dash-label">Total de Leads</span>
+                            <span class="dash-value" id="metric-total">0</span>
+                            <span class="dash-sub">Base Completa</span>
+                        </div>
+                        <div class="dash-card">
+                            <span class="dash-label">Novos Leads</span>
+                            <span class="dash-value text-blue" id="metric-new">0</span>
+                            <span class="dash-sub">Aguardando Contato</span>
+                        </div>
+                        <div class="dash-card">
+                            <span class="dash-label">Em Andamento</span>
+                            <span class="dash-value text-orange" id="metric-progress">0</span>
+                            <span class="dash-sub">Ativos no Funil</span>
+                        </div>
+                        <div class="dash-card">
+                            <span class="dash-label">Taxa de Conversão</span>
+                            <span class="dash-value text-green" id="metric-rate">0,0%</span>
+                            <span class="dash-sub">Convertidos: <span id="metric-converted">0</span></span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="results-header">
-                    <h2>Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
-                    <!-- BOTÕES DE EXPORTAÇÃO DA BUSCA ATUAL -->
+                    <div class="header-left">
+                        <h2>Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span></h2>
+                        <!-- SELETOR DE HISTÓRICO (NOVO) -->
+                        <div class="batch-filter-container">
+                            <select id="batch-filter" class="form-select-sm">
+                                <option value="current">Busca Atual</option>
+                                <option disabled>-- Histórico Salvo --</option>
+                                <!-- Opções populadas via JS -->
+                            </select>
+                            <button id="btn-refresh-history" class="btn-icon" title="Atualizar Histórico"><i class="fas fa-sync-alt"></i></button>
+                        </div>
+                    </div>
+                    
+                    <!-- BOTÕES DE EXPORTAÇÃO -->
                     <div class="export-buttons">
                         <!-- NOVO BOTÃO: SALVAR LEADS (SILENCIOSO) -->
                         <button id="btn-save-manual" class="btn-outline btn-sm btn-save-action"><i class="fas fa-cloud-upload-alt"></i> Salvar Leads</button>
