@@ -67,7 +67,7 @@ const dataSourceBadge = document.getElementById('data-source-badge');
 const btnWhatsappRequest = document.getElementById('btn-whatsapp-request');
 const leadsQuantityInput = document.getElementById('leads-quantity');
 
-// Elements for Database Modal (UNUSED BY TRIGGER, BUT KEPT IN CODE)
+// Elements for Database Modal
 const databaseModal = document.getElementById('database-modal');
 const dbNicheSelect = document.getElementById('db-niche-select');
 const dbStatusMsg = document.getElementById('db-status-msg');
@@ -124,10 +124,14 @@ function checkAuth() {
         appSection.classList.remove('hidden');
         document.getElementById('user-name-display').innerText = state.user.name;
         
+        const btnAdminAdd10 = document.getElementById('btn-admin-add-10');
+        
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
+            if(btnAdminAdd10) btnAdminAdd10.classList.remove('hidden');
         } else {
             btnAdminReset.classList.add('hidden');
+            if(btnAdminAdd10) btnAdminAdd10.classList.add('hidden');
         }
     } else {
         authSection.classList.remove('hidden');
@@ -187,6 +191,14 @@ function resetAccess() {
         updateSearchButtonState();
         alert("Saldo zerado.");
     }
+}
+
+function adminAdd10Leads() {
+    state.leadsBalance += 10;
+    localStorage.setItem('leads_balance', state.leadsBalance);
+    updateApiStatusUI();
+    updateSearchButtonState();
+    alert("10 Leads autorizados/adicionados com sucesso.");
 }
 
 // --- Gerenciamento de Templates ---
@@ -434,8 +446,7 @@ async function searchLeads(event) {
             updateApiStatusUI();
             updateResultsBadge(true);
             
-            // Salvar Automaticamente? NÃO MAIS. Agora é manual.
-            // saveLeadsToFirestore(leads, niche); 
+            // NÃO SALVA MAIS AUTOMATICAMENTE NO FIREBASE AQUI
         } else {
             updateResultsBadge(true); 
         }
@@ -455,9 +466,7 @@ function saveCurrentLeadsManual() {
         return; // Silencioso se vazio
     }
     
-    // Pega o nicho atual ou "Nicho Geral" se não tiver
     const niche = state.lastSearch.niche || "Nicho Geral";
-    
     saveLeadsToFirestore(state.leads, niche);
     // Sem alert() conforme solicitado
 }
@@ -485,7 +494,7 @@ async function saveLeadsToFirestore(leads, niche) {
     }
 }
 
-// --- GERENCIAMENTO DE LEADS ---
+// --- GERENCIAMENTO DE LEADS (NOVA FUNCIONALIDADE) ---
 function openLeadDetails(index) {
     state.currentLeadIndex = index;
     const lead = state.leads[index];
@@ -542,7 +551,6 @@ function deleteLead(index) {
 
 // --- GERENCIAMENTO DO BANCO DE LEADS (Modal - Código mantido mas não usado na UI) ---
 async function openDatabaseModal() {
-    // Código mantido mas inacessível pela UI atual conforme solicitado
     if (!state.user) return alert("Você precisa estar logado.");
     
     databaseModal.classList.remove('hidden');
@@ -879,6 +887,9 @@ function setupEventListeners() {
     
     // Botão Manual Save (Results Panel)
     document.getElementById('btn-save-manual').onclick = saveCurrentLeadsManual;
+    
+    // Botão Admin Add 10 Leads
+    document.getElementById('btn-admin-add-10').onclick = adminAdd10Leads;
 
     document.querySelector('.close-modal').onclick = () => document.getElementById('config-modal').classList.add('hidden');
     document.querySelector('.close-modal-db').onclick = () => document.getElementById('database-modal').classList.add('hidden');
