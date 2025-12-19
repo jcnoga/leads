@@ -202,7 +202,6 @@ main {
 /* Botão desabilitado vermelho */
 .btn-disabled-red {
     background-color: var(--error) !important;
-    /* cursor: not-allowed !important; */ 
 }
 
 .btn-secondary {
@@ -240,6 +239,44 @@ main {
     padding: 6px 12px;
     font-size: 0.9rem;
 }
+
+.btn-manage {
+    background-color: #f3f4f6;
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-right: 5px;
+}
+.btn-manage:hover {
+    background-color: #e5e7eb;
+}
+
+.btn-delete {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.btn-delete:hover {
+    background-color: #fecaca;
+}
+
+.btn-save-action {
+    background-color: #e0f2fe;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+}
+.btn-save-action:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
 
 #btn-export-xlsx:hover {
     color: var(--excel-color);
@@ -362,6 +399,60 @@ main {
     margin-left: 5px;
 }
 
+/* STATUS BADGES */
+.badge-status {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    margin-left: 8px;
+    display: inline-block;
+}
+
+.status-novo {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.status-contatado {
+    background-color: #ffedd5;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+}
+
+.status-interessado {
+    background-color: #fef9c3;
+    color: #854d0e;
+    border: 1px solid #fde047;
+}
+
+.status-negociacao {
+    background-color: #f3e8ff;
+    color: #6b21a8;
+    border: 1px solid #d8b4fe;
+}
+
+.status-convertido {
+    background-color: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.status-nao-interessado {
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+/* Lead Sub Info */
+.lead-sub-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
 .export-buttons {
     display: flex;
     gap: 10px;
@@ -381,6 +472,7 @@ th, td {
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid var(--border);
+    vertical-align: top;
 }
 
 th {
@@ -391,6 +483,11 @@ th {
 td a {
     color: var(--primary-color);
     text-decoration: none;
+}
+
+td .actions-cell {
+    display: flex;
+    gap: 5px;
 }
 
 /* Modal */
@@ -422,7 +519,7 @@ td a {
     max-width: 700px;
 }
 
-.close-modal, .close-modal-msg, .close-modal-db {
+.close-modal, .close-modal-msg, .close-modal-db, .close-modal-details {
     position: absolute;
     top: 10px;
     right: 15px;
@@ -631,6 +728,75 @@ td a {
 .btn-excel:hover {
     background-color: var(--excel-color);
     color: white;
+}
+
+/* Lead Details Modal Styles */
+.lead-details-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.detail-header {
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.badge-niche {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.detail-section h4 {
+    color: var(--secondary-color);
+    margin-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 5px;
+}
+
+.detail-row {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.detail-row-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.detail-address-box {
+    background: #f8fafc;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.highlight-section {
+    background-color: #f0fdf4;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #bbf7d0;
+}
+
+.modal-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 15px;
 }
 
 /* Footer */

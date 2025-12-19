@@ -1,10 +1,9 @@
 /**
  * GERADOR DE LEADS PROFISSIONAL
- * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads + Firebase DB)
+ * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads + Firebase DB + Gestão Detalhada)
  */
 
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
-// SUBSTITUA COM SUAS CHAVES REAIS DO FIREBASE CONSOLE
 const firebaseConfig = {
     apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
     authDomain: "projeto-bfed3.firebaseapp.com",
@@ -30,7 +29,8 @@ const state = {
     leads: [],
     lastSearch: { niche: '', city: '', state: '' },
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
-    challengeNumber: 0
+    challengeNumber: 0,
+    currentLeadIndex: null // Para gerenciar edição
 };
 
 // --- Inicializa Firebase ---
@@ -67,10 +67,23 @@ const dataSourceBadge = document.getElementById('data-source-badge');
 const btnWhatsappRequest = document.getElementById('btn-whatsapp-request');
 const leadsQuantityInput = document.getElementById('leads-quantity');
 
-// Elements for Database Modal
+// Elements for Database Modal (UNUSED BY TRIGGER, BUT KEPT IN CODE)
 const databaseModal = document.getElementById('database-modal');
 const dbNicheSelect = document.getElementById('db-niche-select');
 const dbStatusMsg = document.getElementById('db-status-msg');
+
+// Elements for Lead Details Modal
+const leadDetailsModal = document.getElementById('lead-details-modal');
+const detailName = document.getElementById('detail-name');
+const detailNicheBadge = document.getElementById('detail-niche-badge');
+const detailPhone = document.getElementById('detail-phone');
+const detailWebsite = document.getElementById('detail-website');
+const detailRating = document.getElementById('detail-rating');
+const detailRatingCount = document.getElementById('detail-rating-count');
+const detailActivity = document.getElementById('detail-activity');
+const detailAddress = document.getElementById('detail-address');
+const detailStatus = document.getElementById('detail-status');
+const detailNotes = document.getElementById('detail-notes');
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -414,7 +427,6 @@ async function searchLeads(event) {
         leads = await fetchRealLeads(query, limit);
         
         if (leads.length > 0) {
-            // Desconta saldo
             state.leadsBalance -= leads.length;
             if (state.leadsBalance < 0) state.leadsBalance = 0;
             localStorage.setItem('leads_balance', state.leadsBalance);
@@ -422,8 +434,8 @@ async function searchLeads(event) {
             updateApiStatusUI();
             updateResultsBadge(true);
             
-            // SALVA NO FIREBASE
-            saveLeadsToFirestore(leads, niche);
+            // Salvar Automaticamente? NÃO MAIS. Agora é manual.
+            // saveLeadsToFirestore(leads, niche); 
         } else {
             updateResultsBadge(true); 
         }
@@ -437,6 +449,19 @@ async function searchLeads(event) {
     renderLeads(leads);
 }
 
+// --- Nova Função: Salvar Manual ---
+function saveCurrentLeadsManual() {
+    if (state.leads.length === 0) {
+        return; // Silencioso se vazio
+    }
+    
+    // Pega o nicho atual ou "Nicho Geral" se não tiver
+    const niche = state.lastSearch.niche || "Nicho Geral";
+    
+    saveLeadsToFirestore(state.leads, niche);
+    // Sem alert() conforme solicitado
+}
+
 // --- PERSISTÊNCIA FIREBASE ---
 async function saveLeadsToFirestore(leads, niche) {
     if (!state.user || !state.user.uid) return;
@@ -448,6 +473,8 @@ async function saveLeadsToFirestore(leads, niche) {
             batch.set(docRef, {
                 ...lead,
                 searchNiche: niche,
+                leadStatus: 'Novo', // Status inicial padrão
+                followUpNotes: '',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
@@ -458,8 +485,64 @@ async function saveLeadsToFirestore(leads, niche) {
     }
 }
 
-// --- GERENCIAMENTO DO BANCO DE LEADS ---
+// --- GERENCIAMENTO DE LEADS ---
+function openLeadDetails(index) {
+    state.currentLeadIndex = index;
+    const lead = state.leads[index];
+    
+    // Preencher campos
+    detailName.innerText = lead.name;
+    detailNicheBadge.innerText = lead.niche;
+    detailPhone.innerText = lead.phone || 'Não informado';
+    
+    if (lead.website) {
+        detailWebsite.href = lead.website;
+        detailWebsite.innerText = lead.website;
+    } else {
+        detailWebsite.href = "#";
+        detailWebsite.innerText = "Não disponível";
+    }
+
+    detailRating.innerText = lead.rating ? `${lead.rating} / 5,0` : "N/A";
+    detailRatingCount.innerText = lead.ratingCount || "0";
+    detailActivity.innerText = lead.niche;
+    detailAddress.innerText = lead.address || "Endereço não disponível";
+
+    // Valores padrão ou salvos (se estivéssemos recarregando do banco, mas aqui é da sessão)
+    detailStatus.value = lead.leadStatus || "Novo";
+    detailNotes.value = lead.followUpNotes || "";
+
+    leadDetailsModal.classList.remove('hidden');
+}
+
+function saveLeadDetails() {
+    if (state.currentLeadIndex === null) return;
+    
+    const lead = state.leads[state.currentLeadIndex];
+    
+    // Atualiza estado local
+    lead.leadStatus = detailStatus.value;
+    lead.followUpNotes = detailNotes.value;
+    
+    // Feedback visual e fecha
+    alert("Alterações salvas localmente para este lead.");
+    leadDetailsModal.classList.add('hidden');
+    
+    // Re-renderiza para atualizar status visual na tabela
+    renderLeads(state.leads);
+}
+
+function deleteLead(index) {
+    if (confirm("Tem certeza que deseja excluir este lead da lista atual?")) {
+        state.leads.splice(index, 1);
+        renderLeads(state.leads);
+        document.getElementById('result-count').innerText = state.leads.length;
+    }
+}
+
+// --- GERENCIAMENTO DO BANCO DE LEADS (Modal - Código mantido mas não usado na UI) ---
 async function openDatabaseModal() {
+    // Código mantido mas inacessível pela UI atual conforme solicitado
     if (!state.user) return alert("Você precisa estar logado.");
     
     databaseModal.classList.remove('hidden');
@@ -467,7 +550,6 @@ async function openDatabaseModal() {
     dbNicheSelect.innerHTML = '<option value="">Carregando...</option>';
 
     try {
-        // Busca todos os leads para extrair nichos únicos (não eficiente para muitos dados, mas funcional para MVP)
         const snapshot = await db.collection('users').doc(state.user.uid).collection('leads').get();
         const niches = new Set();
         snapshot.forEach(doc => {
@@ -500,7 +582,6 @@ async function downloadAndDelete(type) {
     dbStatusMsg.innerText = "Processando...";
     
     try {
-        // 1. Buscar Leads
         const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
             .where('searchNiche', '==', niche)
             .get();
@@ -515,23 +596,20 @@ async function downloadAndDelete(type) {
 
         snapshot.forEach(doc => {
             leadsData.push(doc.data());
-            batch.delete(doc.ref); // Prepara para deletar
+            batch.delete(doc.ref); 
         });
 
-        // 2. Exportar
         if (type === 'csv') {
             exportDataToCSV(leadsData, `db_leads_${niche}.csv`);
         } else {
             exportDataToXLSX(leadsData, `db_leads_${niche}.xlsx`);
         }
 
-        // 3. Deletar do banco
         await batch.commit();
         
         dbStatusMsg.innerText = "Sucesso! Leads baixados e removidos.";
         dbStatusMsg.style.color = "green";
         
-        // Atualiza lista
         setTimeout(openDatabaseModal, 1000);
 
     } catch (error) {
@@ -543,9 +621,9 @@ async function downloadAndDelete(type) {
 
 // Funções auxiliares de exportação genérica
 function exportDataToCSV(data, filename) {
-    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating"];
+    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating", "Status", "Notas"];
     const rows = data.map(lead => [
-        `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`
+        `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`, `"${lead.leadStatus || ''}"`, `"${lead.followUpNotes || ''}"`
     ]);
     let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
     rows.forEach(row => csvContent += row.join(",") + "\r\n");
@@ -565,7 +643,9 @@ function exportDataToXLSX(data, filename) {
         "Endereço": lead.address,
         "Telefone": lead.phone,
         "Site": lead.website || "",
-        "Avaliação": lead.rating || ""
+        "Avaliação": lead.rating || "",
+        "Status": lead.leadStatus || "",
+        "Notas": lead.followUpNotes || ""
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
     const workbook = XLSX.utils.book_new();
@@ -615,7 +695,8 @@ async function fetchRealLeads(query, limit) {
                 address: place.address,
                 phone: place.phoneNumber || 'Não informado',
                 website: place.website,
-                rating: place.rating
+                rating: place.rating,
+                ratingCount: place.userRatingsTotal || 0 // Adicionado conforme solicitação
             }));
         } else {
             return [];
@@ -641,7 +722,8 @@ function generateMockLeads(niche, city, uf, count) {
             address: location,
             phone: fakePhone,
             website: `https://www.exemplo${i}.com.br`,
-            rating: (Math.random() * 2 + 3).toFixed(1)
+            rating: (Math.random() * 2 + 3).toFixed(1),
+            ratingCount: Math.floor(Math.random() * 200) // Simulado
         });
     }
     return leads;
@@ -659,21 +741,50 @@ function renderLeads(leads) {
 
     leads.forEach((lead, index) => {
         const row = document.createElement('tr');
+        
+        // Configuração de Status
+        const status = lead.leadStatus || 'Novo'; // Se não tiver, é Novo
+        let statusClass = 'status-novo';
+        if (status === 'Contatado') statusClass = 'status-contatado';
+        if (status === 'Interessado') statusClass = 'status-interessado';
+        if (status === 'Negociação') statusClass = 'status-negociacao';
+        if (status === 'Convertido') statusClass = 'status-convertido';
+        if (status === 'Não interessado') statusClass = 'status-nao-interessado';
+
+        // Link Site
         const siteLink = lead.website 
             ? `<a href="${lead.website}" target="_blank"><i class="fas fa-external-link-alt"></i> Visitar</a>` 
             : '<span class="text-muted">-</span>';
 
-        const whatsappLink = lead.phone !== 'Não informado' 
-            ? `<button class="btn-action" onclick="openMessageModal(${index})"><i class="fab fa-whatsapp"></i> Abordar</button>`
-            : '<span class="text-muted">Sem fone</span>';
+        // Botão Abordar (Whats)
+        const whatsappLink = lead.phone && lead.phone !== 'Não informado' 
+            ? `<button class="btn-action" onclick="openMessageModal(${index})" title="Gerar Abordagem"><i class="fab fa-whatsapp"></i></button>`
+            : '<button class="btn-action" disabled style="opacity:0.5"><i class="fab fa-whatsapp"></i></button>';
+
+        // Botões de Ação
+        const actions = `
+            <div class="actions-cell">
+                ${whatsappLink}
+                <button class="btn-manage" onclick="openLeadDetails(${index})" title="Gerenciar Lead"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteLead(${index})" title="Excluir Lead"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        `;
+
+        // Formatação da primeira coluna (Nome + Status + Nicho/Endereço)
+        const nameCell = `
+            <strong>${lead.name}</strong> <span class="badge-status ${statusClass}">${status}</span>
+            <div class="lead-sub-info">
+                ${lead.niche} • ${lead.address}
+            </div>
+        `;
 
         row.innerHTML = `
-            <td><strong>${lead.name}</strong></td>
-            <td>${lead.niche}</td>
-            <td>${lead.address}</td>
-            <td>${lead.phone}</td>
-            <td>${siteLink}</td>
-            <td>${whatsappLink}</td>
+            <td>${nameCell}</td>
+            <td>
+                <div><i class="fas fa-phone"></i> ${lead.phone}</div>
+                <div style="font-size:0.85rem">${siteLink}</div>
+            </td>
+            <td>${actions}</td>
         `;
         leadsBody.appendChild(row);
     });
@@ -755,13 +866,23 @@ function setupEventListeners() {
         updateApiStatusUI();
     };
     
-    // DB Modal
-    document.getElementById('btn-database').onclick = openDatabaseModal;
+    // REDIRECIONAMENTO DE BOTÃO DO HEADER
+    // AGORA CHAMA saveCurrentLeadsManual (salvar) em vez de openDatabaseModal (gerenciar/excluir)
+    document.getElementById('btn-database').onclick = saveCurrentLeadsManual;
+    
     document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
     document.getElementById('btn-download-delete-xlsx').onclick = () => downloadAndDelete('xlsx');
     
+    // Lead Details Modal
+    document.getElementById('btn-save-details').onclick = saveLeadDetails;
+    document.getElementById('btn-cancel-details').onclick = () => leadDetailsModal.classList.add('hidden');
+    
+    // Botão Manual Save (Results Panel)
+    document.getElementById('btn-save-manual').onclick = saveCurrentLeadsManual;
+
     document.querySelector('.close-modal').onclick = () => document.getElementById('config-modal').classList.add('hidden');
     document.querySelector('.close-modal-db').onclick = () => document.getElementById('database-modal').classList.add('hidden');
+    document.querySelector('.close-modal-details').onclick = () => document.getElementById('lead-details-modal').classList.add('hidden');
     document.querySelector('.close-modal-msg').onclick = () => document.getElementById('message-modal').classList.add('hidden');
 
     document.getElementById('save-api-key').onclick = validateAndSaveApiKey;

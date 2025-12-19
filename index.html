@@ -75,8 +75,8 @@
                         <i class="fas fa-trash"></i> Zerar Saldo (Admin)
                     </button>
                     
-                    <!-- NOVO BOTÃO: Banco de Dados -->
-                    <button id="btn-database" class="btn-primary-outline"><i class="fas fa-database"></i> Banco de Leads</button>
+                    <!-- BOTÃO RENOMEADO -->
+                    <button id="btn-database" class="btn-primary-outline"><i class="fas fa-save"></i> Salvar Leads</button>
                     
                     <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
                     <button id="btn-logout" class="btn-outline">Sair</button>
@@ -176,6 +176,9 @@
                     <h2>Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
                     <!-- BOTÕES DE EXPORTAÇÃO DA BUSCA ATUAL -->
                     <div class="export-buttons">
+                        <!-- NOVO BOTÃO: SALVAR LEADS (SILENCIOSO) -->
+                        <button id="btn-save-manual" class="btn-outline btn-sm btn-save-action"><i class="fas fa-cloud-upload-alt"></i> Salvar Leads</button>
+                        
                         <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
                         <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
                     </div>
@@ -185,11 +188,8 @@
                     <table id="leads-table">
                         <thead>
                             <tr>
-                                <th>Nome do Negócio</th>
-                                <th>Nicho</th>
-                                <th>Localização</th>
+                                <th>Lead / Detalhes</th>
                                 <th>Contato</th>
-                                <th>Digital</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -282,11 +282,11 @@
             </div>
         </div>
 
-        <!-- NOVO MODAL: Gerenciar Banco de Leads -->
+        <!-- MODAL: Gerenciar Banco de Leads (Exportar e Limpar) -->
         <div id="database-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-db">&times;</span>
-                <h3>📦 Gerenciar Banco de Leads</h3>
+                <h3>📦 Salvar Leads (Banco de Dados)</h3>
                 <p>Selecione um nicho para baixar e remover do banco de dados.</p>
                 
                 <div class="db-filter-box">
@@ -306,6 +306,77 @@
                 </div>
                 
                 <div id="db-status-msg" class="validation-msg" style="margin-top:10px;"></div>
+            </div>
+        </div>
+
+        <!-- NOVO MODAL: Detalhes e Gerenciamento do Lead -->
+        <div id="lead-details-modal" class="modal hidden">
+            <div class="modal-content large-modal">
+                <span class="close-modal-details">&times;</span>
+                <h3><i class="fas fa-user-edit"></i> Gerenciar Lead</h3>
+                
+                <div class="lead-details-grid">
+                    <!-- Nome do Lead -->
+                    <div class="detail-header">
+                        <h2 id="detail-name">Nome do Negócio</h2>
+                        <span id="detail-niche-badge" class="badge-niche">Nicho</span>
+                    </div>
+
+                    <!-- Seção Contato -->
+                    <div class="detail-section">
+                        <h4>📞 Contato</h4>
+                        <div class="detail-row">
+                            <strong>Telefone / WhatsApp:</strong>
+                            <span id="detail-phone">...</span>
+                        </div>
+                        <div class="detail-row">
+                            <strong>Website:</strong>
+                            <a href="#" id="detail-website" target="_blank">...</a>
+                        </div>
+                    </div>
+
+                    <!-- Seção Observações -->
+                    <div class="detail-section">
+                        <h4>📌 Observações</h4>
+                        <div class="detail-row-grid">
+                            <div>⭐ Avaliação: <span id="detail-rating">...</span></div>
+                            <div>📝 Total de avaliações: <span id="detail-rating-count">...</span></div>
+                            <div>📍 Atividade: <span id="detail-activity">...</span></div>
+                        </div>
+                        <div class="detail-address-box">
+                            <strong>🏢 Endereço:</strong>
+                            <p id="detail-address">...</p>
+                        </div>
+                    </div>
+
+                    <!-- Seção Gerenciar -->
+                    <div class="detail-section highlight-section">
+                        <h4>🗂️ Gerenciar Lead</h4>
+                        
+                        <div class="form-group">
+                            <label for="detail-status">Status do Lead:</label>
+                            <select id="detail-status">
+                                <option value="Novo">Novo</option>
+                                <option value="Contatado">Contatado</option>
+                                <option value="Interessado">Interessado</option>
+                                <option value="Negociação">Negociação</option>
+                                <option value="Convertido">Convertido</option>
+                                <option value="Não interessado">Não interessado</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="detail-notes">Notas de Follow-up:</label>
+                            <textarea id="detail-notes" rows="4" placeholder="Adicione observações sobre o contato, próximos passos..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="modal-actions">
+                    <button id="btn-cancel-details" class="btn-outline">Cancelar</button>
+                    <button id="btn-save-details" class="btn-primary">Salvar Alterações</button>
+                </div>
             </div>
         </div>
 
