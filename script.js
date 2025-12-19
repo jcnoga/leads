@@ -62,7 +62,6 @@ const resultCount = document.getElementById('result-count');
 const messageTemplateInput = document.getElementById('message-template-input');
 const btnAdminReset = document.getElementById('btn-admin-reset');
 const btnSearchLeads = document.getElementById('btn-search-leads');
-const dataSourceBadge = document.getElementById('data-source-badge');
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -248,7 +247,6 @@ function renderTemplatesList() {
 
 // --- Validação e Gerenciamento da API ---
 function isApiExpired() {
-    // Se não tem chave ou não tem data de validade definida, considera "expirado/inativo"
     if (!state.apiKey) return true; 
     if (!state.apiExpiry) return true; 
     const now = new Date().getTime();
@@ -259,11 +257,9 @@ function updateSearchButtonState() {
     const isExpired = isApiExpired();
     
     if (isExpired) {
-        // Agora o botão PERMANECE ATIVO, mas com aviso visual de "Modo Simulado"
-        // removemos a classe btn-disabled-red e o disabled = true da versão anterior
-        btnSearchLeads.disabled = false;
-        btnSearchLeads.classList.remove('btn-disabled-red');
-        btnSearchLeads.innerHTML = '<i class="fas fa-search"></i> Buscar Leads (Modo Simulação)';
+        btnSearchLeads.disabled = true;
+        btnSearchLeads.classList.add('btn-disabled-red');
+        btnSearchLeads.innerHTML = '<i class="fas fa-lock"></i> Licença Expirada/Pendente - Ative nas Configurações';
     } else {
         btnSearchLeads.disabled = false;
         btnSearchLeads.classList.remove('btn-disabled-red');
@@ -290,7 +286,7 @@ function updateApiStatusUI() {
         apiStatusSuccess.classList.remove('hidden');
         const expiryDate = new Date(parseInt(state.apiExpiry));
         apiExpiryDateSpan.innerText = expiryDate.toLocaleDateString();
-        // Mantém a área de revalidação disponível caso queira renovar
+        // Área de revalidação disponível caso queira renovar antecipado
         document.getElementById('revalidation-area').classList.remove('hidden'); 
     }
     updateSearchButtonState();
@@ -323,6 +319,7 @@ async function validateAndSaveApiKey() {
         msg.style.color = "orange";
         
         updateApiStatusUI();
+        // Modal não fecha automaticamente para forçar visão da liberação
     } else {
         msg.innerText = "Chave Inválida ou erro de conexão. Verifique e tente novamente.";
         msg.style.color = "red";
@@ -381,6 +378,12 @@ function verifyChallenge() {
 async function searchLeads(event) {
     event.preventDefault();
     
+    // Verificação de segurança
+    if (isApiExpired() && state.apiKey) {
+        alert("Licença expirada ou pendente de ativação. Por favor, libere o acesso nas configurações.");
+        return;
+    }
+    
     const niche = document.getElementById('niche').value;
     const city = document.getElementById('city').value;
     const stateInput = document.getElementById('state').value;
@@ -394,33 +397,15 @@ async function searchLeads(event) {
 
     let leads = [];
 
-    // Lógica principal: Verifica se tem chave E se não expirou
+    // Lógica principal
     if (state.apiKey && !isApiExpired()) {
         leads = await fetchRealLeads(query, limit);
-        updateResultsBadge(true); // Dados Reais
     } else {
-        // Se não tem chave OU está expirada -> Dados Fictícios
         leads = generateMockLeads(niche, city, stateInput, limit);
-        updateResultsBadge(false); // Dados Simulados
-        
-        // Notificação opcional
-        if (state.apiKey && isApiExpired()) {
-            console.log("Licença não ativa. Exibindo dados simulados.");
-        }
     }
 
     state.leads = leads;
     renderLeads(leads);
-}
-
-function updateResultsBadge(isReal) {
-    if (isReal) {
-        dataSourceBadge.innerText = "(Dados Reais)";
-        dataSourceBadge.className = "badge-real";
-    } else {
-        dataSourceBadge.innerText = "(Dados Simulados)";
-        dataSourceBadge.className = "badge-fictitious";
-    }
 }
 
 // --- Integração API Serper ---
@@ -529,7 +514,6 @@ function openMessageModal(leadIndex) {
     const textArea = document.getElementById('generated-message');
     const btnWhats = document.getElementById('btn-send-whatsapp');
 
-    // Usa o template que está no campo da tela principal (já editado pelo usuário)
     const templateInput = document.getElementById('message-template-input').value;
 
     const nichoVal = state.lastSearch.niche || lead.niche;
