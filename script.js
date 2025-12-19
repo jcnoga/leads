@@ -1,22 +1,19 @@
 /**
  * GERADOR DE LEADS PROFISSIONAL
- * Lógica da Aplicação Atualizada
+ * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads)
  */
 
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
-// SUBSTITUA COM SUAS CHAVES REAIS DO FIREBASE CONSOLE
 const firebaseConfig = {
-  apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
-  authDomain: "projeto-bfed3.firebaseapp.com",
-  projectId: "projeto-bfed3",
-  storageBucket: "projeto-bfed3.firebasestorage.app",
-  messagingSenderId: "785289237066",
-  appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
+    apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
+    authDomain: "projeto-bfed3.firebaseapp.com",
+    projectId: "projeto-bfed3",
+    storageBucket: "projeto-bfed3.firebasestorage.app",
+    messagingSenderId: "785289237066",
+    appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
 };
 
-
 // --- Configurações Iniciais ---
-const API_VALIDITY_DAYS = 30;
 const ADMIN_EMAIL = "jcnvap@gmail.com";
 const DEFAULT_TEMPLATE_TEXT = "Olá, tudo bem? 👋\nNotei que você atua como {nicho} em {cidade} {estado} e identifiquei que o seu negócio possui um grande potencial para atrair mais clientes por meio de algumas ações estratégicas no ambiente digital.\nTrabalho ajudando profissionais do seu setor a gerar mais oportunidades e fortalecer a presença online. Posso te mostrar um exemplo simples, sem compromisso?";
 
@@ -27,8 +24,8 @@ const DEFAULT_TEMPLATES = [
 // --- Estado da Aplicação ---
 const state = {
     apiKey: localStorage.getItem('serper_api_key') || '',
-    apiExpiry: localStorage.getItem('serper_api_expiry') || null,
-    user: null, // Será preenchido pelo Firebase Auth
+    leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0, // NOVO: Saldo de leads
+    user: null, 
     leads: [],
     lastSearch: { niche: '', city: '', state: '' },
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
@@ -41,7 +38,7 @@ try {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
 } catch (e) {
-    console.error("Erro ao inicializar Firebase. Verifique a configuração.", e);
+    console.error("Erro ao inicializar Firebase.", e);
 }
 
 // --- Elementos do DOM ---
@@ -54,7 +51,7 @@ const forgotBox = document.getElementById('forgot-box');
 const apiStatusWarning = document.getElementById('api-status-warning');
 const apiStatusSuccess = document.getElementById('api-status-success');
 const apiStatusExpired = document.getElementById('api-status-expired');
-const apiExpiryDateSpan = document.getElementById('api-expiry-date');
+const leadsBalanceDisplay = document.getElementById('leads-balance-display');
 
 const leadsBody = document.getElementById('leads-body');
 const resultsPanel = document.getElementById('results-panel');
@@ -64,9 +61,11 @@ const btnAdminReset = document.getElementById('btn-admin-reset');
 const btnSearchLeads = document.getElementById('btn-search-leads');
 const dataSourceBadge = document.getElementById('data-source-badge');
 
+const btnWhatsappRequest = document.getElementById('btn-whatsapp-request');
+const leadsQuantityInput = document.getElementById('leads-quantity');
+
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Monitora estado do Firebase Auth
     if (auth) {
         auth.onAuthStateChanged((user) => {
             if (user) {
@@ -85,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
     
-    // Carrega template salvo ou padrão
+    // Recuperar template
     const savedMsg = localStorage.getItem('current_draft_message');
     if (savedMsg) {
         messageTemplateInput.value = savedMsg;
@@ -98,14 +97,13 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSearchButtonState(); 
 });
 
-// --- Autenticação (Firebase) ---
+// --- Autenticação ---
 function checkAuth() {
     if (state.user) {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         document.getElementById('user-name-display').innerText = state.user.name;
         
-        // Verifica se é admin
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
         } else {
@@ -129,13 +127,16 @@ function register(name, email, password) {
     if (!auth) return alert("Firebase não configurado.");
     auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-            // Atualiza nome do usuário
+            // Brinde Inicial: 100 Leads
+            localStorage.setItem('leads_balance', 100);
+            state.leadsBalance = 100;
+
             return userCredential.user.updateProfile({
                 displayName: name
             });
         })
         .then(() => {
-            alert("Conta criada com sucesso!");
+            alert("Conta criada com sucesso! Você ganhou 100 leads de brinde.");
             toggleAuthBox('login');
         })
         .catch((error) => {
@@ -144,9 +145,7 @@ function register(name, email, password) {
 }
 
 function logout() {
-    if (auth) {
-        auth.signOut();
-    }
+    if (auth) auth.signOut();
 }
 
 function resetPassword(email) {
@@ -163,12 +162,12 @@ function resetPassword(email) {
 
 // --- Funções de Admin ---
 function resetAccess() {
-    if (confirm("ADMIN: Tem certeza que deseja zerar a validade da licença?")) {
-        state.apiExpiry = 0; 
-        localStorage.removeItem('serper_api_expiry');
+    if (confirm("ADMIN: Deseja zerar o saldo de leads?")) {
+        state.leadsBalance = 0; 
+        localStorage.setItem('leads_balance', 0);
         updateApiStatusUI();
         updateSearchButtonState();
-        alert("Acesso zerado. A API agora consta como expirada.");
+        alert("Saldo zerado.");
     }
 }
 
@@ -200,7 +199,6 @@ function saveNewTemplate() {
     state.templates.push(newTpl);
     localStorage.setItem('msg_templates', JSON.stringify(state.templates));
     
-    // Limpar campos
     document.getElementById('new-template-name').value = '';
     document.getElementById('new-template-content').value = '';
     
@@ -246,28 +244,21 @@ function renderTemplatesList() {
     });
 }
 
-// --- Validação e Gerenciamento da API ---
-function isApiExpired() {
-    // Se não tem chave ou não tem data de validade definida, considera "expirado/inativo"
-    if (!state.apiKey) return true; 
-    if (!state.apiExpiry) return true; 
-    const now = new Date().getTime();
-    return now > parseInt(state.apiExpiry);
+// --- Validação e Gerenciamento da API e Leads ---
+function isApiActive() {
+    // API Ativa se: Tiver chave E saldo > 0
+    return (state.apiKey && state.leadsBalance > 0);
 }
 
 function updateSearchButtonState() {
-    const isExpired = isApiExpired();
-    
-    if (isExpired) {
-        // Agora o botão PERMANECE ATIVO, mas com aviso visual de "Modo Simulado"
-        // removemos a classe btn-disabled-red e o disabled = true da versão anterior
-        btnSearchLeads.disabled = false;
-        btnSearchLeads.classList.remove('btn-disabled-red');
-        btnSearchLeads.innerHTML = '<i class="fas fa-search"></i> Buscar Leads (Modo Simulação)';
-    } else {
-        btnSearchLeads.disabled = false;
-        btnSearchLeads.classList.remove('btn-disabled-red');
+    // Botão sempre habilitado, mas muda o texto indicativo
+    btnSearchLeads.disabled = false;
+    btnSearchLeads.classList.remove('btn-disabled-red');
+
+    if (isApiActive()) {
         btnSearchLeads.innerHTML = '<i class="fas fa-search"></i> Buscar Leads';
+    } else {
+        btnSearchLeads.innerHTML = '<i class="fas fa-search"></i> Buscar Leads (Modo Simulação)';
     }
 }
 
@@ -276,23 +267,27 @@ function updateApiStatusUI() {
     apiStatusWarning.classList.add('hidden');
     apiStatusSuccess.classList.add('hidden');
     apiStatusExpired.classList.add('hidden');
-    document.getElementById('revalidation-area').classList.add('hidden');
-
+    
+    // Área de recarga sempre disponível se houver chave
+    const revalidationArea = document.getElementById('revalidation-area');
+    
     if (!state.apiKey) {
         apiStatusWarning.classList.remove('hidden');
+        revalidationArea.classList.add('hidden'); // Sem chave, não mostra recarga
+        updateSearchButtonState();
         return;
     }
 
-    if (isApiExpired()) {
-        apiStatusExpired.classList.remove('hidden');
-        document.getElementById('revalidation-area').classList.remove('hidden'); 
-    } else {
+    // Tem chave. Verifica Saldo.
+    revalidationArea.classList.remove('hidden'); 
+
+    if (state.leadsBalance > 0) {
         apiStatusSuccess.classList.remove('hidden');
-        const expiryDate = new Date(parseInt(state.apiExpiry));
-        apiExpiryDateSpan.innerText = expiryDate.toLocaleDateString();
-        // Mantém a área de revalidação disponível caso queira renovar
-        document.getElementById('revalidation-area').classList.remove('hidden'); 
+        leadsBalanceDisplay.innerText = state.leadsBalance;
+    } else {
+        apiStatusExpired.classList.remove('hidden');
     }
+    
     updateSearchButtonState();
 }
 
@@ -309,24 +304,20 @@ async function validateAndSaveApiKey() {
     msg.innerText = "Validando chave...";
     msg.style.color = "blue";
 
-    // Teste real na API
     const isValid = await testApiKey(key);
 
     if (isValid) {
         state.apiKey = key;
         localStorage.setItem('serper_api_key', key);
         
-        // AQUI A MUDANÇA: Apenas salva, NÃO concede 30 dias.
-        // O usuário deve usar a seção de "Liberação de Acesso"
-        
-        msg.innerText = "Chave salva com sucesso! Utilize a área abaixo para liberar os 30 dias de acesso.";
+        msg.innerText = "Chave salva com sucesso! Adquira créditos abaixo para usar dados reais.";
         msg.style.color = "orange";
         
         updateApiStatusUI();
     } else {
-        msg.innerText = "Chave Inválida ou erro de conexão. Verifique e tente novamente.";
+        msg.innerText = "Chave Inválida. Verifique e tente novamente.";
         msg.style.color = "red";
-        alert("A chave informada não é válida na API de Busca.");
+        alert("A chave informada não é válida.");
     }
 }
 
@@ -335,7 +326,6 @@ async function testApiKey(key) {
     const myHeaders = new Headers();
     myHeaders.append("X-API-KEY", key);
     myHeaders.append("Content-Type", "application/json");
-
     const raw = JSON.stringify({ "q": "test" });
 
     try {
@@ -346,45 +336,73 @@ async function testApiKey(key) {
         });
         return response.ok; 
     } catch (error) {
-        console.error(error);
         return false;
     }
 }
 
-// --- Revalidação Matemática ---
+// --- Recarga de Leads (Matemática Atualizada) ---
 function generateChallenge() {
     state.challengeNumber = Math.floor(Math.random() * 901) + 100;
     document.getElementById('challenge-number').innerText = state.challengeNumber;
     document.getElementById('challenge-response').value = '';
+    updateWhatsappLink();
 }
 
-function verifyChallenge() {
-    const userResponse = parseInt(document.getElementById('challenge-response').value);
-    const expected = (state.challengeNumber + 13) * 9 + 1954;
-
-    if (userResponse === expected) {
-        alert("Contra-senha correta! Acesso liberado por 30 dias.");
-        
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + API_VALIDITY_DAYS);
-        state.apiExpiry = expiryDate.getTime();
-        localStorage.setItem('serper_api_expiry', state.apiExpiry);
-        
-        updateApiStatusUI();
-        document.getElementById('config-modal').classList.add('hidden');
-    } else {
-        alert("Contra-senha incorreta. Tente novamente.");
+function updateWhatsappLink() {
+    const qty = document.getElementById('leads-quantity').value;
+    const code = state.challengeNumber;
+    if (qty && code) {
+        const text = `Olá, gostaria de adquirir ${qty} leads. Meu código de solicitação é: ${code}.`;
+        btnWhatsappRequest.href = `https://wa.me/5534997824990?text=${encodeURIComponent(text)}`;
     }
 }
 
-// --- Lógica de Busca de Leads ---
+function verifyChallenge() {
+    const responseInput = document.getElementById('challenge-response').value.trim();
+    // Formato esperado: HASH-QTD
+    
+    if (!responseInput.includes('-')) {
+        return alert("Formato inválido. Use o formato fornecido pelo suporte (Ex: 12345-500).");
+    }
+
+    const parts = responseInput.split('-');
+    if (parts.length !== 2) return alert("Formato inválido.");
+
+    const providedHash = parseInt(parts[0]);
+    const leadsQty = parseInt(parts[1]);
+
+    if (isNaN(providedHash) || isNaN(leadsQty)) return alert("Código inválido.");
+
+    // Fórmula: (random + 13) * 9 + 1954 + leads
+    const expectedHash = (state.challengeNumber + 13) * 9 + 1954 + leadsQty;
+
+    if (providedHash === expectedHash) {
+        state.leadsBalance += leadsQty;
+        localStorage.setItem('leads_balance', state.leadsBalance);
+        
+        alert(`Sucesso! ${leadsQty} leads adicionados ao seu saldo.`);
+        
+        updateApiStatusUI();
+        document.getElementById('config-modal').classList.add('hidden');
+        
+        // Limpa campos
+        document.getElementById('leads-quantity').value = '';
+        document.getElementById('challenge-response').value = '';
+        state.challengeNumber = 0;
+        document.getElementById('challenge-number').innerText = '---';
+    } else {
+        alert("Contra-senha incorreta.");
+    }
+}
+
+// --- Lógica de Busca ---
 async function searchLeads(event) {
     event.preventDefault();
     
     const niche = document.getElementById('niche').value;
     const city = document.getElementById('city').value;
     const stateInput = document.getElementById('state').value;
-    const limit = document.getElementById('limit').value;
+    const limit = parseInt(document.getElementById('limit').value);
 
     state.lastSearch = { niche, city, state: stateInput };
 
@@ -394,19 +412,27 @@ async function searchLeads(event) {
 
     let leads = [];
 
-    // Lógica principal: Verifica se tem chave E se não expirou
-    if (state.apiKey && !isApiExpired()) {
+    // SE Tiver Chave E Saldo > 0 -> Busca Real
+    if (state.apiKey && state.leadsBalance > 0) {
+        // Tenta buscar reais
         leads = await fetchRealLeads(query, limit);
-        updateResultsBadge(true); // Dados Reais
-    } else {
-        // Se não tem chave OU está expirada -> Dados Fictícios
-        leads = generateMockLeads(niche, city, stateInput, limit);
-        updateResultsBadge(false); // Dados Simulados
         
-        // Notificação opcional
-        if (state.apiKey && isApiExpired()) {
-            console.log("Licença não ativa. Exibindo dados simulados.");
+        if (leads.length > 0) {
+            // Desconta saldo
+            state.leadsBalance -= leads.length;
+            if (state.leadsBalance < 0) state.leadsBalance = 0;
+            localStorage.setItem('leads_balance', state.leadsBalance);
+            
+            updateApiStatusUI(); // Atualiza contador na tela
+            updateResultsBadge(true); // Badge Real
+        } else {
+            // Se API real não retornou nada, mantém badge neutro ou avisa
+            updateResultsBadge(true); 
         }
+    } else {
+        // Sem chave OU sem saldo -> Busca Fictícia
+        leads = generateMockLeads(niche, city, stateInput, limit);
+        updateResultsBadge(false); // Badge Simulado
     }
 
     state.leads = leads;
@@ -462,7 +488,7 @@ async function fetchRealLeads(query, limit) {
         }
     } catch (error) {
         console.error('Erro na requisição:', error);
-        alert('Erro ao conectar com a API de Busca. Verifique se sua chave ainda é válida.');
+        alert('Erro ao conectar com a API. Verifique sua conexão.');
         return [];
     }
 }
@@ -470,10 +496,8 @@ async function fetchRealLeads(query, limit) {
 // --- Gerador de Dados Fictícios ---
 function generateMockLeads(niche, city, uf, count) {
     const leads = [];
-    const suffixes = ['Soluções', 'Associados', 'Consultoria', 'Comércio', 'Services', 'Ltda'];
-    
     for (let i = 0; i < count; i++) {
-        const fakeName = `${niche} ${suffixes[Math.floor(Math.random() * suffixes.length)]} ${i + 1}`;
+        const fakeName = `${niche} Exemplar ${i + 1}`;
         const fakePhone = `(34) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
         const location = city ? `${city} - ${uf}` : `Cidade Exemplo - ${uf || 'BR'}`;
         
@@ -501,7 +525,6 @@ function renderLeads(leads) {
 
     leads.forEach((lead, index) => {
         const row = document.createElement('tr');
-        
         const siteLink = lead.website 
             ? `<a href="${lead.website}" target="_blank"><i class="fas fa-external-link-alt"></i> Visitar</a>` 
             : '<span class="text-muted">-</span>';
@@ -522,14 +545,12 @@ function renderLeads(leads) {
     });
 }
 
-// --- Gerador de Mensagens Dinâmico ---
 function openMessageModal(leadIndex) {
     const lead = state.leads[leadIndex];
     const modal = document.getElementById('message-modal');
     const textArea = document.getElementById('generated-message');
     const btnWhats = document.getElementById('btn-send-whatsapp');
 
-    // Usa o template que está no campo da tela principal (já editado pelo usuário)
     const templateInput = document.getElementById('message-template-input').value;
 
     const nichoVal = state.lastSearch.niche || lead.niche;
@@ -542,7 +563,6 @@ function openMessageModal(leadIndex) {
         .replace(/{estado}/g, estadoVal);
 
     message = message.replace(/\s+/g, ' ').trim();
-
     textArea.value = message;
     
     const cleanPhone = lead.phone.replace(/\D/g, '');
@@ -554,26 +574,22 @@ function openMessageModal(leadIndex) {
         btnWhats.href = "#";
         btnWhats.classList.add('hidden');
     }
-
     modal.classList.remove('hidden');
 }
 
 // --- Funções de Exportação ---
 function exportToCSV() {
     if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
-
     const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating"];
     const rows = state.leads.map(lead => [
         `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`
     ]);
-
     let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
     rows.forEach(row => csvContent += row.join(",") + "\r\n");
-
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `leads_${state.lastSearch.niche}_${Date.now()}.csv`);
+    link.setAttribute("download", `leads_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -581,7 +597,6 @@ function exportToCSV() {
 
 function exportToXLSX() {
     if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
-
     const dataForSheet = state.leads.map(lead => ({
         "Nome do Negócio": lead.name,
         "Nicho": lead.niche,
@@ -590,16 +605,14 @@ function exportToXLSX() {
         "Site": lead.website || "",
         "Avaliação": lead.rating || ""
     }));
-
     const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-    XLSX.writeFile(workbook, `leads_${state.lastSearch.niche}_${Date.now()}.xlsx`);
+    XLSX.writeFile(workbook, `leads_${Date.now()}.xlsx`);
 }
 
 // --- Gerenciamento de Eventos UI ---
 function setupEventListeners() {
-    // Auth
     document.getElementById('link-register').onclick = (e) => { e.preventDefault(); toggleAuthBox('register'); };
     document.getElementById('link-login-reg').onclick = (e) => { e.preventDefault(); toggleAuthBox('login'); };
     document.getElementById('link-forgot').onclick = (e) => { e.preventDefault(); toggleAuthBox('forgot'); };
@@ -619,15 +632,12 @@ function setupEventListeners() {
     };
     document.getElementById('btn-logout').onclick = logout;
 
-    // Search
     document.getElementById('lead-search-form').onsubmit = searchLeads;
 
-    // Persistência template
     messageTemplateInput.addEventListener('input', () => {
         localStorage.setItem('current_draft_message', messageTemplateInput.value);
     });
 
-    // Modals & Config
     document.getElementById('btn-config').onclick = () => {
         document.getElementById('api-key-input').value = state.apiKey;
         document.getElementById('config-modal').classList.remove('hidden');
@@ -639,7 +649,6 @@ function setupEventListeners() {
     document.getElementById('save-api-key').onclick = validateAndSaveApiKey;
     document.getElementById('btn-admin-reset').onclick = resetAccess;
     
-    // Config Tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -649,18 +658,16 @@ function setupEventListeners() {
         });
     });
 
-    // Revalidation Logic
     document.getElementById('btn-revalidate-trigger').onclick = () => {
         document.getElementById('btn-config').click();
     };
     document.getElementById('btn-generate-challenge').onclick = generateChallenge;
     document.getElementById('btn-verify-challenge').onclick = verifyChallenge;
+    document.getElementById('leads-quantity').addEventListener('input', updateWhatsappLink);
 
-    // Template Actions
     document.getElementById('btn-save-template').onclick = saveNewTemplate;
     document.getElementById('btn-load-default-msg').onclick = loadDefaultMessage;
 
-    // Messages & Exports
     document.getElementById('copy-message').onclick = () => {
         const text = document.getElementById('generated-message');
         text.select();

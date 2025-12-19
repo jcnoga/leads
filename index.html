@@ -7,10 +7,12 @@
     <link rel="stylesheet" href="style.css">
     <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- FIREBASE SDKs (Adicionado para compatibilidade com GitHub/Firebase) -->
+	    <!-- FIREBASE SDKs (Adicionado para compatibilidade com GitHub/Firebase) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <!-- Biblioteca para Exportar Excel (SheetJS) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -68,7 +70,7 @@
                 <div class="header-actions">
                     <!-- Botão Admin (Invisível por padrão) -->
                     <button id="btn-admin-reset" class="btn-outline hidden" style="border-color: red; color: red;">
-                        <i class="fas fa-ban"></i> Zerar Licença (Admin)
+                        <i class="fas fa-trash"></i> Zerar Saldo (Admin)
                     </button>
                     
                     <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
@@ -147,16 +149,20 @@
                     <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
                 </form>
                 
-                <!-- Status da API -->
+                <!-- Status da API / Leads -->
                 <div id="api-status-warning" class="warning-box hidden">
                     <i class="fas fa-exclamation-triangle"></i> 
                     <span id="api-warning-text">Chave API não configurada. Exibindo <strong>leads fictícios</strong>.</span>
                 </div>
+                
                 <div id="api-status-success" class="success-box hidden">
-                    <i class="fas fa-check-circle"></i> API Ativa e Válida (Expira em: <span id="api-expiry-date"></span>)
+                    <i class="fas fa-database"></i> 
+                    <span style="flex:1;">API Ativa. <strong>Saldo de Leads: <span id="leads-balance-display">0</span></strong></span>
                 </div>
+
                 <div id="api-status-expired" class="error-box hidden">
-                    <i class="fas fa-clock"></i> Licença de 30 dias não ativa. Modo Simulação. <button id="btn-revalidate-trigger" class="btn-link">Ativar Agora</button>
+                    <i class="fas fa-ban"></i> 
+                    <span>Saldo de Leads Esgotado (0). Modo Simulação Ativo. <button id="btn-revalidate-trigger" class="btn-link">Recarregar</button></span>
                 </div>
             </div>
 
@@ -197,7 +203,7 @@
                 <h3>Configurações do Sistema</h3>
                 
                 <div class="config-tabs">
-                    <button class="tab-btn active" data-tab="tab-api">API & Acesso</button>
+                    <button class="tab-btn active" data-tab="tab-api">API & Leads</button>
                     <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
                 </div>
 
@@ -205,31 +211,45 @@
                 <div id="tab-api" class="tab-content active">
                     <div class="config-section">
                         <h4>Configuração da API de Busca</h4>
-                        <p>Insira sua chave da API de Busca para habilitar a conexão.</p>
+                        <p>Insira sua chave da API de Busca para habilitar a conexão com dados reais.</p>
                         <input type="text" id="api-key-input" placeholder="Cole sua API Key aqui (ex: 8847d...)">
                         <button id="save-api-key" class="btn-primary">Salvar a chave</button>
                         <p id="api-validation-msg" class="validation-msg"></p>
-                        
-                        <div class="api-help">
-                            <p>Não tem uma chave?</p>
-                            <a href="https://wa.me/5534997824990?text=Olá,%20gostaria%20de%20solicitar%20a%20chave%20API%20para%20o%20Gerador%20de%20Leads." target="_blank" class="btn-whatsapp">
-                                <i class="fab fa-whatsapp"></i> Solicitar Chave API pelo WhatsApp
-                            </a>
-                        </div>
                     </div>
 
-                    <!-- Área de Revalidação -->
+                    <!-- Área de Recarga de Leads -->
                     <div id="revalidation-area" class="config-section hidden revalidation-box">
-                        <h4>🔐 Liberação de Acesso (Senha/Contra-Senha)</h4>
-                        <p>Para ativar os 30 dias de acesso a dados reais, gere o código e informe a contra-senha.</p>
-                        <div class="challenge-box">
-                            <p>Número Gerado: <strong id="challenge-number" class="highlight-number">---</strong></p>
-                            <button id="btn-generate-challenge" class="btn-secondary">Gerar Número</button>
-                        </div>
-                        <div class="response-box">
-                            <label>Contra-senha:</label>
-                            <input type="number" id="challenge-response" placeholder="Informe a Contra-Senha">
-                            <button id="btn-verify-challenge" class="btn-primary">Liberar Acesso</button>
+                        <h4>💎 Recarga de Leads (Senha/Contra-Senha)</h4>
+                        <p>Para adicionar leads ao seu saldo, siga os passos:</p>
+                        
+                        <div class="recharge-steps">
+                            <div class="step-box">
+                                <label>1. Código Gerado:</label>
+                                <div class="challenge-row">
+                                    <strong id="challenge-number" class="highlight-number">---</strong>
+                                    <button id="btn-generate-challenge" class="btn-secondary btn-sm">Gerar</button>
+                                </div>
+                            </div>
+
+                            <div class="step-box">
+                                <label>2. Quero adquirir (Qtd):</label>
+                                <input type="number" id="leads-quantity" placeholder="Ex: 500" min="1">
+                            </div>
+
+                            <div class="step-box full">
+                                <label>3. Solicitar Contra-senha:</label>
+                                <a href="#" id="btn-whatsapp-request" target="_blank" class="btn-whatsapp">
+                                    <i class="fab fa-whatsapp"></i> Enviar Código e Pedido via WhatsApp
+                                </a>
+                            </div>
+
+                            <div class="step-box full">
+                                <label>4. Inserir Contra-senha:</label>
+                                <div class="response-box">
+                                    <input type="text" id="challenge-response" placeholder="Ex: 12345-500">
+                                    <button id="btn-verify-challenge" class="btn-primary">Ativar Leads</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
