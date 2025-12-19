@@ -7,14 +7,10 @@
     <link rel="stylesheet" href="style.css">
     <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
     <!-- FIREBASE SDKs (Adicionado para compatibilidade com GitHub/Firebase) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-    <!-- Biblioteca para Exportar Excel (SheetJS) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -147,7 +143,7 @@
                         </div>
                     </div>
 
-                    <!-- Botão de Busca com ID específico para controle de estado -->
+                    <!-- Botão de Busca -->
                     <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
                 </form>
                 
@@ -160,13 +156,13 @@
                     <i class="fas fa-check-circle"></i> API Ativa e Válida (Expira em: <span id="api-expiry-date"></span>)
                 </div>
                 <div id="api-status-expired" class="error-box hidden">
-                    <i class="fas fa-clock"></i> Licença de 30 dias Expirada. <button id="btn-revalidate-trigger" class="btn-link">Revalidar Agora</button>
+                    <i class="fas fa-clock"></i> Licença de 30 dias não ativa. Modo Simulação. <button id="btn-revalidate-trigger" class="btn-link">Ativar Agora</button>
                 </div>
             </div>
 
             <div class="results-panel hidden" id="results-panel">
                 <div class="results-header">
-                    <h2>Resultados Encontrados <span id="result-count">0</span></h2>
+                    <h2>Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
                     <!-- BOTÕES DE EXPORTAÇÃO -->
                     <div class="export-buttons">
                         <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
@@ -209,7 +205,7 @@
                 <div id="tab-api" class="tab-content active">
                     <div class="config-section">
                         <h4>Configuração da API de Busca</h4>
-                        <p>Insira sua chave da API de Busca (provedor externo) para obter dados reais.</p>
+                        <p>Insira sua chave da API de Busca para habilitar a conexão.</p>
                         <input type="text" id="api-key-input" placeholder="Cole sua API Key aqui (ex: 8847d...)">
                         <button id="save-api-key" class="btn-primary">Salvar a chave</button>
                         <p id="api-validation-msg" class="validation-msg"></p>
@@ -225,7 +221,7 @@
                     <!-- Área de Revalidação -->
                     <div id="revalidation-area" class="config-section hidden revalidation-box">
                         <h4>🔐 Liberação de Acesso (Senha/Contra-Senha)</h4>
-                        <p>Para ativar ou renovar os 30 dias de acesso a dados reais, gere o código e informe a contra-senha.</p>
+                        <p>Para ativar os 30 dias de acesso a dados reais, gere o código e informe a contra-senha.</p>
                         <div class="challenge-box">
                             <p>Número Gerado: <strong id="challenge-number" class="highlight-number">---</strong></p>
                             <button id="btn-generate-challenge" class="btn-secondary">Gerar Número</button>

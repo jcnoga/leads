@@ -329,6 +329,26 @@ main {
     gap: 10px;
 }
 
+.badge-fictitious {
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    border: 1px solid #fed7aa;
+    margin-left: 5px;
+}
+
+.badge-real {
+    background-color: var(--success-bg);
+    color: var(--success-text);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    border: 1px solid #bbf7d0;
+    margin-left: 5px;
+}
+
 .export-buttons {
     display: flex;
     gap: 10px;
