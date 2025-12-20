@@ -254,8 +254,8 @@
                             <label for="api-provider-select">Selecione a Chave:</label>
                             <select id="api-provider-select" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
                                 <option value="">-- Selecionar --</option>
-                                <option value="KEY_1">Chave 1 (Serper)</option>
-                                <option value="KEY_2">Chave 2 (SerpAPI)</option>
+                                <option value="KEY_1">Chave 1</option> 
+                                <option value="KEY_2">Chave 2</option>
                             </select>
                         </div>
                         
@@ -394,18 +394,18 @@
                     <div class="detail-section highlight-section">
                         <h4>🗂️ Gerenciar Lead</h4>
                         
-                        <div class="form-group">
-                            <label for="detail-status">Status do Lead:</label>
-                            <select id="detail-status">
-                                <option value="Novo">Novo</option>
-                                <option value="Contatado">Contatado</option>
-                                <option value="Interessado">Interessado</option>
-                                <option value="Negociação">Negociação</option>
-                                <option value="Convertido">Convertido</option>
-                                <option value="Não interessado">Não interessado</option>
-                            </select>
-                        </div>
-
+<!-- Certifique-se que esta parte no index.html está assim: -->
+<div class="form-group">
+    <label for="detail-status">Status do Lead:</label>
+    <select id="detail-status">
+        <option value="Novo">Novo</option>
+        <option value="Contatado">Contatado</option>
+        <option value="Interessado">Interessado</option>
+        <option value="Negociação">Negociação</option> <!-- Com acento -->
+        <option value="Convertido">Convertido</option>
+        <option value="Não interessado">Não interessado</option> <!-- Com acento -->
+    </select>
+</div>
                         <div class="form-group">
                             <label for="detail-notes">Notas de Follow-up:</label>
                             <textarea id="detail-notes" rows="4" placeholder="Adicione observações sobre o contato, próximos passos..."></textarea>

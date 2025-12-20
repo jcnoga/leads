@@ -31,9 +31,9 @@ const DEFAULT_TEMPLATES = [
 
 // --- Estado da Aplicação ---
 const state = {
-    // Carrega a preferência de provedor, mas usa as chaves do código
-    providerId: localStorage.getItem('selected_provider_id') || '', 
-    apiKey: '', // Será preenchido dinamicamente baseado no providerId
+    // ALTERAÇÃO: Se não houver provider salvo, define KEY_1 como padrão
+    providerId: localStorage.getItem('selected_provider_id') || 'KEY_1', 
+    apiKey: '', // Será preenchido dinamicamente abaixo
     leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0,
     user: null, 
     leads: [],
@@ -43,9 +43,13 @@ const state = {
     currentLeadIndex: null 
 };
 
-// Inicializa a apiKey correta se houver provider salvo
+// Inicializa a apiKey correta (Garante que a Chave 1 carregue no inicio se for o padrão)
 if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
     state.apiKey = API_KEYS_CONFIG[state.providerId];
+    // Se for o primeiro acesso e definiu KEY_1 padrão, salva no storage para persistência futura
+    if (!localStorage.getItem('selected_provider_id')) {
+        localStorage.setItem('selected_provider_id', 'KEY_1');
+    }
 }
 
 // --- Inicializa Firebase ---
@@ -69,7 +73,7 @@ const apiStatusWarning = document.getElementById('api-status-warning');
 const apiStatusSuccess = document.getElementById('api-status-success');
 const apiStatusExpired = document.getElementById('api-status-expired');
 const leadsBalanceDisplay = document.getElementById('leads-balance-display');
-const apiProviderBadge = document.getElementById('api-provider-badge'); // Novo badge
+const apiProviderBadge = document.getElementById('api-provider-badge');
 
 const leadsBody = document.getElementById('leads-body');
 const resultsPanel = document.getElementById('results-panel');
@@ -175,14 +179,16 @@ function register(name, email, password) {
     if (!auth) return alert("Firebase não configurado.");
     auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-            localStorage.setItem('leads_balance', 100);
-            state.leadsBalance = 100;
+            // ALTERAÇÃO: Alterado de 100 para 50 leads iniciais
+            localStorage.setItem('leads_balance', 50);
+            state.leadsBalance = 50;
             return userCredential.user.updateProfile({
                 displayName: name
             });
         })
         .then(() => {
-            alert("Conta criada com sucesso! Você ganhou 100 leads de brinde.");
+            // ALTERAÇÃO: Mensagem atualizada para 50
+            alert("Conta criada com sucesso! Você ganhou 50 leads de brinde.");
             toggleAuthBox('login');
         })
         .catch((error) => {
@@ -336,7 +342,6 @@ function updateApiStatusUI() {
         apiStatusSuccess.classList.remove('hidden');
         leadsBalanceDisplay.innerText = state.leadsBalance;
         
-        // Atualiza badge do provedor
         if (apiProviderBadge) {
             apiProviderBadge.innerText = state.providerId === 'KEY_2' ? 'SerpAPI' : 'Serper';
         }
@@ -369,7 +374,6 @@ async function validateAndSaveApiKey() {
     msg.innerText = "Validando chave...";
     msg.style.color = "blue";
 
-    // Simulação de validação da chave (ou teste real se possível)
     state.providerId = selectedProvider;
     state.apiKey = key;
     localStorage.setItem('selected_provider_id', selectedProvider);
@@ -453,12 +457,10 @@ async function searchLeads(event) {
     let leads = [];
 
     if (state.apiKey && state.leadsBalance > 0) {
-        
-        // Decide qual função chamar baseado na chave selecionada
         if (state.providerId === 'KEY_2') {
-            leads = await fetchSerpAPILeads(query, limit); // Nova função
+            leads = await fetchSerpAPILeads(query, limit); 
         } else {
-            leads = await fetchSerperLeads(query, limit); // Função existente (renomeada/mantida)
+            leads = await fetchSerperLeads(query, limit);
         }
         
         if (leads.length > 0) {
@@ -732,7 +734,6 @@ function updateResultsBadge(isReal) {
 }
 
 // --- INTEGRAÇÃO API 1: SERPER (CHAVE 1) ---
-// Função existente, apenas renomeada para clareza (compatível com chave 1)
 async function fetchSerperLeads(query, limit) {
     const url = 'https://google.serper.dev/places';
     
@@ -779,18 +780,14 @@ async function fetchSerperLeads(query, limit) {
 }
 
 // --- INTEGRAÇÃO API 2: SERPAPI (CHAVE 2) ---
-// Nova função solicitada
 async function fetchSerpAPILeads(query, limit) {
-    // URL base da SerpAPI
-    // Nota: Geralmente SerpAPI requer proxy para chamadas frontend por CORS, ou uso de JSONP/Bibliotecas.
-    // Implementação direta via fetch assumindo que o ambiente suporte ou use proxy.
     const baseUrl = 'https://serpapi.com/search.json';
     const params = new URLSearchParams({
         engine: 'google_local',
         q: query,
         hl: 'pt-br',
         gl: 'br',
-        num: limit, // SerpAPI usa 'num' para limite
+        num: limit, 
         api_key: state.apiKey
     });
 
@@ -845,8 +842,16 @@ function generateMockLeads(niche, city, uf, count) {
 }
 
 // --- Renderização ---
+
+// NOVA FUNÇÃO: Remove acentos para garantir compatibilidade com classes CSS
+function removeAccents(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function getStatusClass(status) {
-    const slug = status.toLowerCase().replace(/\s+/g, '-');
+    // Ajustado para remover acentos antes de criar a classe
+    // Ex: "Negociação" -> "negociacao" -> "status-negociacao"
+    const slug = removeAccents(status.toLowerCase()).replace(/\s+/g, '-');
     return `status-${slug}`;
 }
 
