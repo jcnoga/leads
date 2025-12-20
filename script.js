@@ -26,7 +26,7 @@ const DEFAULT_TEMPLATES = [
     { id: 'default', name: 'Padrão do Sistema', content: DEFAULT_TEMPLATE_TEXT, isDefault: true }
 ];
 
-// --- Estado da Aplicação ---
+// --- Estado da Aplicação (Atualizado) ---
 const state = {
     providerId: localStorage.getItem('selected_provider_id') || 'KEY_1', 
     apiKey: '', 
@@ -37,7 +37,11 @@ const state = {
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
     challengeNumber: 0,
     currentLeadIndex: null,
-    appMode: localStorage.getItem('app_mode') || 'hybrid' 
+    appMode: localStorage.getItem('app_mode') || 'hybrid',
+    // NOVO: Controle de Paginação
+    currentPage: 1,
+    itemsPerPage: 10,
+    isShowingSaved: false 
 };
 
 // Inicializa a apiKey correta
@@ -116,6 +120,10 @@ const btnBackup = document.getElementById('btn-backup');
 const btnRestoreTrigger = document.getElementById('btn-restore-trigger');
 const restoreFileInput = document.getElementById('restore-file-input');
 const btnSaveDbDirect = document.getElementById('btn-save-db-direct');
+// Elementos para Listagem
+const btnShowSavedLeads = document.getElementById('btn-show-saved-leads');
+const paginationControls = document.getElementById('pagination-controls');
+const resultsTitle = document.getElementById('results-title');
 
 
 // --- Inicialização ---
@@ -123,11 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listener do Firebase
     if (auth) {
         auth.onAuthStateChanged((user) => {
-            // Se estivermos em modo Local puro, ignoramos o listener do Firebase
             if (state.appMode === 'local') return;
 
             if (user) {
-                // Atualiza estado se vier do Firebase
                 state.user = {
                     name: user.displayName || user.email,
                     email: user.email,
@@ -142,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Verificar sessão local persistente
+    // Verificar sessão local
     const localSession = localStorage.getItem('local_session_user');
     if (localSession && !state.user) {
         state.user = JSON.parse(localSession);
@@ -197,53 +203,37 @@ async function login(email, password) {
     let detectedMode = 'cloud'; 
     let loginSuccess = false;
 
-    // 1. TENTATIVA LOCAL
     const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
     const userFound = localUsers.find(u => u.email === email && u.password === password);
 
     if (userFound) {
-        // Achou localmente
         detectedMode = userFound.mode || 'local';
-        
-        // Define o estado inicial como o usuário local
+        state.appMode = detectedMode;
+        localStorage.setItem('app_mode', detectedMode);
+
         state.user = {
             name: userFound.name,
             email: userFound.email,
-            uid: userFound.uid, // UID Local
+            uid: userFound.uid,
             source: 'local'
         };
-        state.appMode = detectedMode;
         localStorage.setItem('local_session_user', JSON.stringify(state.user));
-        localStorage.setItem('app_mode', detectedMode);
-        
         loginSuccess = true;
         
-        // --- O PULO DO GATO ---
-        // Se for Híbrido, tenta pegar o Token do Firebase agora!
         if (detectedMode === 'hybrid' && auth) {
-             console.log("Tentando sincronizar login com a nuvem...");
-             try {
-                 await auth.signInWithEmailAndPassword(email, password);
-                 console.log("Sincronização com Nuvem: SUCESSO. Token gerado.");
-                 // O listener 'onAuthStateChanged' vai atualizar o UID para o oficial do Firebase
-             } catch (err) {
-                 console.warn("Sincronização com Nuvem: FALHOU (Offline ou senha da nuvem diferente).", err);
-                 alert("Você entrou no modo OFFLINE. Os dados serão salvos apenas no seu navegador até que a conexão retorne.");
-             }
+             auth.signInWithEmailAndPassword(email, password).catch(err => console.log("Login Firebase falhou no modo híbrido (offline?):", err));
         }
         
         checkAuth();
         if (detectedMode === 'local') return;
     }
 
-    // 2. TENTATIVA NUVEM (Se não achou no local, ou é puramente nuvem)
     if (!loginSuccess) {
         if (!auth) return alert("Firebase não configurado.");
         try {
             await auth.signInWithEmailAndPassword(email, password);
             state.appMode = 'cloud';
             localStorage.setItem('app_mode', 'cloud');
-            // O listener onAuthStateChanged cuidará do resto
         } catch (error) {
             alert("Erro no login: " + error.message);
         }
@@ -253,7 +243,6 @@ async function login(email, password) {
 function register(name, email, password) {
     const mode = registerModeSelect.value; 
     
-    // 1. REGISTRO LOCAL / HÍBRIDO
     if (mode === 'local' || mode === 'hybrid') {
         const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
         if (localUsers.find(u => u.email === email)) {
@@ -274,7 +263,6 @@ function register(name, email, password) {
         }
     }
 
-    // 2. REGISTRO NUVEM / HÍBRIDO
     if (mode === 'cloud' || mode === 'hybrid') {
         if (!auth) return alert("Firebase não configurado.");
         auth.createUserWithEmailAndPassword(email, password)
@@ -545,9 +533,59 @@ function verifyChallenge() {
     }
 }
 
+// --- CARREGAR MEUS CONTATOS (GRID) ---
+
+async function loadMyContacts() {
+    if (!state.user) return alert("Faça login para ver seus contatos.");
+
+    // Reset UI
+    leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Carregando contatos... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    resultsPanel.classList.remove('hidden');
+    state.isShowingSaved = true;
+    state.currentPage = 1; 
+    
+    // Atualiza Título
+    resultsTitle.innerHTML = 'Meus Contatos <span class="badge-real">(Salvos)</span>: <span id="result-count">...</span>';
+    dataSourceBadge.classList.add('hidden'); 
+
+    let loadedLeads = [];
+
+    // Lógica Híbrida de Carregamento
+    if (state.appMode === 'local') {
+        const storageKey = `local_leads_${state.user.email}`;
+        loadedLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    } else {
+        // Nuvem ou Híbrido
+        if (!auth.currentUser && state.appMode === 'hybrid') {
+            const storageKey = `local_leads_${state.user.email}`;
+            loadedLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        } else {
+            try {
+                const snapshot = await db.collection('users').doc(state.user.uid || auth.currentUser.uid).collection('leads')
+                    .orderBy('createdAt', 'desc')
+                    .get();
+                
+                loadedLeads = snapshot.docs.map(doc => {
+                    return { ...doc.data(), firestoreId: doc.id };
+                });
+            } catch (error) {
+                console.error("Erro ao buscar leads:", error);
+                const storageKey = `local_leads_${state.user.email}`;
+                loadedLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            }
+        }
+    }
+
+    state.leads = loadedLeads;
+    populateNicheFilter(state.leads);
+    applyFilters(); 
+}
+
 // --- Lógica de Busca ---
 async function searchLeads(event) {
     event.preventDefault();
+    state.isShowingSaved = false;
+    state.currentPage = 1;
     
     filterText.value = "";
     filterStatus.value = "";
@@ -562,6 +600,7 @@ async function searchLeads(event) {
     const query = `${niche} em ${city} ${stateInput}`.trim();
     leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
+    resultsTitle.innerHTML = `Resultados <span id="data-source-badge" class="badge-fictitious">...</span>: <span id="result-count">...</span>`;
 
     let leads = [];
 
@@ -579,8 +618,6 @@ async function searchLeads(event) {
             
             updateApiStatusUI();
             updateResultsBadge(true);
-            
-            // Auto-salvamento universal dependendo do modo
             saveLeadsUniversal(leads, niche); 
         } else {
             updateResultsBadge(true); 
@@ -598,9 +635,9 @@ async function searchLeads(event) {
 
 // --- LOGICA DE FILTRO ---
 function setupFilterListeners() {
-    filterText.addEventListener('input', applyFilters);
-    filterStatus.addEventListener('change', applyFilters);
-    filterNiche.addEventListener('change', applyFilters);
+    filterText.addEventListener('input', () => { state.currentPage = 1; applyFilters(); });
+    filterStatus.addEventListener('change', () => { state.currentPage = 1; applyFilters(); });
+    filterNiche.addEventListener('change', () => { state.currentPage = 1; applyFilters(); });
 }
 
 function populateNicheFilter(leads) {
@@ -619,13 +656,14 @@ function applyFilters() {
     const st = filterStatus.value;
     const ni = filterNiche.value;
 
+    // Preservamos o _originalIndex para saber quem é quem no array principal state.leads
     const indexedLeads = state.leads.map((lead, index) => ({...lead, _originalIndex: index}));
 
     const filtered = indexedLeads.filter(lead => {
         const matchesText = (
-            lead.name.toLowerCase().includes(txt) || 
-            lead.niche.toLowerCase().includes(txt) ||
-            lead.address.toLowerCase().includes(txt)
+            (lead.name && lead.name.toLowerCase().includes(txt)) || 
+            (lead.niche && lead.niche.toLowerCase().includes(txt)) ||
+            (lead.address && lead.address.toLowerCase().includes(txt))
         );
         const matchesStatus = st ? lead.leadStatus === st : true;
         const matchesNiche = ni ? lead.niche === ni : true;
@@ -636,7 +674,7 @@ function applyFilters() {
     renderLeads(filtered);
 }
 
-// --- PERSISTÊNCIA UNIVERSAL (LOCAL / NUVEM) - CORRIGIDO ---
+// --- PERSISTÊNCIA UNIVERSAL ---
 
 async function saveCurrentLeadsToDB() {
     if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
@@ -647,13 +685,8 @@ async function saveCurrentLeadsToDB() {
     const niche = state.lastSearch.niche || 'Lista Manual';
     await saveLeadsUniversal(state.leads, niche);
     
-    // Alerta unificado
     if(state.appMode === 'local') {
         alert("Dados salvos localmente com sucesso!");
-    } else {
-        // Se for nuvem/hibrido, a função do firestore mostrará erros se houver
-        // Se não houver erros lá, consideramos sucesso.
-        // O console.log lá embaixo confirma.
     }
 }
 
@@ -661,12 +694,10 @@ async function saveLeadsUniversal(leads, niche) {
     const validLeads = leads.filter(lead => !lead.isMock);
     if (validLeads.length === 0) return;
 
-    // LOCAL
     if (state.appMode === 'local' || state.appMode === 'hybrid') {
         saveLeadsToLocal(validLeads, niche);
     }
 
-    // NUVEM
     if (state.appMode === 'cloud' || state.appMode === 'hybrid') {
         await saveLeadsToFirestore(validLeads, niche);
     }
@@ -682,25 +713,26 @@ function saveLeadsToLocal(leads, niche) {
         delete leadToSave._originalIndex;
         delete leadToSave.isMock;
         
-        currentData.push({
-            ...leadToSave,
-            searchNiche: niche,
-            leadStatus: lead.leadStatus || 'Novo',
-            followUpNotes: lead.followUpNotes || '',
-            createdAt: new Date().toISOString()
-        });
+        // Evitar duplicatas exatas se já existir
+        const exists = currentData.some(d => d.name === leadToSave.name && d.phone === leadToSave.phone);
+        if (!exists) {
+            currentData.push({
+                ...leadToSave,
+                searchNiche: niche,
+                leadStatus: lead.leadStatus || 'Novo',
+                followUpNotes: lead.followUpNotes || '',
+                createdAt: new Date().toISOString()
+            });
+        }
     });
     localStorage.setItem(storageKey, JSON.stringify(currentData));
     console.log("Leads salvos localmente.");
 }
 
 async function saveLeadsToFirestore(leads, niche = 'Manual') {
-    // 1. Verificações básicas
     if (!state.user) return;
     if (state.appMode === 'local') return;
 
-    // 2. Verificação Crítica de Permissão
-    // Se não há usuário autenticado no Firebase, aborta para evitar erro de permissão
     if (!auth || !auth.currentUser) {
         console.warn("Ignorando salvamento na Nuvem: Usuário não autenticado no Firebase (Modo Híbrido Offline?).");
         return;
@@ -711,7 +743,6 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
 
     try {
         const batch = db.batch();
-        // Usa sempre o UID real do Firebase para garantir que a regra de segurança passe
         const uid = auth.currentUser.uid;
 
         validLeads.forEach(lead => {
@@ -719,7 +750,6 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
             delete leadToSave._originalIndex;
             delete leadToSave.isMock;
 
-            // FIX 1: Sanitização completa de UNDEFINED para NULL
             Object.keys(leadToSave).forEach(key => {
                 if (leadToSave[key] === undefined) {
                     leadToSave[key] = null;
@@ -738,7 +768,6 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
         
         await batch.commit();
         console.log("Leads salvos no Firebase.");
-        // Se for apenas nuvem e deu certo, avisa. Se for híbrido, o alerta de sucesso local já basta ou avisamos aqui.
         if (state.appMode === 'cloud') {
             alert("Dados salvos na nuvem com sucesso!");
         }
@@ -746,11 +775,8 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
     } catch (error) {
         console.error("Erro ao salvar leads no Firebase:", error);
         
-        // FIX 2: Tratamento amigável do erro de permissão
         if (error.code === 'permission-denied') {
-            // Em modo híbrido, isso é "esperado" se a auth da nuvem falhou.
-            // Avisamos que está salvo localmente.
-            const msg = "Atenção: Os dados foram salvos LOCALMENTE, mas a sincronização com a Nuvem falhou (Permissão/Login).\nVerifique sua conexão ou faça login novamente para sincronizar.";
+            const msg = "Atenção: Os dados foram salvos LOCALMENTE, mas a sincronização com a Nuvem falhou (Permissão/Login).\nVerifique sua conexão ou faça login novamente.";
             alert(msg);
         } else {
             if (state.appMode === 'cloud') {
@@ -809,9 +835,35 @@ function restoreData(event) {
 
 // --- GERENCIAMENTO DE LEADS ---
 function openLeadDetails(index) {
+    // IMPORTANTE: O index vem do array filtrado na renderização
+    // Precisamos achar o lead real no state.leads
+    // Na renderização, passamos o actualIndex (que é o índice no array passado para render)
+    // Se o renderLeads receber um array filtrado, o index será relativo a esse array.
+    
+    // Como a lógica de paginação e filtro agora passa subarrays, o index clicado
+    // precisa ser usado para buscar o objeto correto.
+    // Vamos simplificar: ao renderizar, já passamos o objeto lead.
+    // Mas os onclicks usam index.
+    
+    // Ajuste: Na função renderLeads, o 'actualIndex' passado é o index do ARRAY FILTRADO QUE FOI PASSADO PARA A FUNÇÃO.
+    // Porem, precisamos do index original no state.leads para editar/excluir.
+    
+    // A solução robusta está no `renderLeads`:
+    // `const actualIndex = leadsToRender.indexOf(lead);` -> Isso pega o index no array filtrado.
+    // Mas precisamos do `_originalIndex` que foi colocado no `applyFilters`.
+    
+    // Vamos garantir que `renderLeads` receba objetos que tenham `_originalIndex`.
+    
+    // Como a função openLeadDetails espera um índice do `state.leads`, usaremos `_originalIndex`.
+    
+    // Mas espere, `state.leads` pode ser a lista completa de busca OU a lista carregada do banco.
+    // O `index` passado aqui DEVE ser o índice direto do array `state.leads`.
+    
     state.currentLeadIndex = index;
     const lead = state.leads[index];
     
+    if (!lead) return; // Segurança
+
     detailName.innerText = lead.name;
     detailNicheBadge.innerText = lead.niche;
     detailPhone.innerText = lead.phone || 'Não informado';
@@ -842,279 +894,80 @@ function saveLeadDetails() {
     lead.leadStatus = detailStatus.value;
     lead.followUpNotes = detailNotes.value;
     
-    alert("Alterações salvas localmente para este lead.");
+    // Se estiver no modo "Meus Contatos", precisamos salvar persistente
+    if (state.isShowingSaved) {
+        if (state.appMode === 'local') {
+            const storageKey = `local_leads_${state.user.email}`;
+            localStorage.setItem(storageKey, JSON.stringify(state.leads));
+        } else if (state.appMode === 'cloud' || (state.appMode === 'hybrid' && auth.currentUser)) {
+            // Update Firestore se tiver ID
+            if (lead.firestoreId) {
+                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
+                    leadStatus: lead.leadStatus,
+                    followUpNotes: lead.followUpNotes
+                }).catch(err => console.error("Erro update firestore", err));
+            }
+        }
+        alert("Alterações salvas!");
+    } else {
+        alert("Alterações salvas na memória (lista temporária). Salve a lista para persistir.");
+    }
+    
     leadDetailsModal.classList.add('hidden');
     applyFilters();
 }
 
 function deleteLead(index) {
-    if (confirm("Tem certeza que deseja excluir este lead da lista atual?")) {
-        state.leads.splice(index, 1);
+    if (confirm("Tem certeza que deseja excluir este lead?")) {
+        // Se for lista salva, remove do banco/localstorage
+        if (state.isShowingSaved) {
+            const lead = state.leads[index];
+            if (state.appMode === 'local') {
+                state.leads.splice(index, 1);
+                const storageKey = `local_leads_${state.user.email}`;
+                localStorage.setItem(storageKey, JSON.stringify(state.leads));
+            } else if (lead.firestoreId) {
+                // Cloud delete
+                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
+                .then(() => {
+                    state.leads.splice(index, 1);
+                    applyFilters();
+                });
+                return; // Async handle
+            }
+        } else {
+            state.leads.splice(index, 1);
+        }
         applyFilters(); 
-        document.getElementById('result-count').innerText = state.leads.length;
     }
 }
 
-// --- GERENCIAMENTO DO BANCO DE LEADS (Visualização) ---
-async function openDatabaseModal() {
-    // OBS: O DB Manager atual lê apenas do Firestore. Em modo local, teria que ler do localStorage.
-    if (!state.user) return alert("Você precisa estar logado.");
-    
-    databaseModal.classList.remove('hidden');
-    dbStatusMsg.innerText = "Carregando nichos...";
-    dbNicheSelect.innerHTML = '<option value="">Carregando...</option>';
+// --- RENDERIZAÇÃO E PAGINAÇÃO ---
 
-    if (state.appMode === 'local') {
-        // Leitura Local
-        const storageKey = `local_leads_${state.user.email}`;
-        const localData = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        const niches = new Set(localData.map(d => d.searchNiche).filter(n => n));
-        
-        dbNicheSelect.innerHTML = '<option value="">Selecione um Nicho</option>';
-        niches.forEach(niche => {
-            const option = document.createElement('option');
-            option.value = niche;
-            option.innerText = niche + ' (Local)';
-            dbNicheSelect.appendChild(option);
-        });
-        dbStatusMsg.innerText = "Modo Local: Dados carregados do navegador.";
-    } else {
-        // Leitura Nuvem
-        try {
-            const snapshot = await db.collection('users').doc(state.user.uid).collection('leads').get();
-            const niches = new Set();
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                if (data.searchNiche) niches.add(data.searchNiche);
-            });
-
-            dbNicheSelect.innerHTML = '<option value="">Selecione um Nicho</option>';
-            niches.forEach(niche => {
-                const option = document.createElement('option');
-                option.value = niche;
-                option.innerText = niche;
-                dbNicheSelect.appendChild(option);
-            });
-            dbStatusMsg.innerText = "";
-        } catch (error) {
-            console.error(error);
-            dbStatusMsg.innerText = "Erro ao carregar banco de dados (Online).";
-        }
-    }
-}
-
-async function downloadAndDelete(type) {
-    const niche = dbNicheSelect.value;
-    if (!niche) return alert("Selecione um nicho.");
-
-    if (!confirm(`Baixar e apagar leads do nicho "${niche}"?`)) return;
-    dbStatusMsg.innerText = "Processando...";
-
-    let leadsData = [];
-
-    if (state.appMode === 'local') {
-        // Processamento Local
-        const storageKey = `local_leads_${state.user.email}`;
-        const allLocal = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        
-        leadsData = allLocal.filter(l => l.searchNiche === niche);
-        const remaining = allLocal.filter(l => l.searchNiche !== niche);
-        
-        localStorage.setItem(storageKey, JSON.stringify(remaining));
-    } else {
-        // Processamento Nuvem
-        try {
-            const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
-                .where('searchNiche', '==', niche).get();
-            
-            const batch = db.batch();
-            snapshot.forEach(doc => {
-                leadsData.push(doc.data());
-                batch.delete(doc.ref); 
-            });
-            await batch.commit();
-        } catch(e) {
-            return dbStatusMsg.innerText = "Erro na nuvem.";
-        }
-    }
-
-    if (leadsData.length > 0) {
-        if (type === 'csv') exportDataToCSV(leadsData, `db_leads_${niche}.csv`);
-        else exportDataToXLSX(leadsData, `db_leads_${niche}.xlsx`);
-        
-        dbStatusMsg.innerText = "Sucesso! Baixado e removido.";
-        setTimeout(openDatabaseModal, 1000);
-    } else {
-        dbStatusMsg.innerText = "Nenhum lead encontrado.";
-    }
-}
-
-function exportDataToCSV(data, filename) {
-    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating", "Status", "Notas"];
-    const rows = data.map(lead => {
-        const l = { ...lead };
-        delete l._originalIndex;
-        delete l.isMock;
-        return [
-            `"${l.name}"`, `"${l.niche}"`, `"${l.address}"`, `"${l.phone}"`, `"${l.website || ''}"`, `"${l.rating || ''}"`, `"${l.leadStatus || ''}"`, `"${l.followUpNotes || ''}"`
-        ];
-    });
-    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
-    rows.forEach(row => csvContent += row.join(",") + "\r\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-function exportDataToXLSX(data, filename) {
-    const dataForSheet = data.map(lead => ({
-        "Nome do Negócio": lead.name,
-        "Nicho": lead.niche,
-        "Endereço": lead.address,
-        "Telefone": lead.phone,
-        "Site": lead.website || "",
-        "Avaliação": lead.rating || "",
-        "Status": lead.leadStatus || "",
-        "Notas": lead.followUpNotes || ""
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-    XLSX.writeFile(workbook, filename);
-}
-
-function updateResultsBadge(isReal) {
-    if (isReal) {
-        dataSourceBadge.innerText = "(Dados Reais)";
-        dataSourceBadge.className = "badge-real";
-    } else {
-        dataSourceBadge.innerText = "(Dados Simulados)";
-        dataSourceBadge.className = "badge-fictitious";
-    }
-}
-
-// --- INTEGRAÇÃO API 1: SERPER (CHAVE 1) ---
-async function fetchSerperLeads(query, limit) {
-    const url = 'https://google.serper.dev/places';
-    const myHeaders = new Headers();
-    myHeaders.append("X-API-KEY", state.apiKey);
-    myHeaders.append("Content-Type", "application/json");
-
-    const raw = JSON.stringify({ "q": query, "gl": "br", "hl": "pt-br" });
-
-    try {
-        const response = await fetch(url, { method: 'POST', headers: myHeaders, body: raw });
-        if (!response.ok) throw new Error("Falha na API Serper");
-        const result = await response.json();
-        
-        if (result.places) {
-            return result.places.slice(0, limit).map(place => ({
-                name: place.title,
-                niche: place.category || 'Nicho Geral',
-                address: place.address,
-                phone: place.phoneNumber || 'Não informado',
-                // FIX: Garantir null se undefined
-                website: place.website || null,
-                rating: place.rating || null,
-                ratingCount: place.userRatingsTotal || 0,
-                leadStatus: 'Novo'
-            }));
-        } else {
-            return [];
-        }
-    } catch (error) {
-        console.error('Erro na requisição Serper:', error);
-        alert('Erro ao conectar com a API Serper.');
-        return [];
-    }
-}
-
-// --- INTEGRAÇÃO API 2: SERPAPI (CHAVE 2) ---
-async function fetchSerpAPILeads(query, limit) {
-    const baseUrl = 'https://serpapi.com/search.json';
-    const params = new URLSearchParams({
-        engine: 'google_local',
-        q: query,
-        hl: 'pt-br',
-        gl: 'br',
-        num: limit, 
-        api_key: state.apiKey
-    });
-
-    try {
-        const response = await fetch(`${baseUrl}?${params.toString()}`);
-        if (!response.ok) throw new Error("Falha na API SerpAPI");
-        const result = await response.json();
-        if (result.local_results) {
-            return result.local_results.map(place => ({
-                name: place.title,
-                niche: place.type || 'Nicho Geral',
-                address: place.address,
-                phone: place.phone || 'Não informado',
-                // FIX: Garantir null se undefined
-                website: place.website || null,
-                rating: place.rating || null,
-                ratingCount: place.reviews,
-                leadStatus: 'Novo'
-            }));
-        } else {
-            return [];
-        }
-    } catch (error) {
-        console.error('Erro na requisição SerpAPI:', error);
-        alert('Erro ao conectar com a API SerpAPI. Verifique CORS/Proxy.');
-        return [];
-    }
-}
-
-function generateMockLeads(niche, city, uf, count) {
-    const leads = [];
-    for (let i = 0; i < count; i++) {
-        const fakeName = `${niche} Exemplar ${i + 1}`;
-        const fakePhone = `(34) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-        const location = city ? `${city} - ${uf}` : `Cidade Exemplo - ${uf || 'BR'}`;
-        
-        leads.push({
-            name: fakeName,
-            niche: niche,
-            address: location,
-            phone: fakePhone,
-            website: `https://www.exemplo${i}.com.br`,
-            rating: (Math.random() * 2 + 3).toFixed(1),
-            ratingCount: Math.floor(Math.random() * 200),
-            leadStatus: 'Novo',
-            isMock: true
-        });
-    }
-    return leads;
-}
-
-// --- Renderização ---
-function removeAccents(str) {
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function getStatusClass(status) {
-    const slug = removeAccents(status.toLowerCase()).replace(/\s+/g, '-');
-    return `status-${slug}`;
-}
-
-function renderLeads(leads) {
+function renderLeads(leadsToRender) {
     leadsBody.innerHTML = '';
-    resultCount.innerText = leads.length;
+    resultCount.innerText = leadsToRender.length;
 
-    if (leads.length === 0) {
-        leadsBody.innerHTML = '<tr><td colspan="6">Nenhum lead encontrado.</td></tr>';
+    if (leadsToRender.length === 0) {
+        leadsBody.innerHTML = '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>';
+        paginationControls.classList.add('hidden');
         return;
     }
 
-    leads.forEach((lead, i) => {
+    // Paginação
+    const totalPages = Math.ceil(leadsToRender.length / state.itemsPerPage);
+    if (state.currentPage > totalPages) state.currentPage = totalPages;
+    if (state.currentPage < 1) state.currentPage = 1;
+
+    const start = (state.currentPage - 1) * state.itemsPerPage;
+    const end = start + state.itemsPerPage;
+    const paginatedLeads = leadsToRender.slice(start, end);
+
+    paginatedLeads.forEach((lead) => {
+        // Usamos o _originalIndex anexado no applyFilters para manter referência correta
+        const actualIndex = lead._originalIndex; 
+        
         const row = document.createElement('tr');
-        const actualIndex = (lead._originalIndex !== undefined) ? lead._originalIndex : i;
         
         const siteLink = lead.website 
             ? `<a href="${lead.website}" target="_blank"><i class="fas fa-external-link-alt"></i> Visitar</a>` 
@@ -1155,6 +1008,144 @@ function renderLeads(leads) {
         `;
         leadsBody.appendChild(row);
     });
+
+    renderPaginationControls(totalPages);
+}
+
+function renderPaginationControls(totalPages) {
+    paginationControls.innerHTML = '';
+    if (totalPages <= 1) {
+        paginationControls.classList.add('hidden');
+        return;
+    }
+    paginationControls.classList.remove('hidden');
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'page-btn';
+    prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    prevBtn.disabled = state.currentPage === 1;
+    prevBtn.onclick = () => changePage(state.currentPage - 1);
+    paginationControls.appendChild(prevBtn);
+
+    const pageInfo = document.createElement('span');
+    pageInfo.className = 'page-info';
+    pageInfo.innerText = `Página ${state.currentPage} de ${totalPages}`;
+    paginationControls.appendChild(pageInfo);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'page-btn';
+    nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    nextBtn.disabled = state.currentPage === totalPages;
+    nextBtn.onclick = () => changePage(state.currentPage + 1);
+    paginationControls.appendChild(nextBtn);
+}
+
+function changePage(newPage) {
+    state.currentPage = newPage;
+    applyFilters(); 
+}
+
+// --- INTEGRAÇÃO API ---
+async function fetchSerperLeads(query, limit) {
+    const url = 'https://google.serper.dev/places';
+    const myHeaders = new Headers();
+    myHeaders.append("X-API-KEY", state.apiKey);
+    myHeaders.append("Content-Type", "application/json");
+
+    const raw = JSON.stringify({ "q": query, "gl": "br", "hl": "pt-br" });
+
+    try {
+        const response = await fetch(url, { method: 'POST', headers: myHeaders, body: raw });
+        if (!response.ok) throw new Error("Falha na API Serper");
+        const result = await response.json();
+        
+        if (result.places) {
+            return result.places.slice(0, limit).map(place => ({
+                name: place.title,
+                niche: place.category || 'Nicho Geral',
+                address: place.address,
+                phone: place.phoneNumber || 'Não informado',
+                website: place.website || null,
+                rating: place.rating || null,
+                ratingCount: place.userRatingsTotal || 0,
+                leadStatus: 'Novo'
+            }));
+        } else {
+            return [];
+        }
+    } catch (error) {
+        console.error('Erro na requisição Serper:', error);
+        alert('Erro ao conectar com a API Serper.');
+        return [];
+    }
+}
+
+async function fetchSerpAPILeads(query, limit) {
+    const baseUrl = 'https://serpapi.com/search.json';
+    const params = new URLSearchParams({
+        engine: 'google_local',
+        q: query,
+        hl: 'pt-br',
+        gl: 'br',
+        num: limit, 
+        api_key: state.apiKey
+    });
+
+    try {
+        const response = await fetch(`${baseUrl}?${params.toString()}`);
+        if (!response.ok) throw new Error("Falha na API SerpAPI");
+        const result = await response.json();
+        if (result.local_results) {
+            return result.local_results.map(place => ({
+                name: place.title,
+                niche: place.type || 'Nicho Geral',
+                address: place.address,
+                phone: place.phone || 'Não informado',
+                website: place.website || null,
+                rating: place.rating || null,
+                ratingCount: place.reviews,
+                leadStatus: 'Novo'
+            }));
+        } else {
+            return [];
+        }
+    } catch (error) {
+        console.error('Erro na requisição SerpAPI:', error);
+        alert('Erro ao conectar com a API SerpAPI. Verifique CORS/Proxy.');
+        return [];
+    }
+}
+
+function generateMockLeads(niche, city, uf, count) {
+    const leads = [];
+    for (let i = 0; i < count; i++) {
+        const fakeName = `${niche} Exemplar ${i + 1}`;
+        const fakePhone = `(34) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
+        const location = city ? `${city} - ${uf}` : `Cidade Exemplo - ${uf || 'BR'}`;
+        
+        leads.push({
+            name: fakeName,
+            niche: niche,
+            address: location,
+            phone: fakePhone,
+            website: `https://www.exemplo${i}.com.br`,
+            rating: (Math.random() * 2 + 3).toFixed(1),
+            ratingCount: Math.floor(Math.random() * 200),
+            leadStatus: 'Novo',
+            isMock: true
+        });
+    }
+    return leads;
+}
+
+// --- Utils ---
+function removeAccents(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function getStatusClass(status) {
+    const slug = removeAccents(status.toLowerCase()).replace(/\s+/g, '-');
+    return `status-${slug}`;
 }
 
 function openMessageModal(leadIndex) {
@@ -1165,9 +1156,9 @@ function openMessageModal(leadIndex) {
 
     const templateInput = document.getElementById('message-template-input').value;
 
-    const nichoVal = state.lastSearch.niche || lead.niche;
-    const cidadeVal = state.lastSearch.city || lead.address.split(',')[0] || "sua cidade";
-    const estadoVal = state.lastSearch.state || "";
+    const nichoVal = lead.niche || "";
+    const cidadeVal = lead.address ? lead.address.split(',')[0] : "sua cidade";
+    const estadoVal = "";
 
     let message = templateInput
         .replace(/{nicho}/g, nichoVal)
@@ -1189,7 +1180,6 @@ function openMessageModal(leadIndex) {
     modal.classList.remove('hidden');
 }
 
-// --- Funções de Exportação (Panel) ---
 function exportToCSV() {
     if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
     exportDataToCSV(state.leads, `leads_${Date.now()}.csv`);
@@ -1198,6 +1188,51 @@ function exportToCSV() {
 function exportToXLSX() {
     if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
     exportDataToXLSX(state.leads, `leads_${Date.now()}.xlsx`);
+}
+
+function exportDataToCSV(data, filename) {
+    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating", "Status", "Notas"];
+    const rows = data.map(lead => {
+        return [
+            `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`, `"${lead.leadStatus || ''}"`, `"${lead.followUpNotes || ''}"`
+        ];
+    });
+    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
+    rows.forEach(row => csvContent += row.join(",") + "\r\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function exportDataToXLSX(data, filename) {
+    const dataForSheet = data.map(lead => ({
+        "Nome do Negócio": lead.name,
+        "Nicho": lead.niche,
+        "Endereço": lead.address,
+        "Telefone": lead.phone,
+        "Site": lead.website || "",
+        "Avaliação": lead.rating || "",
+        "Status": lead.leadStatus || "",
+        "Notas": lead.followUpNotes || ""
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+    XLSX.writeFile(workbook, filename);
+}
+
+function updateResultsBadge(isReal) {
+    if (isReal) {
+        dataSourceBadge.innerText = "(Dados Reais)";
+        dataSourceBadge.className = "badge-real";
+    } else {
+        dataSourceBadge.innerText = "(Dados Simulados)";
+        dataSourceBadge.className = "badge-fictitious";
+    }
 }
 
 // --- Gerenciamento de Eventos UI ---
@@ -1223,6 +1258,11 @@ function setupEventListeners() {
 
     document.getElementById('lead-search-form').onsubmit = searchLeads;
 
+    // Novo listener para Meus Contatos
+    if(btnShowSavedLeads) {
+        btnShowSavedLeads.onclick = loadMyContacts;
+    }
+
     messageTemplateInput.addEventListener('input', () => {
         localStorage.setItem('current_draft_message', messageTemplateInput.value);
     });
@@ -1235,15 +1275,12 @@ function setupEventListeners() {
         updateApiStatusUI();
     };
     
-    // DB Modals e Saves
     if(btnSaveDbDirect) btnSaveDbDirect.onclick = saveCurrentLeadsToDB;
     
-    // Backup & Restore
     if(btnBackup) btnBackup.onclick = backupData;
     if(btnRestoreTrigger) btnRestoreTrigger.onclick = () => restoreFileInput.click();
     if(restoreFileInput) restoreFileInput.onchange = restoreData;
     
-    // Mantemos o listener condicional para o DB Manager
     const btnDbManager = document.getElementById('btn-db-manager');
     if (btnDbManager) {
         btnDbManager.onclick = openDatabaseModal;
@@ -1252,7 +1289,6 @@ function setupEventListeners() {
     document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
     document.getElementById('btn-download-delete-xlsx').onclick = () => downloadAndDelete('xlsx');
     
-    // Lead Details Modal
     document.getElementById('btn-save-details').onclick = saveLeadDetails;
     document.getElementById('btn-cancel-details').onclick = () => leadDetailsModal.classList.add('hidden');
     
@@ -1263,7 +1299,6 @@ function setupEventListeners() {
 
     document.getElementById('save-api-key').onclick = validateAndSaveApiKey;
     
-    // ADMIN Events
     document.getElementById('btn-admin-reset').onclick = resetAccess;
     document.getElementById('btn-admin-add').onclick = addAdminLeads;
     

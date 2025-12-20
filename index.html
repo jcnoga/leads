@@ -80,6 +80,11 @@
                     <span>Olá, <strong id="user-name-display">Visitante</strong></span>
                 </div>
                 <div class="header-actions">
+                    <!-- NOVO: Botão Meus Contatos -->
+                    <button id="btn-show-saved-leads" class="btn-primary-outline">
+                        <i class="fas fa-address-book"></i> Meus Contatos
+                    </button>
+
                     <!-- Botões Admin (Invisíveis por padrão) -->
                     <button id="btn-admin-add" class="btn-outline btn-admin-success hidden">
                         <i class="fas fa-plus-circle"></i> +10 Leads
@@ -188,7 +193,8 @@
 
             <div class="results-panel hidden" id="results-panel">
                 <div class="results-header">
-                    <h2>Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
+                    <!-- Título Editável dinamicamente -->
+                    <h2 id="results-title">Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
                     <!-- BOTÕES DE EXPORTAÇÃO DA BUSCA ATUAL -->
                     <div class="export-buttons">
                         <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
@@ -237,6 +243,11 @@
                             <!-- Leads serão inseridos aqui -->
                         </tbody>
                     </table>
+                </div>
+
+                <!-- NOVO: Container de Paginação -->
+                <div id="pagination-controls" class="pagination-container hidden">
+                    <!-- Botões gerados via JS -->
                 </div>
             </div>
         </main>

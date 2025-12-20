@@ -942,4 +942,50 @@ footer a {
 .btn-restore:hover {
     background-color: #c2410c;
 }
+
+/* ESTILOS NOVOS: Paginação */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    gap: 10px;
+    padding: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.page-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+    background-color: #f1f5f9;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.page-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #f3f4f6;
+}
+
+.page-info {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin: 0 10px;
+}
 /* FIM ESTILOS NOVOS */
