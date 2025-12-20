@@ -529,9 +529,15 @@ function applyFilters() {
 async function saveLeadsToFirestore(leads, niche = 'Manual') {
     if (!state.user || !state.user.uid) return;
 
+    // ALTERAÇÃO: Filtro de segurança para não salvar leads fictícios
+    // Filtra apenas leads que NÃO são mock (fictícios)
+    const validLeads = leads.filter(lead => !lead.isMock);
+    
+    if (validLeads.length === 0) return; // Se não houver leads reais, não salva nada
+
     try {
         const batch = db.batch();
-        leads.forEach(lead => {
+        validLeads.forEach(lead => {
             const leadToSave = { ...lead };
             delete leadToSave._originalIndex;
 
@@ -553,6 +559,12 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
 
 async function saveCurrentLeadsToDB() {
     if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
+    
+    // ALTERAÇÃO: Verificação para impedir salvamento manual de leads fictícios
+    if(state.leads.some(l => l.isMock)) {
+        return alert("Atenção: Leads fictícios (modo simulação) não podem ser gravados no banco de dados.");
+    }
+
     if(!confirm("Deseja salvar a lista exibida no Banco de Dados?")) return;
     
     const niche = state.lastSearch.niche || 'Lista Manual';
@@ -691,6 +703,8 @@ function exportDataToCSV(data, filename) {
     const rows = data.map(lead => {
         const l = { ...lead };
         delete l._originalIndex;
+        // ALTERAÇÃO: Remove propriedade isMock se existir na exportação
+        delete l.isMock;
         return [
             `"${l.name}"`, `"${l.niche}"`, `"${l.address}"`, `"${l.phone}"`, `"${l.website || ''}"`, `"${l.rating || ''}"`, `"${l.leadStatus || ''}"`, `"${l.followUpNotes || ''}"`
         ];
@@ -835,7 +849,9 @@ function generateMockLeads(niche, city, uf, count) {
             website: `https://www.exemplo${i}.com.br`,
             rating: (Math.random() * 2 + 3).toFixed(1),
             ratingCount: Math.floor(Math.random() * 200),
-            leadStatus: 'Novo'
+            leadStatus: 'Novo',
+            // ALTERAÇÃO: Marcador de lead fictício
+            isMock: true
         });
     }
     return leads;
