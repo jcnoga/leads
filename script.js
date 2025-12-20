@@ -38,7 +38,7 @@ const state = {
     challengeNumber: 0,
     currentLeadIndex: null,
     appMode: localStorage.getItem('app_mode') || 'hybrid',
-    // NOVO: Controle de Paginação
+    // Controle de Paginação
     currentPage: 1,
     itemsPerPage: 10,
     isShowingSaved: false 
@@ -120,7 +120,6 @@ const btnBackup = document.getElementById('btn-backup');
 const btnRestoreTrigger = document.getElementById('btn-restore-trigger');
 const restoreFileInput = document.getElementById('restore-file-input');
 const btnSaveDbDirect = document.getElementById('btn-save-db-direct');
-// Elementos para Listagem
 const btnShowSavedLeads = document.getElementById('btn-show-saved-leads');
 const paginationControls = document.getElementById('pagination-controls');
 const resultsTitle = document.getElementById('results-title');
@@ -128,7 +127,6 @@ const resultsTitle = document.getElementById('results-title');
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Listener do Firebase
     if (auth) {
         auth.onAuthStateChanged((user) => {
             if (state.appMode === 'local') return;
@@ -148,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Verificar sessão local
     const localSession = localStorage.getItem('local_session_user');
     if (localSession && !state.user) {
         state.user = JSON.parse(localSession);
@@ -611,7 +608,11 @@ async function searchLeads(event) {
             leads = await fetchSerperLeads(query, limit);
         }
         
+        // --- NOVA LÓGICA: Forçar nicho da busca ---
         if (leads.length > 0) {
+            // Aqui substituímos a categoria da API pelo termo pesquisado
+            leads.forEach(l => l.niche = niche);
+
             state.leadsBalance -= leads.length;
             if (state.leadsBalance < 0) state.leadsBalance = 0;
             localStorage.setItem('leads_balance', state.leadsBalance);
@@ -835,34 +836,10 @@ function restoreData(event) {
 
 // --- GERENCIAMENTO DE LEADS ---
 function openLeadDetails(index) {
-    // IMPORTANTE: O index vem do array filtrado na renderização
-    // Precisamos achar o lead real no state.leads
-    // Na renderização, passamos o actualIndex (que é o índice no array passado para render)
-    // Se o renderLeads receber um array filtrado, o index será relativo a esse array.
-    
-    // Como a lógica de paginação e filtro agora passa subarrays, o index clicado
-    // precisa ser usado para buscar o objeto correto.
-    // Vamos simplificar: ao renderizar, já passamos o objeto lead.
-    // Mas os onclicks usam index.
-    
-    // Ajuste: Na função renderLeads, o 'actualIndex' passado é o index do ARRAY FILTRADO QUE FOI PASSADO PARA A FUNÇÃO.
-    // Porem, precisamos do index original no state.leads para editar/excluir.
-    
-    // A solução robusta está no `renderLeads`:
-    // `const actualIndex = leadsToRender.indexOf(lead);` -> Isso pega o index no array filtrado.
-    // Mas precisamos do `_originalIndex` que foi colocado no `applyFilters`.
-    
-    // Vamos garantir que `renderLeads` receba objetos que tenham `_originalIndex`.
-    
-    // Como a função openLeadDetails espera um índice do `state.leads`, usaremos `_originalIndex`.
-    
-    // Mas espere, `state.leads` pode ser a lista completa de busca OU a lista carregada do banco.
-    // O `index` passado aqui DEVE ser o índice direto do array `state.leads`.
-    
     state.currentLeadIndex = index;
     const lead = state.leads[index];
     
-    if (!lead) return; // Segurança
+    if (!lead) return; 
 
     detailName.innerText = lead.name;
     detailNicheBadge.innerText = lead.niche;
