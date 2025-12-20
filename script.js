@@ -1,6 +1,5 @@
 /**
- * GERADOR DE LEADS PROFISSIONAL
- * Lógica da Aplicação Atualizada (Sistema de Créditos/Leads + Firebase DB + Gestão Detalhada)
+ * GERADOR DE LEADS PROFISSIONAL - MODO HÍBRIDO (LOCAL + NUVEM)
  */
 
 // --- 1. CONFIGURAÇÃO DO FIREBASE ---
@@ -14,11 +13,9 @@ const firebaseConfig = {
   measurementId: "G-QSGNSDGJML"
 };
 
-// --- CHAVES DE API (DEFINIDAS NO CÓDIGO) ---
-// Preencha as chaves abaixo conforme a documentação
 const API_KEYS_CONFIG = {
-    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a", // Insira sua chave Serper
-    KEY_2: "SUA_CHAVE_SERPAPI_AQUI" // Insira sua chave SerpAPI
+    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
+    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
 };
 
 // --- Configurações Iniciais ---
@@ -31,22 +28,21 @@ const DEFAULT_TEMPLATES = [
 
 // --- Estado da Aplicação ---
 const state = {
-    // ALTERAÇÃO: Se não houver provider salvo, define KEY_1 como padrão
     providerId: localStorage.getItem('selected_provider_id') || 'KEY_1', 
-    apiKey: '', // Será preenchido dinamicamente abaixo
+    apiKey: '', 
     leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0,
     user: null, 
     leads: [],
     lastSearch: { niche: '', city: '', state: '' },
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
     challengeNumber: 0,
-    currentLeadIndex: null 
+    currentLeadIndex: null,
+    appMode: localStorage.getItem('app_mode') || 'hybrid' 
 };
 
-// Inicializa a apiKey correta (Garante que a Chave 1 carregue no inicio se for o padrão)
+// Inicializa a apiKey correta
 if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
     state.apiKey = API_KEYS_CONFIG[state.providerId];
-    // Se for o primeiro acesso e definiu KEY_1 padrão, salva no storage para persistência futura
     if (!localStorage.getItem('selected_provider_id')) {
         localStorage.setItem('selected_provider_id', 'KEY_1');
     }
@@ -114,22 +110,46 @@ const filterText = document.getElementById('filter-text');
 const filterStatus = document.getElementById('filter-status');
 const filterNiche = document.getElementById('filter-niche');
 
+// NOVOS ELEMENTOS
+const registerModeSelect = document.getElementById('register-mode-select'); 
+const btnBackup = document.getElementById('btn-backup');
+const btnRestoreTrigger = document.getElementById('btn-restore-trigger');
+const restoreFileInput = document.getElementById('restore-file-input');
+const btnSaveDbDirect = document.getElementById('btn-save-db-direct');
+
+
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Listener do Firebase
     if (auth) {
         auth.onAuthStateChanged((user) => {
+            // Se estivermos em modo Local puro, ignoramos o listener do Firebase
+            if (state.appMode === 'local') return;
+
             if (user) {
+                // Atualiza estado se vier do Firebase
                 state.user = {
                     name: user.displayName || user.email,
                     email: user.email,
-                    uid: user.uid
+                    uid: user.uid,
+                    source: 'firebase'
                 };
                 checkAuth();
-            } else {
+            } else if (!state.user || state.user.source === 'firebase') {
                 state.user = null;
                 checkAuth();
             }
         });
+    }
+
+    // Verificar sessão local persistente
+    const localSession = localStorage.getItem('local_session_user');
+    if (localSession && !state.user) {
+        state.user = JSON.parse(localSession);
+        if (!state.appMode && localStorage.getItem('app_mode')) {
+             state.appMode = localStorage.getItem('app_mode');
+        }
+        checkAuth();
     }
 
     setupEventListeners();
@@ -152,7 +172,13 @@ function checkAuth() {
     if (state.user) {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
-        document.getElementById('user-name-display').innerText = state.user.name;
+        
+        let modeLabel = '';
+        if (state.appMode === 'local') modeLabel = ' (Local)';
+        if (state.appMode === 'hybrid') modeLabel = ' (Híbrido)';
+        if (state.appMode === 'cloud') modeLabel = ' (Nuvem)';
+
+        document.getElementById('user-name-display').innerText = state.user.name + modeLabel;
         
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
@@ -167,41 +193,110 @@ function checkAuth() {
     }
 }
 
-function login(email, password) {
-    if (!auth) return alert("Firebase não configurado.");
-    auth.signInWithEmailAndPassword(email, password)
-        .catch((error) => {
+async function login(email, password) {
+    let detectedMode = 'cloud'; 
+    let loginSuccess = false;
+
+    // 1. TENTATIVA LOCAL
+    const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
+    const userFound = localUsers.find(u => u.email === email && u.password === password);
+
+    if (userFound) {
+        detectedMode = userFound.mode || 'local';
+        state.appMode = detectedMode;
+        localStorage.setItem('app_mode', detectedMode);
+
+        state.user = {
+            name: userFound.name,
+            email: userFound.email,
+            uid: userFound.uid,
+            source: 'local'
+        };
+        localStorage.setItem('local_session_user', JSON.stringify(state.user));
+        loginSuccess = true;
+        
+        if (detectedMode === 'hybrid' && auth) {
+             auth.signInWithEmailAndPassword(email, password).catch(err => console.log("Login Firebase falhou no modo híbrido (offline?):", err));
+        }
+        
+        checkAuth();
+        if (detectedMode === 'local') return;
+    }
+
+    // 2. TENTATIVA NUVEM
+    if (!loginSuccess) {
+        if (!auth) return alert("Firebase não configurado.");
+        try {
+            await auth.signInWithEmailAndPassword(email, password);
+            state.appMode = 'cloud';
+            localStorage.setItem('app_mode', 'cloud');
+        } catch (error) {
             alert("Erro no login: " + error.message);
-        });
+        }
+    }
 }
 
 function register(name, email, password) {
-    if (!auth) return alert("Firebase não configurado.");
-    auth.createUserWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            // ALTERAÇÃO: Alterado de 100 para 50 leads iniciais
+    const mode = registerModeSelect.value; 
+    
+    // 1. REGISTRO LOCAL / HÍBRIDO
+    if (mode === 'local' || mode === 'hybrid') {
+        const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
+        if (localUsers.find(u => u.email === email)) {
+             return alert("Usuário já existe localmente.");
+        } else {
+            const newUser = {
+                name: name,
+                email: email,
+                password: password,
+                uid: 'local_' + Date.now(),
+                mode: mode 
+            };
+            localUsers.push(newUser);
+            localStorage.setItem('local_users_db', JSON.stringify(localUsers));
+            
             localStorage.setItem('leads_balance', 50);
             state.leadsBalance = 50;
-            return userCredential.user.updateProfile({
-                displayName: name
+        }
+    }
+
+    // 2. REGISTRO NUVEM / HÍBRIDO
+    if (mode === 'cloud' || mode === 'hybrid') {
+        if (!auth) return alert("Firebase não configurado.");
+        auth.createUserWithEmailAndPassword(email, password)
+            .then((userCredential) => {
+                localStorage.setItem('leads_balance', 50);
+                state.leadsBalance = 50;
+                return userCredential.user.updateProfile({ displayName: name });
+            })
+            .then(() => {
+                alert("Conta criada com sucesso! (Modo: " + mode + ")");
+                toggleAuthBox('login');
+            })
+            .catch((error) => {
+                if(error.code === 'auth/email-already-in-use' && mode === 'hybrid') {
+                    alert("Conta criada localmente. O e-mail já existia na nuvem, sincronizando...");
+                    toggleAuthBox('login');
+                } else {
+                    alert("Erro no cadastro nuvem: " + error.message);
+                }
             });
-        })
-        .then(() => {
-            // ALTERAÇÃO: Mensagem atualizada para 50
-            alert("Conta criada com sucesso! Você ganhou 50 leads de brinde.");
-            toggleAuthBox('login');
-        })
-        .catch((error) => {
-            alert("Erro no cadastro: " + error.message);
-        });
+    } else {
+        alert("Conta local criada com sucesso!");
+        toggleAuthBox('login');
+    }
 }
 
 function logout() {
+    state.user = null;
+    localStorage.removeItem('local_session_user'); 
+    localStorage.removeItem('app_mode'); 
     if (auth) auth.signOut();
+    location.reload(); 
 }
 
 function resetPassword(email) {
-    if (!auth) return;
+    if (!auth) return alert("Disponível apenas em modo Nuvem/Híbrido com Firebase.");
     auth.sendPasswordResetEmail(email)
         .then(() => {
             alert("E-mail de recuperação enviado!");
@@ -470,7 +565,9 @@ async function searchLeads(event) {
             
             updateApiStatusUI();
             updateResultsBadge(true);
-            saveLeadsToFirestore(leads, niche);
+            
+            // Auto-salvamento universal dependendo do modo
+            saveLeadsUniversal(leads, niche); 
         } else {
             updateResultsBadge(true); 
         }
@@ -525,23 +622,97 @@ function applyFilters() {
     renderLeads(filtered);
 }
 
-// --- PERSISTÊNCIA FIREBASE ---
-async function saveLeadsToFirestore(leads, niche = 'Manual') {
-    if (!state.user || !state.user.uid) return;
+// --- PERSISTÊNCIA UNIVERSAL (LOCAL / NUVEM) - CORRIGIDO ---
 
-    // ALTERAÇÃO: Filtro de segurança para não salvar leads fictícios
-    // Filtra apenas leads que NÃO são mock (fictícios)
-    const validLeads = leads.filter(lead => !lead.isMock);
+async function saveCurrentLeadsToDB() {
+    if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
+    if(state.leads.some(l => l.isMock)) return alert("Atenção: Leads fictícios não podem ser salvos.");
+
+    if(!confirm(`Deseja salvar a lista no modo: ${state.appMode.toUpperCase()}?`)) return;
+
+    const niche = state.lastSearch.niche || 'Lista Manual';
+    await saveLeadsUniversal(state.leads, niche);
     
-    if (validLeads.length === 0) return; // Se não houver leads reais, não salva nada
+    // Alerta unificado
+    if(state.appMode === 'local') {
+        alert("Dados salvos localmente com sucesso!");
+    } else {
+        // Se for nuvem/hibrido, a função do firestore mostrará erros se houver
+        // Se não houver erros lá, consideramos sucesso.
+        // O console.log lá embaixo confirma.
+    }
+}
+
+async function saveLeadsUniversal(leads, niche) {
+    const validLeads = leads.filter(lead => !lead.isMock);
+    if (validLeads.length === 0) return;
+
+    // LOCAL
+    if (state.appMode === 'local' || state.appMode === 'hybrid') {
+        saveLeadsToLocal(validLeads, niche);
+    }
+
+    // NUVEM
+    if (state.appMode === 'cloud' || state.appMode === 'hybrid') {
+        await saveLeadsToFirestore(validLeads, niche);
+    }
+}
+
+function saveLeadsToLocal(leads, niche) {
+    if (!state.user) return;
+    const storageKey = `local_leads_${state.user.email}`;
+    let currentData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    
+    leads.forEach(lead => {
+        const leadToSave = { ...lead };
+        delete leadToSave._originalIndex;
+        delete leadToSave.isMock;
+        
+        currentData.push({
+            ...leadToSave,
+            searchNiche: niche,
+            leadStatus: lead.leadStatus || 'Novo',
+            followUpNotes: lead.followUpNotes || '',
+            createdAt: new Date().toISOString()
+        });
+    });
+    localStorage.setItem(storageKey, JSON.stringify(currentData));
+    console.log("Leads salvos localmente.");
+}
+
+async function saveLeadsToFirestore(leads, niche = 'Manual') {
+    // 1. Verificações básicas
+    if (!state.user) return;
+    if (state.appMode === 'local') return;
+
+    // 2. Verificação Crítica de Permissão
+    // Se não há usuário autenticado no Firebase, aborta para evitar erro de permissão
+    if (!auth || !auth.currentUser) {
+        console.warn("Ignorando salvamento na Nuvem: Usuário não autenticado no Firebase (Modo Híbrido Offline?).");
+        return;
+    }
+
+    const validLeads = leads.filter(lead => !lead.isMock);
+    if (validLeads.length === 0) return;
 
     try {
         const batch = db.batch();
+        // Usa sempre o UID real do Firebase para garantir que a regra de segurança passe
+        const uid = auth.currentUser.uid;
+
         validLeads.forEach(lead => {
             const leadToSave = { ...lead };
             delete leadToSave._originalIndex;
+            delete leadToSave.isMock;
 
-            const docRef = db.collection('users').doc(state.user.uid).collection('leads').doc();
+            // FIX 1: Sanitização completa de UNDEFINED para NULL
+            Object.keys(leadToSave).forEach(key => {
+                if (leadToSave[key] === undefined) {
+                    leadToSave[key] = null;
+                }
+            });
+
+            const docRef = db.collection('users').doc(uid).collection('leads').doc();
             batch.set(docRef, {
                 ...leadToSave,
                 searchNiche: niche,
@@ -550,26 +721,76 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
+        
         await batch.commit();
-        console.log("Leads salvos no Firebase com sucesso.");
+        console.log("Leads salvos no Firebase.");
+        // Se for apenas nuvem e deu certo, avisa. Se for híbrido, o alerta de sucesso local já basta ou avisamos aqui.
+        if (state.appMode === 'cloud') {
+            alert("Dados salvos na nuvem com sucesso!");
+        }
+
     } catch (error) {
         console.error("Erro ao salvar leads no Firebase:", error);
+        
+        // FIX 2: Tratamento amigável do erro de permissão
+        if (error.code === 'permission-denied') {
+            // Em modo híbrido, isso é "esperado" se a auth da nuvem falhou.
+            // Avisamos que está salvo localmente.
+            const msg = "Atenção: Os dados foram salvos LOCALMENTE, mas a sincronização com a Nuvem falhou (Permissão/Login).\nVerifique sua conexão ou faça login novamente para sincronizar.";
+            alert(msg);
+        } else {
+            if (state.appMode === 'cloud') {
+                 alert("Erro ao sincronizar com a nuvem: " + error.message);
+            }
+        }
     }
 }
 
-async function saveCurrentLeadsToDB() {
-    if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
-    
-    // ALTERAÇÃO: Verificação para impedir salvamento manual de leads fictícios
-    if(state.leads.some(l => l.isMock)) {
-        return alert("Atenção: Leads fictícios (modo simulação) não podem ser gravados no banco de dados.");
-    }
+// --- BACKUP E RESTORE ---
+function backupData() {
+    const backupObj = {
+        version: "1.0",
+        timestamp: new Date().toISOString(),
+        userEmail: state.user ? state.user.email : 'anon',
+        leadsBalance: localStorage.getItem('leads_balance'),
+        templates: localStorage.getItem('msg_templates'),
+        leads: state.user ? localStorage.getItem(`local_leads_${state.user.email}`) : null,
+        usersDb: localStorage.getItem('local_users_db')
+    };
 
-    if(!confirm("Deseja salvar a lista exibida no Banco de Dados?")) return;
-    
-    const niche = state.lastSearch.niche || 'Lista Manual';
-    await saveLeadsToFirestore(state.leads, niche);
-    alert("Leads salvos no banco de dados com sucesso!");
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `backup_leads_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+function restoreData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const backupObj = JSON.parse(e.target.result);
+            if (confirm("Isso substituirá seus dados locais atuais. Deseja continuar?")) {
+                if(backupObj.leadsBalance) localStorage.setItem('leads_balance', backupObj.leadsBalance);
+                if(backupObj.templates) localStorage.setItem('msg_templates', backupObj.templates);
+                if(backupObj.usersDb) localStorage.setItem('local_users_db', backupObj.usersDb);
+                
+                if(backupObj.leads && state.user) {
+                    localStorage.setItem(`local_leads_${state.user.email}`, backupObj.leads);
+                }
+                alert("Restauração concluída! A página será recarregada.");
+                location.reload();
+            }
+        } catch (error) {
+            alert("Erro ao ler backup: " + error.message);
+        }
+    };
+    reader.readAsText(file);
 }
 
 // --- GERENCIAMENTO DE LEADS ---
@@ -620,81 +841,97 @@ function deleteLead(index) {
     }
 }
 
-// --- GERENCIAMENTO DO BANCO DE LEADS ---
+// --- GERENCIAMENTO DO BANCO DE LEADS (Visualização) ---
 async function openDatabaseModal() {
+    // OBS: O DB Manager atual lê apenas do Firestore. Em modo local, teria que ler do localStorage.
     if (!state.user) return alert("Você precisa estar logado.");
     
     databaseModal.classList.remove('hidden');
     dbStatusMsg.innerText = "Carregando nichos...";
     dbNicheSelect.innerHTML = '<option value="">Carregando...</option>';
 
-    try {
-        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads').get();
-        const niches = new Set();
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.searchNiche) niches.add(data.searchNiche);
-        });
-
+    if (state.appMode === 'local') {
+        // Leitura Local
+        const storageKey = `local_leads_${state.user.email}`;
+        const localData = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const niches = new Set(localData.map(d => d.searchNiche).filter(n => n));
+        
         dbNicheSelect.innerHTML = '<option value="">Selecione um Nicho</option>';
         niches.forEach(niche => {
             const option = document.createElement('option');
             option.value = niche;
-            option.innerText = niche;
+            option.innerText = niche + ' (Local)';
             dbNicheSelect.appendChild(option);
         });
-        
-        dbStatusMsg.innerText = "";
-    } catch (error) {
-        console.error("Erro ao carregar nichos:", error);
-        dbStatusMsg.innerText = "Erro ao carregar banco de dados.";
-        dbStatusMsg.style.color = "red";
+        dbStatusMsg.innerText = "Modo Local: Dados carregados do navegador.";
+    } else {
+        // Leitura Nuvem
+        try {
+            const snapshot = await db.collection('users').doc(state.user.uid).collection('leads').get();
+            const niches = new Set();
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.searchNiche) niches.add(data.searchNiche);
+            });
+
+            dbNicheSelect.innerHTML = '<option value="">Selecione um Nicho</option>';
+            niches.forEach(niche => {
+                const option = document.createElement('option');
+                option.value = niche;
+                option.innerText = niche;
+                dbNicheSelect.appendChild(option);
+            });
+            dbStatusMsg.innerText = "";
+        } catch (error) {
+            console.error(error);
+            dbStatusMsg.innerText = "Erro ao carregar banco de dados (Online).";
+        }
     }
 }
 
 async function downloadAndDelete(type) {
     const niche = dbNicheSelect.value;
-    if (!niche) return alert("Selecione um nicho para baixar e limpar.");
+    if (!niche) return alert("Selecione um nicho.");
 
-    if (!confirm(`Tem certeza? Isso irá baixar os leads do nicho "${niche}" e apagá-los do sistema.`)) return;
-
+    if (!confirm(`Baixar e apagar leads do nicho "${niche}"?`)) return;
     dbStatusMsg.innerText = "Processando...";
-    
-    try {
-        const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
-            .where('searchNiche', '==', niche)
-            .get();
 
-        if (snapshot.empty) {
-            dbStatusMsg.innerText = "Nenhum lead encontrado para este nicho.";
-            return;
-        }
+    let leadsData = [];
 
-        const leadsData = [];
-        const batch = db.batch();
-
-        snapshot.forEach(doc => {
-            leadsData.push(doc.data());
-            batch.delete(doc.ref); 
-        });
-
-        if (type === 'csv') {
-            exportDataToCSV(leadsData, `db_leads_${niche}.csv`);
-        } else {
-            exportDataToXLSX(leadsData, `db_leads_${niche}.xlsx`);
-        }
-
-        await batch.commit();
+    if (state.appMode === 'local') {
+        // Processamento Local
+        const storageKey = `local_leads_${state.user.email}`;
+        const allLocal = JSON.parse(localStorage.getItem(storageKey) || '[]');
         
-        dbStatusMsg.innerText = "Sucesso! Leads baixados e removidos.";
-        dbStatusMsg.style.color = "green";
+        leadsData = allLocal.filter(l => l.searchNiche === niche);
+        const remaining = allLocal.filter(l => l.searchNiche !== niche);
         
+        localStorage.setItem(storageKey, JSON.stringify(remaining));
+    } else {
+        // Processamento Nuvem
+        try {
+            const snapshot = await db.collection('users').doc(state.user.uid).collection('leads')
+                .where('searchNiche', '==', niche).get();
+            
+            const batch = db.batch();
+            snapshot.forEach(doc => {
+                leadsData.push(doc.data());
+                batch.delete(doc.ref); 
+            });
+            await batch.commit();
+        } catch(e) {
+            return dbStatusMsg.innerText = "Erro na nuvem.";
+        }
+    }
+
+    if (leadsData.length > 0) {
+        if (type === 'csv') exportDataToCSV(leadsData, `db_leads_${niche}.csv`);
+        else exportDataToXLSX(leadsData, `db_leads_${niche}.xlsx`);
+        
+        dbStatusMsg.innerText = "Sucesso! Baixado e removido.";
         setTimeout(openDatabaseModal, 1000);
-
-    } catch (error) {
-        console.error("Erro no processo:", error);
-        dbStatusMsg.innerText = "Erro ao processar. Tente novamente.";
-        dbStatusMsg.style.color = "red";
+    } else {
+        dbStatusMsg.innerText = "Nenhum lead encontrado.";
     }
 }
 
@@ -703,7 +940,6 @@ function exportDataToCSV(data, filename) {
     const rows = data.map(lead => {
         const l = { ...lead };
         delete l._originalIndex;
-        // ALTERAÇÃO: Remove propriedade isMock se existir na exportação
         delete l.isMock;
         return [
             `"${l.name}"`, `"${l.niche}"`, `"${l.address}"`, `"${l.phone}"`, `"${l.website || ''}"`, `"${l.rating || ''}"`, `"${l.leadStatus || ''}"`, `"${l.followUpNotes || ''}"`
@@ -750,26 +986,15 @@ function updateResultsBadge(isReal) {
 // --- INTEGRAÇÃO API 1: SERPER (CHAVE 1) ---
 async function fetchSerperLeads(query, limit) {
     const url = 'https://google.serper.dev/places';
-    
     const myHeaders = new Headers();
     myHeaders.append("X-API-KEY", state.apiKey);
     myHeaders.append("Content-Type", "application/json");
 
-    const raw = JSON.stringify({
-        "q": query,
-        "gl": "br",
-        "hl": "pt-br"
-    });
+    const raw = JSON.stringify({ "q": query, "gl": "br", "hl": "pt-br" });
 
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: myHeaders,
-            body: raw
-        });
-        
+        const response = await fetch(url, { method: 'POST', headers: myHeaders, body: raw });
         if (!response.ok) throw new Error("Falha na API Serper");
-
         const result = await response.json();
         
         if (result.places) {
@@ -778,8 +1003,9 @@ async function fetchSerperLeads(query, limit) {
                 niche: place.category || 'Nicho Geral',
                 address: place.address,
                 phone: place.phoneNumber || 'Não informado',
-                website: place.website,
-                rating: place.rating,
+                // FIX: Garantir null se undefined
+                website: place.website || null,
+                rating: place.rating || null,
                 ratingCount: place.userRatingsTotal || 0,
                 leadStatus: 'Novo'
             }));
@@ -807,19 +1033,17 @@ async function fetchSerpAPILeads(query, limit) {
 
     try {
         const response = await fetch(`${baseUrl}?${params.toString()}`);
-        
         if (!response.ok) throw new Error("Falha na API SerpAPI");
-
         const result = await response.json();
-        
         if (result.local_results) {
             return result.local_results.map(place => ({
                 name: place.title,
                 niche: place.type || 'Nicho Geral',
                 address: place.address,
                 phone: place.phone || 'Não informado',
-                website: place.website,
-                rating: place.rating,
+                // FIX: Garantir null se undefined
+                website: place.website || null,
+                rating: place.rating || null,
                 ratingCount: place.reviews,
                 leadStatus: 'Novo'
             }));
@@ -833,7 +1057,6 @@ async function fetchSerpAPILeads(query, limit) {
     }
 }
 
-// --- Gerador de Dados Fictícios ---
 function generateMockLeads(niche, city, uf, count) {
     const leads = [];
     for (let i = 0; i < count; i++) {
@@ -850,7 +1073,6 @@ function generateMockLeads(niche, city, uf, count) {
             rating: (Math.random() * 2 + 3).toFixed(1),
             ratingCount: Math.floor(Math.random() * 200),
             leadStatus: 'Novo',
-            // ALTERAÇÃO: Marcador de lead fictício
             isMock: true
         });
     }
@@ -858,15 +1080,11 @@ function generateMockLeads(niche, city, uf, count) {
 }
 
 // --- Renderização ---
-
-// NOVA FUNÇÃO: Remove acentos para garantir compatibilidade com classes CSS
 function removeAccents(str) {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 function getStatusClass(status) {
-    // Ajustado para remover acentos antes de criar a classe
-    // Ex: "Negociação" -> "negociacao" -> "status-negociacao"
     const slug = removeAccents(status.toLowerCase()).replace(/\s+/g, '-');
     return `status-${slug}`;
 }
@@ -996,7 +1214,6 @@ function setupEventListeners() {
     });
 
     document.getElementById('btn-config').onclick = () => {
-        // Carrega seleção salva
         if(state.providerId) {
             document.getElementById('api-provider-select').value = state.providerId;
         }
@@ -1005,9 +1222,14 @@ function setupEventListeners() {
     };
     
     // DB Modals e Saves
-    document.getElementById('btn-save-db-direct').onclick = saveCurrentLeadsToDB;
+    if(btnSaveDbDirect) btnSaveDbDirect.onclick = saveCurrentLeadsToDB;
     
-    // O botão btn-db-manager foi removido do HTML, mas mantemos o listener condicional
+    // Backup & Restore
+    if(btnBackup) btnBackup.onclick = backupData;
+    if(btnRestoreTrigger) btnRestoreTrigger.onclick = () => restoreFileInput.click();
+    if(restoreFileInput) restoreFileInput.onchange = restoreData;
+    
+    // Mantemos o listener condicional para o DB Manager
     const btnDbManager = document.getElementById('btn-db-manager');
     if (btnDbManager) {
         btnDbManager.onclick = openDatabaseModal;

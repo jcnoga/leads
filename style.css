@@ -85,6 +85,30 @@ body {
     outline: none;
 }
 
+/* ESTILOS NOVOS: Modo de Operação */
+.mode-selector-container {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.mode-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.mode-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background-color: #f8fafc;
+    color: var(--text-main);
+    font-weight: 600;
+}
+/* FIM ESTILOS NOVOS */
+
 .auth-links {
     margin-top: 15px;
     font-size: 0.9rem;
@@ -208,7 +232,6 @@ main {
     background-color: #eff6ff;
 }
 
-/* Botão desabilitado vermelho */
 .btn-disabled-red {
     background-color: var(--error) !important;
 }
@@ -827,9 +850,7 @@ footer a {
 .hidden {
     display: none !important;
 }
-/* ... (Mantenha todo o CSS anterior) ... */
 
-/* Novos Estilos para o Botão Salvar (abaixo do Buscar) */
 .btn-success {
     background: var(--success);
     color: white;
@@ -845,7 +866,6 @@ footer a {
     background: var(--success-text);
 }
 
-/* Estilos para a Área de Filtros */
 .filters-container {
     display: flex;
     flex-wrap: wrap;
@@ -879,3 +899,47 @@ footer a {
     font-size: 0.9rem;
     background-color: white;
 }
+
+/* ESTILOS NOVOS: Backup e Restore Buttons */
+.backup-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.btn-backup {
+    background-color: #1e3a8a; /* Azul escuro */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.btn-backup:hover {
+    background-color: #172554;
+}
+
+.btn-restore {
+    background-color: #ea580c; /* Laranja */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.btn-restore:hover {
+    background-color: #c2410c;
+}
+/* FIM ESTILOS NOVOS */

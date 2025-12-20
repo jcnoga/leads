@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de Leads Profissional - Prospecção Estratégica</title>
+    <title>Gerador de Leads Profissional - Híbrido</title>
     <link rel="stylesheet" href="style.css">
     <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -38,6 +38,16 @@
             <div class="auth-box hidden" id="register-box">
                 <h2>Criar Conta</h2>
                 <form id="register-form">
+                    <!-- SELETOR DE MODO (Apenas no Cadastro) -->
+                    <div class="mode-selector-container">
+                        <label for="register-mode-select" class="mode-label">Definir Modo de Operação:</label>
+                        <select id="register-mode-select" class="mode-select">
+                            <option value="hybrid">Híbrido (Local + Nuvem)</option>
+                            <option value="local">Local (Offline)</option>
+                            <option value="cloud">Nuvem (Firebase)</option>
+                        </select>
+                    </div>
+
                     <input type="text" id="reg-name" placeholder="Seu Nome Completo" required>
                     <input type="email" id="reg-email" placeholder="Seu e-mail" required>
                     <input type="password" id="reg-password" placeholder="Crie uma senha" required>
@@ -50,7 +60,7 @@
 
             <div class="auth-box hidden" id="forgot-box">
                 <h2>Recuperar Senha</h2>
-                <p>Informe seu e-mail para receber as instruções.</p>
+                <p>Informe seu e-mail para receber as instruções (Apenas Nuvem/Híbrido).</p>
                 <form id="forgot-form">
                     <input type="email" id="forgot-email" placeholder="E-mail cadastrado" required>
                     <button type="submit" class="btn-primary">Recuperar</button>
@@ -134,7 +144,6 @@
                         </div>
                         <div class="form-group">
                             <label for="limit">Quantidade (Máx 100)</label>
-                            <!-- ALTERADO: value para 100 e max para 100 -->
                             <input type="number" id="limit" value="100" min="1" max="100">
                         </div>
                     </div>
@@ -241,6 +250,8 @@
                 <div class="config-tabs">
                     <button class="tab-btn active" data-tab="tab-api">API & Leads</button>
                     <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
+                    <!-- NOVA ABA BACKUP -->
+                    <button class="tab-btn" data-tab="tab-data">Dados & Backup</button>
                 </div>
 
                 <!-- TAB API -->
@@ -249,7 +260,6 @@
                         <h4>Configuração da API de Busca</h4>
                         <p>Selecione qual chave de API deseja utilizar para buscar dados reais.</p>
                         
-                        <!-- ALTERADO: Input substituído por Select -->
                         <div class="form-group">
                             <label for="api-provider-select">Selecione a Chave:</label>
                             <select id="api-provider-select" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
@@ -263,7 +273,6 @@
                         <p id="api-validation-msg" class="validation-msg"></p>
                     </div>
 
-                    <!-- Área de Recarga de Leads -->
                     <div id="revalidation-area" class="config-section hidden revalidation-box">
                         <h4>💎 Recarga de Leads (Senha/Contra-Senha)</h4>
                         <p>Para adicionar leads ao seu saldo, siga os passos:</p>
@@ -276,19 +285,16 @@
                                     <button id="btn-generate-challenge" class="btn-secondary btn-sm">Gerar</button>
                                 </div>
                             </div>
-
                             <div class="step-box">
                                 <label>2. Quero adquirir (Qtd):</label>
                                 <input type="number" id="leads-quantity" placeholder="Ex: 500" min="1">
                             </div>
-
                             <div class="step-box full">
                                 <label>3. Solicitar Contra-senha:</label>
                                 <a href="#" id="btn-whatsapp-request" target="_blank" class="btn-whatsapp">
                                     <i class="fab fa-whatsapp"></i> Enviar Código e Pedido via WhatsApp
                                 </a>
                             </div>
-
                             <div class="step-box full">
                                 <label>4. Inserir Contra-senha:</label>
                                 <div class="response-box">
@@ -304,26 +310,47 @@
                 <div id="tab-templates" class="tab-content">
                     <div class="config-section">
                         <h4>Gerenciar Modelos de Mensagem</h4>
-                        <p>Cadastre textos para usar nas abordagens.</p>
-                        
                         <div class="new-template-form">
                             <input type="text" id="new-template-name" placeholder="Nome do Modelo (ex: Abordagem Formal)">
                             <textarea id="new-template-content" rows="6" placeholder="Texto da mensagem com variáveis {nicho}, {cidade}..."></textarea>
                             <button id="btn-save-template" class="btn-secondary">Adicionar Modelo</button>
                         </div>
-
                         <div class="templates-list-container">
                             <h5>Modelos Salvos</h5>
-                            <ul id="templates-list" class="templates-list">
-                                <!-- Lista gerada via JS -->
-                            </ul>
+                            <ul id="templates-list" class="templates-list"></ul>
                         </div>
                     </div>
                 </div>
+
+                <!-- TAB DADOS & BACKUP (NOVO) -->
+                <div id="tab-data" class="tab-content">
+                    <div class="config-section">
+                        <h4>Gestão de Dados Locais</h4>
+                        <p>Gerencie seus dados salvos no navegador (Modo Local/Híbrido).</p>
+                        
+                        <div class="backup-actions">
+                            <button id="btn-backup" class="btn-backup">
+                                <i class="fas fa-download"></i> Fazer Backup (Download)
+                            </button>
+                            
+                            <button id="btn-restore-trigger" class="btn-restore">
+                                <i class="fas fa-upload"></i> Restaurar Dados
+                            </button>
+                            <!-- Input oculto para upload -->
+                            <input type="file" id="restore-file-input" accept=".json" class="hidden">
+                        </div>
+                        
+                        <p class="input-hint" style="margin-top: 10px;">
+                            * O Backup gera um arquivo .json com seus leads, saldo e templates.<br>
+                            * A Restauração irá substituir os dados locais atuais.
+                        </p>
+                    </div>
+                </div>
+
             </div>
         </div>
 
-        <!-- MODAL: Gerenciar Banco de Leads (Mantido no HTML para funcionamento) -->
+        <!-- MODAL: Gerenciar Banco de Leads -->
         <div id="database-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-db">&times;</span>
@@ -350,20 +377,18 @@
             </div>
         </div>
 
-        <!-- NOVO MODAL: Detalhes e Gerenciamento do Lead -->
+        <!-- MODAL: Detalhes e Gerenciamento do Lead -->
         <div id="lead-details-modal" class="modal hidden">
             <div class="modal-content large-modal">
                 <span class="close-modal-details">&times;</span>
                 <h3><i class="fas fa-user-edit"></i> Gerenciar Lead</h3>
                 
                 <div class="lead-details-grid">
-                    <!-- Nome do Lead -->
                     <div class="detail-header">
                         <h2 id="detail-name">Nome do Negócio</h2>
                         <span id="detail-niche-badge" class="badge-niche">Nicho</span>
                     </div>
 
-                    <!-- Seção Contato -->
                     <div class="detail-section">
                         <h4>📞 Contato</h4>
                         <div class="detail-row">
@@ -376,7 +401,6 @@
                         </div>
                     </div>
 
-                    <!-- Seção Observações -->
                     <div class="detail-section">
                         <h4>📌 Observações</h4>
                         <div class="detail-row-grid">
@@ -390,22 +414,19 @@
                         </div>
                     </div>
 
-                    <!-- Seção Gerenciar -->
                     <div class="detail-section highlight-section">
                         <h4>🗂️ Gerenciar Lead</h4>
-                        
-<!-- Certifique-se que esta parte no index.html está assim: -->
-<div class="form-group">
-    <label for="detail-status">Status do Lead:</label>
-    <select id="detail-status">
-        <option value="Novo">Novo</option>
-        <option value="Contatado">Contatado</option>
-        <option value="Interessado">Interessado</option>
-        <option value="Negociação">Negociação</option> <!-- Com acento -->
-        <option value="Convertido">Convertido</option>
-        <option value="Não interessado">Não interessado</option> <!-- Com acento -->
-    </select>
-</div>
+                        <div class="form-group">
+                            <label for="detail-status">Status do Lead:</label>
+                            <select id="detail-status">
+                                <option value="Novo">Novo</option>
+                                <option value="Contatado">Contatado</option>
+                                <option value="Interessado">Interessado</option>
+                                <option value="Negociação">Negociação</option>
+                                <option value="Convertido">Convertido</option>
+                                <option value="Não interessado">Não interessado</option>
+                            </select>
+                        </div>
                         <div class="form-group">
                             <label for="detail-notes">Notas de Follow-up:</label>
                             <textarea id="detail-notes" rows="4" placeholder="Adicione observações sobre o contato, próximos passos..."></textarea>
@@ -413,7 +434,6 @@
                     </div>
                 </div>
 
-                <!-- Botões de Ação -->
                 <div class="modal-actions">
                     <button id="btn-cancel-details" class="btn-outline">Cancelar</button>
                     <button id="btn-save-details" class="btn-primary">Salvar Alterações</button>
