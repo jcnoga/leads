@@ -202,34 +202,48 @@ async function login(email, password) {
     const userFound = localUsers.find(u => u.email === email && u.password === password);
 
     if (userFound) {
+        // Achou localmente
         detectedMode = userFound.mode || 'local';
-        state.appMode = detectedMode;
-        localStorage.setItem('app_mode', detectedMode);
-
+        
+        // Define o estado inicial como o usuário local
         state.user = {
             name: userFound.name,
             email: userFound.email,
-            uid: userFound.uid,
+            uid: userFound.uid, // UID Local
             source: 'local'
         };
+        state.appMode = detectedMode;
         localStorage.setItem('local_session_user', JSON.stringify(state.user));
+        localStorage.setItem('app_mode', detectedMode);
+        
         loginSuccess = true;
         
+        // --- O PULO DO GATO ---
+        // Se for Híbrido, tenta pegar o Token do Firebase agora!
         if (detectedMode === 'hybrid' && auth) {
-             auth.signInWithEmailAndPassword(email, password).catch(err => console.log("Login Firebase falhou no modo híbrido (offline?):", err));
+             console.log("Tentando sincronizar login com a nuvem...");
+             try {
+                 await auth.signInWithEmailAndPassword(email, password);
+                 console.log("Sincronização com Nuvem: SUCESSO. Token gerado.");
+                 // O listener 'onAuthStateChanged' vai atualizar o UID para o oficial do Firebase
+             } catch (err) {
+                 console.warn("Sincronização com Nuvem: FALHOU (Offline ou senha da nuvem diferente).", err);
+                 alert("Você entrou no modo OFFLINE. Os dados serão salvos apenas no seu navegador até que a conexão retorne.");
+             }
         }
         
         checkAuth();
         if (detectedMode === 'local') return;
     }
 
-    // 2. TENTATIVA NUVEM
+    // 2. TENTATIVA NUVEM (Se não achou no local, ou é puramente nuvem)
     if (!loginSuccess) {
         if (!auth) return alert("Firebase não configurado.");
         try {
             await auth.signInWithEmailAndPassword(email, password);
             state.appMode = 'cloud';
             localStorage.setItem('app_mode', 'cloud');
+            // O listener onAuthStateChanged cuidará do resto
         } catch (error) {
             alert("Erro no login: " + error.message);
         }
