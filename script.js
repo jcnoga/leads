@@ -39,8 +39,6 @@ if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
 
 // --- Inicializa Firebase ---
 let auth, db;
-// Adicione esta variável logo abaixo do objeto 'state' ou no topo do script
-let editingTemplateId = null; // Controla qual template está sendo editado
 try {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
@@ -402,49 +400,29 @@ function loadDefaultMessage() {
 }
 
 function saveNewTemplate() {
-    const nameInput = document.getElementById('new-template-name');
-    const contentInput = document.getElementById('new-template-content');
-    const btnSave = document.getElementById('btn-save-template');
-
-    const name = nameInput.value.trim();
-    const content = contentInput.value.trim();
+    const name = document.getElementById('new-template-name').value.trim();
+    const content = document.getElementById('new-template-content').value.trim();
 
     if (!name || !content) {
         alert("Preencha o nome e o texto do modelo.");
         return;
     }
 
-    if (editingTemplateId) {
-        // --- MODO EDIÇÃO: Atualiza o existente ---
-        const index = state.templates.findIndex(t => t.id === editingTemplateId);
-        if (index !== -1) {
-            state.templates[index].name = name;
-            state.templates[index].content = content;
-            alert("Modelo atualizado com sucesso!");
-        }
-        // Reseta o estado
-        editingTemplateId = null;
-        btnSave.innerText = "Adicionar Modelo";
-        btnSave.classList.remove('btn-primary'); // Volta a cor original se mudou
-        btnSave.classList.add('btn-secondary');
-    } else {
-        // --- MODO CRIAÇÃO: Adiciona novo ---
-        const newTpl = {
-            id: Date.now().toString(),
-            name: name,
-            content: content,
-            isDefault: false
-        };
-        state.templates.push(newTpl);
-        alert("Modelo salvo com sucesso!");
-    }
+    const newTpl = {
+        id: Date.now().toString(),
+        name: name,
+        content: content,
+        isDefault: false
+    };
 
-    // Persiste e Limpa
+    state.templates.push(newTpl);
     localStorage.setItem('msg_templates', JSON.stringify(state.templates));
-    nameInput.value = '';
-    contentInput.value = '';
+    
+    document.getElementById('new-template-name').value = '';
+    document.getElementById('new-template-content').value = '';
     
     renderTemplatesList();
+    alert("Modelo salvo com sucesso!");
 }
 
 function deleteTemplate(id) {
@@ -463,42 +441,6 @@ function setDefaultTemplate(id) {
     alert("Modelo definido como padrão.");
 }
 
-
-// Função para carregar os dados no formulário (Modo Edição)
-function editTemplate(id) {
-    const template = state.templates.find(t => t.id === id);
-    if (!template) return;
-
-    document.getElementById('new-template-name').value = template.name;
-    document.getElementById('new-template-content').value = template.content;
-    
-    // Configura estado global
-    editingTemplateId = id;
-    
-    // Muda visualmente o botão para indicar edição
-    const btnSave = document.getElementById('btn-save-template');
-    btnSave.innerText = "Salvar Alterações";
-    btnSave.classList.remove('btn-secondary');
-    btnSave.classList.add('btn-primary'); // Destaca o botão
-    
-    // Rola a tela até o formulário
-    document.querySelector('.new-template-form').scrollIntoView({ behavior: 'smooth' });
-}
-
-// Função para copiar texto para o Clipboard
-
-function copyTemplateContent(id) {
-    const template = state.templates.find(t => t.id === id);
-    if (!template) return;
-
-    navigator.clipboard.writeText(template.content).then(() => {
-        // Feedback visual simples (opcional: pode usar um toast/alert customizado)
-        alert(`Modelo "${template.name}" copiado para a área de transferência!`);
-    }).catch(err => {
-        console.error('Erro ao copiar:', err);
-        alert('Não foi possível copiar o texto automaticamente.');
-    });
-}
 function renderTemplatesList() {
     const list = document.getElementById('templates-list');
     list.innerHTML = '';
@@ -507,28 +449,14 @@ function renderTemplatesList() {
         const li = document.createElement('li');
         li.className = `template-item ${t.isDefault ? 'default-template' : ''}`;
         
-        // Botão de Copiar (Ícone quadrado)
-        const btnCopy = `<button onclick="copyTemplateContent('${t.id}')" class="btn-manage" title="Copiar Texto"><i class="far fa-copy"></i></button>`;
-        
-        // Botão de Editar (Lápis)
-        const btnEdit = `<button onclick="editTemplate('${t.id}')" class="btn-manage" title="Editar Modelo"><i class="fas fa-edit"></i></button>`;
-        
-        // Botão de Excluir (X)
-        const btnDelete = t.id !== 'default' ? `<button onclick="deleteTemplate('${t.id}')" class="btn-delete" title="Excluir">X</button>` : '';
-
-        // Botão de Usar Padrão
-        const btnDefault = !t.isDefault ? `<button onclick="setDefaultTemplate('${t.id}')" class="btn-manage" style="font-size:0.8rem;">Usar Padrão</button>` : '<span style="color:var(--success); font-size:0.8rem; font-weight:bold; margin-right:5px;"><i class="fas fa-check"></i> Padrão</span>';
-
         li.innerHTML = `
-            <div style="flex: 1; padding-right: 10px;">
-                <strong>${t.name}</strong>
-                <br><small style="color:#666; display:block; margin-top:4px;">${t.content.substring(0, 60)}${t.content.length > 60 ? '...' : ''}</small>
+            <div>
+                <strong>${t.name}</strong> ${t.isDefault ? '<small>(Padrão)</small>' : ''}
+                <br><small style="color:#666">${t.content.substring(0, 50)}...</small>
             </div>
-            <div class="template-actions" style="display:flex; align-items:center; gap:5px;">
-                ${btnCopy}
-                ${btnEdit}
-                ${btnDefault}
-                ${btnDelete}
+            <div class="template-actions">
+                ${!t.isDefault ? `<button onclick="setDefaultTemplate('${t.id}')" class="btn-outline btn-sm">Usar Padrão</button>` : ''}
+                ${t.id !== 'default' ? `<button onclick="deleteTemplate('${t.id}')" class="btn-outline btn-sm" style="color:red;border-color:red">X</button>` : ''}
             </div>
         `;
         list.appendChild(li);
