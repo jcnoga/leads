@@ -26,6 +26,7 @@
     --status-negociacao: #a855f7;
     --status-convertido: #15803d;
     --status-nao-interessado: #ef4444;
+    --status-telefone-sem-whatsapp: #52525b; /* Zinc 600 */
 }
 
 * {
@@ -41,6 +42,22 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+/* Usabilidade e Foco */
+input:focus, select:focus, textarea:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
+    outline: none;
+    background-color: #ffffff;
+    transition: all 0.2s ease-in-out;
+}
+
+/* --- NOVO: Destaque Visual dos Campos Preenchidos (Item 2) --- */
+.input-filled {
+    background-color: #e3f2fd !important; /* Azul claro */
+    border-color: #90caf9 !important;
+    transition: background-color 0.3s ease;
 }
 
 /* Auth Section */
@@ -85,7 +102,7 @@ body {
     outline: none;
 }
 
-/* ESTILOS NOVOS: Modo de Operação */
+/* Modo de Operação */
 .mode-selector-container {
     margin-bottom: 15px;
     text-align: left;
@@ -107,7 +124,6 @@ body {
     color: var(--text-main);
     font-weight: 600;
 }
-/* FIM ESTILOS NOVOS */
 
 .auth-links {
     margin-top: 15px;
@@ -473,7 +489,7 @@ td .actions-cell {
     gap: 5px;
 }
 
-/* New Lead Info Layout Styles */
+/* Lead Info Layout */
 .lead-info-primary {
     display: flex;
     align-items: center;
@@ -521,6 +537,7 @@ td .actions-cell {
 .status-negociacao { background-color: var(--status-negociacao); }
 .status-convertido { background-color: var(--status-convertido); }
 .status-nao-interessado { background-color: var(--status-nao-interessado); }
+.status-telefone-sem-whatsapp { background-color: var(--status-telefone-sem-whatsapp); }
 
 
 /* Modal */
@@ -900,7 +917,7 @@ footer a {
     background-color: white;
 }
 
-/* ESTILOS NOVOS: Backup e Restore Buttons */
+/* Backup and Restore Buttons */
 .backup-actions {
     display: flex;
     gap: 15px;
@@ -943,7 +960,7 @@ footer a {
     background-color: #c2410c;
 }
 
-/* ESTILOS NOVOS: Paginação */
+/* Paginação */
 .pagination-container {
     display: flex;
     justify-content: center;
@@ -988,4 +1005,15 @@ footer a {
     color: var(--text-muted);
     margin: 0 10px;
 }
-/* FIM ESTILOS NOVOS */
+
+/* --- NOVO: Seletor de Template no Modal (Item 1) --- */
+.modal-template-selector {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background-color: #f8fafc;
+    font-weight: 600;
+    color: var(--text-main);
+}

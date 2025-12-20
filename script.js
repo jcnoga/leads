@@ -1,18 +1,3 @@
-/**
- * GERADOR DE LEADS PROFISSIONAL - MODO HÍBRIDO (LOCAL + NUVEM)
- */
-
-// --- 1. CONFIGURAÇÃO DO FIREBASE ---
-const firebaseConfig = {
-  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
-  authDomain: "leads-e5ae1.firebaseapp.com",
-  projectId: "leads-e5ae1",
-  storageBucket: "leads-e5ae1.firebasestorage.app",
-  messagingSenderId: "17213040146",
-  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
-  measurementId: "G-QSGNSDGJML"
-};
-
 const API_KEYS_CONFIG = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
@@ -157,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
     setupFilterListeners();
+    setupVisualFeedback(); // Item 2: Destaque Visual
     
     const savedMsg = localStorage.getItem('current_draft_message');
     if (savedMsg) {
@@ -169,6 +155,83 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTemplatesList();
     updateSearchButtonState(); 
 });
+
+// --- NOVAS FUNÇÕES AUXILIARES (Itens 2, 3 e 4) ---
+
+// Item 2: Destaque Visual
+function setupVisualFeedback() {
+    const inputs = document.querySelectorAll('input, textarea, select');
+    const handleInput = (e) => {
+        if (e.target.value && e.target.value.trim() !== '') {
+            e.target.classList.add('input-filled');
+        } else {
+            e.target.classList.remove('input-filled');
+        }
+    };
+    inputs.forEach(input => {
+        input.addEventListener('input', handleInput);
+        input.addEventListener('change', handleInput);
+        input.addEventListener('blur', handleInput);
+        // Validação inicial
+        if(input.value) handleInput({ target: input });
+    });
+}
+
+// Itens 3 e 4: Filtragem de Fictícios e Duplicados
+async function filterInvalidAndDuplicateLeads(newLeads) {
+    let existingLeads = [];
+    
+    // Carrega leads já salvos localmente (como referência de duplicidade)
+    if (state.user) {
+        const storageKey = `local_leads_${state.user.email}`;
+        existingLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    }
+
+    // Se estiver visualizando leads salvos no momento, junta com eles também
+    if (state.isShowingSaved && state.leads.length > 0) {
+        existingLeads = [...existingLeads, ...state.leads];
+    }
+
+    // Sets para busca rápida O(1)
+    const existingPhones = new Set(existingLeads.map(l => l.phone ? l.phone.replace(/\D/g, '') : ''));
+    const existingNames = new Set(existingLeads.map(l => l.name ? l.name.toLowerCase().trim() : ''));
+
+    return newLeads.filter(lead => {
+        const lowerName = lead.name ? lead.name.toLowerCase() : '';
+
+        // --- REGRA 4: Bloquear Leads Fictícios ---
+        const isFictitious = (
+            lead.isMock === true || 
+            lowerName.includes('teste') || 
+            lowerName.includes('exemplo') || 
+            lowerName.includes('admin') ||
+            lead.phone === 'Não informado' ||
+            lead.phone === '000000000'
+        );
+
+        if (isFictitious) {
+            console.log(`Lead filtrado (Fictício): ${lead.name}`);
+            return false;
+        }
+
+        // --- REGRA 3: Bloquear Duplicidade no Banco ---
+        const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : '';
+        const cleanName = lowerName.trim();
+
+        // Verifica duplicidade por telefone
+        if (cleanPhone.length > 5 && existingPhones.has(cleanPhone)) {
+            console.log(`Lead filtrado (Duplicado por Tel): ${lead.name}`);
+            return false;
+        }
+        // Verifica duplicidade por nome
+        if (existingNames.has(cleanName)) {
+            console.log(`Lead filtrado (Duplicado por Nome): ${lead.name}`);
+            return false;
+        }
+
+        return true;
+    });
+}
 
 // --- Autenticação ---
 function checkAuth() {
@@ -578,7 +641,7 @@ async function loadMyContacts() {
     applyFilters(); 
 }
 
-// --- Lógica de Busca ---
+// --- Lógica de Busca (Com Filtragem - Itens 3 e 4) ---
 async function searchLeads(event) {
     event.preventDefault();
     state.isShowingSaved = false;
@@ -608,23 +671,42 @@ async function searchLeads(event) {
             leads = await fetchSerperLeads(query, limit);
         }
         
-        // --- NOVA LÓGICA: Forçar nicho da busca ---
         if (leads.length > 0) {
-            // Aqui substituímos a categoria da API pelo termo pesquisado
+            // --- NOVA LÓGICA: Forçar nicho da busca ---
             leads.forEach(l => l.niche = niche);
 
-            state.leadsBalance -= leads.length;
-            if (state.leadsBalance < 0) state.leadsBalance = 0;
-            localStorage.setItem('leads_balance', state.leadsBalance);
-            
-            updateApiStatusUI();
-            updateResultsBadge(true);
-            saveLeadsUniversal(leads, niche); 
+            // APLICANDO FILTROS (Itens 3 e 4) ANTES DE CONTABILIZAR/SALVAR
+            const originalCount = leads.length;
+            leads = await filterInvalidAndDuplicateLeads(leads);
+            const filteredCount = originalCount - leads.length;
+
+            if (filteredCount > 0) {
+                console.log(`Foram removidos ${filteredCount} leads (Duplicados ou Fictícios).`);
+            }
+
+            if (leads.length > 0) {
+                // Só desconta do saldo o que realmente for válido/novo
+                state.leadsBalance -= leads.length;
+                if (state.leadsBalance < 0) state.leadsBalance = 0;
+                localStorage.setItem('leads_balance', state.leadsBalance);
+                
+                updateApiStatusUI();
+                updateResultsBadge(true);
+                
+                // Salva automaticamente apenas os válidos
+                saveLeadsUniversal(leads, niche); 
+            } else {
+                alert("A busca retornou resultados, mas todos já existiam no seu banco de dados ou eram inválidos.");
+            }
         } else {
             updateResultsBadge(true); 
         }
     } else {
-        leads = generateMockLeads(niche, city, stateInput, limit);
+        // Modo Simulação (Mock)
+        let rawMocks = generateMockLeads(niche, city, stateInput, limit);
+        // Mesmo no mock, mantemos a lógica de exibição, mas a filtragem
+        // real ocorre se o usuário tentar salvar.
+        leads = rawMocks; 
         updateResultsBadge(false);
     }
 
@@ -679,12 +761,22 @@ function applyFilters() {
 
 async function saveCurrentLeadsToDB() {
     if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
-    if(state.leads.some(l => l.isMock)) return alert("Atenção: Leads fictícios não podem ser salvos.");
+    
+    // Validação extra para mock
+    if(state.leads.some(l => l.isMock)) return alert("Atenção: Leads fictícios da simulação não podem ser salvos no banco.");
 
     if(!confirm(`Deseja salvar a lista no modo: ${state.appMode.toUpperCase()}?`)) return;
 
     const niche = state.lastSearch.niche || 'Lista Manual';
-    await saveLeadsUniversal(state.leads, niche);
+    
+    // Nova filtragem de segurança antes de salvar explicitamente
+    const validLeads = await filterInvalidAndDuplicateLeads(state.leads);
+    
+    if (validLeads.length === 0) {
+        return alert("Todos os leads desta lista já foram salvos anteriormente.");
+    }
+
+    await saveLeadsUniversal(validLeads, niche);
     
     if(state.appMode === 'local') {
         alert("Dados salvos localmente com sucesso!");
@@ -714,7 +806,7 @@ function saveLeadsToLocal(leads, niche) {
         delete leadToSave._originalIndex;
         delete leadToSave.isMock;
         
-        // Evitar duplicatas exatas se já existir
+        // Evitar duplicatas exatas se já existir (Redundância de segurança)
         const exists = currentData.some(d => d.name === leadToSave.name && d.phone === leadToSave.phone);
         if (!exists) {
             currentData.push({
@@ -1125,35 +1217,78 @@ function getStatusClass(status) {
     return `status-${slug}`;
 }
 
+// --- ITEM 1: Seletor de Templates no Modal (Atualizado) ---
 function openMessageModal(leadIndex) {
     const lead = state.leads[leadIndex];
     const modal = document.getElementById('message-modal');
     const textArea = document.getElementById('generated-message');
     const btnWhats = document.getElementById('btn-send-whatsapp');
+    const selectTemplate = document.getElementById('modal-template-select');
 
-    const templateInput = document.getElementById('message-template-input').value;
-
-    const nichoVal = lead.niche || "";
-    const cidadeVal = lead.address ? lead.address.split(',')[0] : "sua cidade";
-    const estadoVal = "";
-
-    let message = templateInput
-        .replace(/{nicho}/g, nichoVal)
-        .replace(/{cidade}/g, cidadeVal)
-        .replace(/{estado}/g, estadoVal);
-
-    message = message.replace(/\s+/g, ' ').trim();
-    textArea.value = message;
+    // 1. Popula o Select com os templates existentes
+    selectTemplate.innerHTML = '';
+    state.templates.forEach(tpl => {
+        const option = document.createElement('option');
+        option.value = tpl.id;
+        option.innerText = tpl.name + (tpl.isDefault ? ' (Padrão)' : '');
+        // Seleciona o padrão
+        if (tpl.isDefault) option.selected = true;
+        selectTemplate.appendChild(option);
+    });
     
-    const cleanPhone = lead.phone.replace(/\D/g, '');
-    if (cleanPhone) {
-        const phoneParam = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
-        btnWhats.href = `https://wa.me/${phoneParam}?text=${encodeURIComponent(message)}`;
-        btnWhats.classList.remove('hidden');
-    } else {
-        btnWhats.href = "#";
-        btnWhats.classList.add('hidden');
-    }
+    // Adiciona opção "Texto Atual da Dashboard" se necessário
+    const currentDashboardText = document.getElementById('message-template-input').value;
+    const customOption = document.createElement('option');
+    customOption.value = 'custom_dashboard';
+    customOption.innerText = '📝 Texto Editado na Tela Principal';
+    selectTemplate.appendChild(customOption);
+
+    // Função interna para gerar o texto
+    const generateText = (templateContent) => {
+        const nichoVal = lead.niche || "";
+        const cidadeVal = lead.address ? lead.address.split(',')[0] : "sua cidade";
+        const estadoVal = ""; 
+
+        let message = templateContent
+            .replace(/{nicho}/g, nichoVal)
+            .replace(/{cidade}/g, cidadeVal)
+            .replace(/{estado}/g, estadoVal);
+
+        return message.replace(/\s+/g, ' ').trim();
+    };
+
+    // Listener para troca de template
+    selectTemplate.onchange = () => {
+        let content = "";
+        if (selectTemplate.value === 'custom_dashboard') {
+            content = currentDashboardText;
+        } else {
+            const selectedTpl = state.templates.find(t => t.id === selectTemplate.value);
+            content = selectedTpl ? selectedTpl.content : "";
+        }
+        textArea.value = generateText(content);
+        updateWhatsAppLink(textArea.value);
+    };
+
+    // Função para atualizar o link do botão
+    const updateWhatsAppLink = (msg) => {
+        const cleanPhone = lead.phone.replace(/\D/g, '');
+        if (cleanPhone) {
+            const phoneParam = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+            btnWhats.href = `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}`;
+            btnWhats.classList.remove('hidden');
+        } else {
+            btnWhats.href = "#";
+            btnWhats.classList.add('hidden');
+        }
+    };
+    
+    // Listener para edição manual no textarea do modal
+    textArea.oninput = () => updateWhatsAppLink(textArea.value);
+
+    // Inicialização: Dispara o onchange para carregar o template padrão selecionado
+    selectTemplate.onchange();
+
     modal.classList.remove('hidden');
 }
 

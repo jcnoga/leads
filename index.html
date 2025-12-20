@@ -42,8 +42,8 @@
                     <div class="mode-selector-container">
                         <label for="register-mode-select" class="mode-label">Definir Modo de Operação:</label>
                         <select id="register-mode-select" class="mode-select">
+                            <option value="local" selected>Local (Offline) - Recomendado</option>
                             <option value="hybrid">Híbrido (Local + Nuvem)</option>
-                            <option value="local">Local (Offline)</option>
                             <option value="cloud">Nuvem (Firebase)</option>
                         </select>
                     </div>
@@ -80,7 +80,7 @@
                     <span>Olá, <strong id="user-name-display">Visitante</strong></span>
                 </div>
                 <div class="header-actions">
-                    <!-- NOVO: Botão Meus Contatos -->
+                    <!-- Botão Meus Contatos -->
                     <button id="btn-show-saved-leads" class="btn-primary-outline">
                         <i class="fas fa-address-book"></i> Meus Contatos
                     </button>
@@ -218,6 +218,7 @@
                             <option value="Negociação">Negociação</option>
                             <option value="Convertido">Convertido</option>
                             <option value="Não interessado">Não interessado</option>
+                            <option value="Telefone sem WhatsApp">Telefone sem WhatsApp</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -245,7 +246,7 @@
                     </table>
                 </div>
 
-                <!-- NOVO: Container de Paginação -->
+                <!-- Container de Paginação -->
                 <div id="pagination-controls" class="pagination-container hidden">
                     <!-- Botões gerados via JS -->
                 </div>
@@ -261,7 +262,7 @@
                 <div class="config-tabs">
                     <button class="tab-btn active" data-tab="tab-api">API & Leads</button>
                     <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
-                    <!-- NOVA ABA BACKUP -->
+                    <!-- ABA BACKUP -->
                     <button class="tab-btn" data-tab="tab-data">Dados & Backup</button>
                 </div>
 
@@ -436,6 +437,7 @@
                                 <option value="Negociação">Negociação</option>
                                 <option value="Convertido">Convertido</option>
                                 <option value="Não interessado">Não interessado</option>
+                                <option value="Telefone sem WhatsApp">Telefone sem WhatsApp</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -457,10 +459,23 @@
             <div class="modal-content">
                 <span class="close-modal-msg">&times;</span>
                 <h3>Gerador de Abordagem</h3>
+                
+                <!-- NOVO: Seletor de Modelo no Modal (Item 1) -->
+                <div style="margin-bottom: 5px;">
+                    <label for="modal-template-select" style="font-size:0.9rem; color:var(--text-muted);">Selecionar Modelo:</label>
+                    <select id="modal-template-select" class="modal-template-selector">
+                        <!-- Opções carregadas via JS -->
+                    </select>
+                </div>
+
                 <div class="message-box">
                     <textarea id="generated-message" rows="8"></textarea>
                 </div>
-                <button id="copy-message" class="btn-secondary">Copiar Mensagem</button>
+
+                <button id="copy-message" class="btn-secondary">
+                    <i class="far fa-copy"></i> Copiar Mensagem
+                </button>
+                
                 <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp-action">Enviar no WhatsApp</a>
             </div>
         </div>
@@ -474,3 +489,23 @@
     <script src="script.js"></script>
 </body>
 </html>
+```
+
+### 3. `script.js`
+Foi adicionada a função `filterInvalidAndDuplicateLeads` (chamada dentro de `searchLeads`), `setupVisualFeedback` e a lógica do seletor no `openMessageModal`.
+
+```javascript
+/**
+ * GERADOR DE LEADS PROFISSIONAL - MODO HÍBRIDO (LOCAL + NUVEM)
+ */
+
+// --- 1. CONFIGURAÇÃO DO FIREBASE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
+};
