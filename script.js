@@ -1,10 +1,11 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
-  authDomain: "projeto-bfed3.firebaseapp.com",
-  projectId: "projeto-bfed3",
-  storageBucket: "projeto-bfed3.firebasestorage.app",
-  messagingSenderId: "785289237066",
-  appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
 };
 
 const API_KEYS_CONFIG = {
@@ -127,7 +128,7 @@ const state = {
     templates: [],
     challengeNumber: 0,
     currentLeadIndex: null,
-    appMode: 'hybrid', // Será atualizado na inicialização
+    appMode: 'hybrid', 
     currentPage: 1,
     itemsPerPage: 10,
     isShowingSaved: false 
@@ -210,10 +211,8 @@ const btnSyncData = document.getElementById('btn-sync-data');
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Abrir Banco de Dados IndexedDB
     try {
         await dbHelper.open();
-        // Migração única se necessário
         await migrateLocalStorageToIndexedDB();
     } catch (e) {
         console.error("Falha fatal ao abrir IndexedDB:", e);
@@ -221,40 +220,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // 2. Carregar Configurações Iniciais do DB
     state.providerId = (await dbHelper.getSetting('selected_provider_id')) || 'KEY_1';
     state.leadsBalance = parseInt((await dbHelper.getSetting('leads_balance'))) || 0;
     
-    // ALTERAÇÃO: Carrega o modo de operação salvo, default 'hybrid'
     state.appMode = (await dbHelper.getSetting('app_mode')) || 'hybrid';
     
-    // Atualiza o seletor no modal de configurações
     const storageModeSelect = document.getElementById('app-storage-mode');
     if (storageModeSelect) {
         storageModeSelect.value = state.appMode;
     }
 
-    // Configurar API Key
     if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
         state.apiKey = API_KEYS_CONFIG[state.providerId];
     } else {
         state.apiKey = API_KEYS_CONFIG['KEY_1'];
     }
 
-    // Carregar Templates
     const savedTemplates = await dbHelper.getAll('templates');
     state.templates = savedTemplates.length > 0 ? savedTemplates : DEFAULT_TEMPLATES;
     if(savedTemplates.length === 0) {
         await dbHelper.add('templates', DEFAULT_TEMPLATES[0]);
     }
 
-    // 3. Checar Sessão
     if (auth) {
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 if (state.user) {
                     state.user.uid = user.uid;
-                    state.user.source = state.appMode; // Atualiza source conforme modo
+                    state.user.source = state.appMode;
                 } else {
                     state.user = {
                         name: user.displayName || user.email,
@@ -289,10 +282,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateApiStatusUI();
     renderTemplatesList();
     updateSearchButtonState();
-    updateUIByMode(); // Ajusta interface inicial conforme modo
+    updateUIByMode();
 });
 
-// --- Nova Função: Ajustar UI pelo Modo ---
 function updateUIByMode() {
     const appModeDisplay = document.getElementById('app-mode-display');
     if (appModeDisplay) {
@@ -302,16 +294,13 @@ function updateUIByMode() {
         appModeDisplay.innerText = label;
     }
 
-    // Controla visibilidade do botão Sync
     if (state.appMode === 'hybrid') {
         btnSyncData.classList.remove('hidden');
     } else {
-        // Em modo Local (não sync) ou Cloud (sync automático/direto), esconde o botão manual
         btnSyncData.classList.add('hidden');
     }
 }
 
-// --- Nova Função: Salvar Modo de Armazenamento ---
 async function saveStorageMode() {
     const select = document.getElementById('app-storage-mode');
     const newMode = select.value;
@@ -324,7 +313,6 @@ async function saveStorageMode() {
     document.getElementById('config-modal').classList.add('hidden');
 }
 
-// --- Migração (Opcional) ---
 async function migrateLocalStorageToIndexedDB() {
     const migrated = localStorage.getItem('idb_migrated_v1');
     if (migrated) return;
@@ -384,9 +372,6 @@ async function filterInvalidAndDuplicateLeads(newLeads) {
     
     if (state.user) {
         if (state.appMode === 'cloud' && auth.currentUser) {
-            // No modo Cloud, a verificação ideal seria no servidor, mas faremos local se possível
-            // ou assumimos a lista carregada na memória (se estiver em Meus Contatos)
-            // Para simplificar e manter performance, usamos o que estiver no state.leads se for visualização
             if (state.isShowingSaved) existingLeads = state.leads;
         } else {
             existingLeads = await dbHelper.getLeadsByUser(state.user.email);
@@ -425,7 +410,7 @@ function checkAuth() {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         
-        updateUIByMode(); // Atualiza label
+        updateUIByMode(); 
         
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
@@ -512,10 +497,65 @@ async function login(email, password, name) {
 
 async function register(name, email, password) {
     const existingUser = await dbHelper.get('users', email);
+    
+    // VERIFICAÇÃO SE USUÁRIO JÁ EXISTE LOCALMENTE
     if (existingUser) {
-         return alert("Usuário já existe localmente.");
+        if (!auth) return alert("Usuário já existe localmente (Modo Offline).");
+
+        // Tenta criar na nuvem para verificar se existe lá
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(async (userCredential) => {
+                // SUCESSO: Usuário não existia na nuvem, foi criado agora.
+                const uid = userCredential.user.uid;
+                
+                // 1. Atualiza dados locais
+                existingUser.uid = uid;
+                if (name) existingUser.name = name;
+                await dbHelper.add('users', existingUser);
+                
+                // 2. Atualiza Perfil no Auth
+                await userCredential.user.updateProfile({ displayName: name });
+
+                // 3. CORREÇÃO: Cria o documento do usuário no Firestore (Banco de Dados)
+                await db.collection('users').doc(uid).set({
+                    name: name,
+                    email: email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    source: 'sync_creation'
+                });
+                
+                alert("Conta local encontrada. Sincronização com a nuvem realizada com sucesso!");
+                toggleAuthBox('login');
+            })
+            .catch(async (error) => {
+                if (error.code === 'auth/email-already-in-use') {
+                    // ERRO: Usuário já existe na nuvem.
+                    try {
+                        const loginCred = await auth.signInWithEmailAndPassword(email, password);
+                        // Sucesso no login: Vincula IDs
+                        existingUser.uid = loginCred.user.uid;
+                        await dbHelper.add('users', existingUser);
+                        
+                        // Garante que o documento existe no Firestore mesmo se já existia no Auth
+                        await db.collection('users').doc(loginCred.user.uid).set({
+                            name: name || existingUser.name,
+                            email: email,
+                            lastSync: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true }); // Merge para não sobrescrever dados existentes
+                        
+                        alert("Usuário já existe em ambos. Contas vinculadas com sucesso!");
+                        toggleAuthBox('login');
+                    } catch (loginErr) {
+                        alert("Usuário existe localmente e na nuvem, mas as credenciais não conferem. Impossível vincular automaticamente.");
+                    }
+                } else {
+                    alert("Usuário existe localmente. Erro ao conectar com nuvem: " + error.message);
+                }
+            });
+        return; // Interrompe o fluxo padrão de criação
     }
 
+    // FLUXO PADRÃO PARA NOVOS USUÁRIOS (Sem registro local prévio)
     const newUser = {
         name: name,
         email: email,
@@ -531,11 +571,23 @@ async function register(name, email, password) {
     if (auth) {
         auth.createUserWithEmailAndPassword(email, password)
             .then(async (userCredential) => {
-                newUser.uid = userCredential.user.uid;
+                const uid = userCredential.user.uid;
+                
+                // 1. Atualiza UID local com o da nuvem
+                newUser.uid = uid;
                 await dbHelper.add('users', newUser);
-                return userCredential.user.updateProfile({ displayName: name });
-            })
-            .then(() => {
+                
+                // 2. Atualiza Auth Profile
+                await userCredential.user.updateProfile({ displayName: name });
+
+                // 3. CORREÇÃO: Cria o documento do usuário no Firestore (Banco de Dados)
+                await db.collection('users').doc(uid).set({
+                    name: name,
+                    email: email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    leadsBalance: 50 // Inicia saldo na nuvem também
+                });
+
                 alert("Conta criada com sucesso! Você pode fazer login.");
                 toggleAuthBox('login');
             })
@@ -553,7 +605,6 @@ async function register(name, email, password) {
         toggleAuthBox('login');
     }
 }
-
 async function logout() {
     state.user = null;
     await dbHelper.delete('settings', 'local_session_user'); 
@@ -1046,7 +1097,6 @@ async function searchLeads(event) {
                 updateApiStatusUI();
                 updateResultsBadge(true);
                 
-                // ALTERAÇÃO: Salva conforme o modo selecionado
                 if (state.appMode === 'cloud') {
                      // No modo Cloud, salva direto na nuvem, mas sem bloquear a UI se falhar
                      await saveLeadsToFirestore(leads, niche);
@@ -1176,9 +1226,13 @@ async function saveLeadsToFirestore(leads, niche) {
     if (!state.user || !auth.currentUser) return alert("Erro: Login necessário para salvar na nuvem.");
 
     let savedCount = 0;
+    const batch = db.batch(); 
+    let operationCounter = 0;
     
-    for (const lead of leads) {
-        try {
+    try {
+        for (const lead of leads) {
+            const docRef = db.collection('users').doc(auth.currentUser.uid).collection('leads').doc();
+            
             const leadToSend = {
                 ...lead,
                 searchNiche: niche,
@@ -1187,18 +1241,35 @@ async function saveLeadsToFirestore(leads, niche) {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             
-            // Limpa propriedades locais
             delete leadToSend._originalIndex;
             delete leadToSend.isMock;
-            delete leadToSend.id; // Não envia ID local/mock
+            delete leadToSend.id; 
+            delete leadToSend.firestoreId;
 
-            await db.collection('users').doc(auth.currentUser.uid).collection('leads').add(leadToSend);
+            batch.set(docRef, leadToSend);
+            operationCounter++;
             savedCount++;
-        } catch(e) {
-            console.error("Erro ao salvar lead na nuvem:", e);
+
+            if (operationCounter >= 450) {
+                await batch.commit();
+                operationCounter = 0;
+            }
+        }
+
+        if (operationCounter > 0) {
+            await batch.commit();
+        }
+        
+        console.log(`Leads salvos na nuvem: ${savedCount}`);
+        
+    } catch(e) {
+        console.error("Erro ao salvar lead na nuvem:", e);
+        if (e.code === 'permission-denied') {
+            alert("Erro de Permissão: O banco de dados recusou a gravação.\nVerifique se as Regras de Segurança no Console do Firebase estão configuradas corretamente.");
+        } else {
+            alert("Erro ao salvar na nuvem: " + e.message);
         }
     }
-    console.log(`Leads salvos na nuvem: ${savedCount}`);
 }
 
 async function backupData() {
@@ -1313,7 +1384,6 @@ async function saveLeadDetails() {
     lead.followUpNotes = detailNotes.value;
     
     if (state.isShowingSaved) {
-        // No modo Cloud, atualiza direto
         if (state.appMode === 'cloud' && lead.firestoreId && auth.currentUser) {
             db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
                 leadStatus: lead.leadStatus,
@@ -1321,13 +1391,10 @@ async function saveLeadDetails() {
             }).catch(err => console.error("Erro update firestore", err));
             alert("Alterações salvas na nuvem!");
         } else {
-            // Modos Local e Híbrido: Atualiza IDB
-            // Precisamos garantir que o objeto tenha o ID correto do IDB se estivermos no modo local/híbrido
             if (lead.id) {
                 await dbHelper.add('leads', lead);
             }
             
-            // Se for híbrido e tiver ID da nuvem, tenta sync
             if (state.appMode === 'hybrid' && lead.firestoreId && auth.currentUser) {
                 db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
                     leadStatus: lead.leadStatus,
@@ -1351,17 +1418,14 @@ async function deleteLead(index) {
         if (state.isShowingSaved) {
             const lead = state.leads[index];
             
-            // Modo Cloud
             if (state.appMode === 'cloud' && lead.firestoreId && auth.currentUser) {
                 db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
                     .catch(err => console.error("Erro ao deletar na nuvem", err));
             } else {
-                // Modo Local/Híbrido
                 if (lead.id) {
                     await dbHelper.delete('leads', lead.id);
                 }
                 
-                // Se híbrido e sincronizado, deleta da nuvem
                 if (state.appMode === 'hybrid' && lead.firestoreId && auth.currentUser) {
                     db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
                     .catch(err => console.error("Erro ao deletar na nuvem", err));
