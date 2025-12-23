@@ -38,12 +38,13 @@
             <div class="auth-box hidden" id="register-box">
                 <h2>Criar Conta</h2>
                 <form id="register-form">
-                    <!-- SELETOR DE MODO (OCULTO - Forçado Híbrido) -->
-                    <!-- A interface foi ajustada para ocultar, mas o ID é mantido para não quebrar o script.js -->
-                    <div class="mode-selector-container" style="display: none;">
+                    <!-- SELETOR DE MODO (Apenas no Cadastro) -->
+                    <div class="mode-selector-container">
                         <label for="register-mode-select" class="mode-label">Definir Modo de Operação:</label>
                         <select id="register-mode-select" class="mode-select">
-                            <option value="hybrid" selected>Híbrido (Local + Nuvem)</option>
+                            <option value="local" selected>Local (Offline) - Recomendado</option>
+                            <option value="hybrid">Híbrido (Local + Nuvem)</option>
+                            <option value="cloud">Nuvem (Firebase)</option>
                         </select>
                     </div>
 

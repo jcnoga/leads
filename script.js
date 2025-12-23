@@ -1,13 +1,12 @@
 /* --- START OF FILE script.js --- */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
-  authDomain: "leads-e5ae1.firebaseapp.com",
-  projectId: "leads-e5ae1",
-  storageBucket: "leads-e5ae1.firebasestorage.app",
-  messagingSenderId: "17213040146",
-  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
-  measurementId: "G-QSGNSDGJML"
+  apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
+  authDomain: "projeto-bfed3.firebaseapp.com",
+  projectId: "projeto-bfed3",
+  storageBucket: "projeto-bfed3.firebasestorage.app",
+  messagingSenderId: "785289237066",
+  appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
 };
 
 const API_KEYS_CONFIG = {
