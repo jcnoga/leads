@@ -1,11 +1,10 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
-  authDomain: "leads-e5ae1.firebaseapp.com",
-  projectId: "leads-e5ae1",
-  storageBucket: "leads-e5ae1.firebasestorage.app",
-  messagingSenderId: "17213040146",
-  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
-  measurementId: "G-QSGNSDGJML"
+  apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
+  authDomain: "projeto-bfed3.firebaseapp.com",
+  projectId: "projeto-bfed3",
+  storageBucket: "projeto-bfed3.firebasestorage.app",
+  messagingSenderId: "785289237066",
+  appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
 };
 
 const API_KEYS_CONFIG = {
@@ -13,7 +12,7 @@ const API_KEYS_CONFIG = {
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
 };
 
-// --- HELPER INDEXEDDB (NOVO) ---
+// --- HELPER INDEXEDDB ---
 const dbHelper = {
     dbName: 'LeadsManagerDB',
     version: 1,
@@ -38,7 +37,7 @@ const dbHelper = {
                     store.createIndex('phone', 'phone', { unique: false });
                 }
 
-                // Store para Configurações/Sessão (simula key-value simples)
+                // Store para Configurações/Sessão
                 if (!db.objectStoreNames.contains('settings')) {
                     db.createObjectStore('settings', { keyPath: 'key' });
                 }
@@ -74,7 +73,6 @@ const dbHelper = {
         return this.transaction(storeName, 'readwrite', store => store.delete(key));
     },
 
-    // Busca Leads por Email do Usuário
     async getLeadsByUser(email) {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject("DB não inicializado");
@@ -100,7 +98,6 @@ const dbHelper = {
         });
     },
 
-    // Métodos específicos para Configurações (Key-Value)
     async setSetting(key, value) {
         return this.add('settings', { key, value });
     },
@@ -130,7 +127,7 @@ const state = {
     templates: [],
     challengeNumber: 0,
     currentLeadIndex: null,
-    appMode: 'hybrid', 
+    appMode: 'hybrid', // Será atualizado na inicialização
     currentPage: 1,
     itemsPerPage: 10,
     isShowingSaved: false 
@@ -211,7 +208,6 @@ const paginationControls = document.getElementById('pagination-controls');
 const resultsTitle = document.getElementById('results-title');
 const btnSyncData = document.getElementById('btn-sync-data');
 
-
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Abrir Banco de Dados IndexedDB
@@ -228,13 +224,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Carregar Configurações Iniciais do DB
     state.providerId = (await dbHelper.getSetting('selected_provider_id')) || 'KEY_1';
     state.leadsBalance = parseInt((await dbHelper.getSetting('leads_balance'))) || 0;
-    state.appMode = 'hybrid'; 
     
+    // ALTERAÇÃO: Carrega o modo de operação salvo, default 'hybrid'
+    state.appMode = (await dbHelper.getSetting('app_mode')) || 'hybrid';
+    
+    // Atualiza o seletor no modal de configurações
+    const storageModeSelect = document.getElementById('app-storage-mode');
+    if (storageModeSelect) {
+        storageModeSelect.value = state.appMode;
+    }
+
     // Configurar API Key
     if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
         state.apiKey = API_KEYS_CONFIG[state.providerId];
     } else {
-        // Fallback default
         state.apiKey = API_KEYS_CONFIG['KEY_1'];
     }
 
@@ -251,13 +254,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (user) {
                 if (state.user) {
                     state.user.uid = user.uid;
-                    state.user.source = 'hybrid';
+                    state.user.source = state.appMode; // Atualiza source conforme modo
                 } else {
                     state.user = {
                         name: user.displayName || user.email,
                         email: user.email,
                         uid: user.uid,
-                        source: 'hybrid'
+                        source: state.appMode
                     };
                 }
                 await dbHelper.setSetting('local_session_user', state.user);
@@ -285,8 +288,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     updateApiStatusUI();
     renderTemplatesList();
-    updateSearchButtonState(); 
+    updateSearchButtonState();
+    updateUIByMode(); // Ajusta interface inicial conforme modo
 });
+
+// --- Nova Função: Ajustar UI pelo Modo ---
+function updateUIByMode() {
+    const appModeDisplay = document.getElementById('app-mode-display');
+    if (appModeDisplay) {
+        let label = ' (Híbrido)';
+        if (state.appMode === 'local') label = ' (Local)';
+        if (state.appMode === 'cloud') label = ' (Nuvem)';
+        appModeDisplay.innerText = label;
+    }
+
+    // Controla visibilidade do botão Sync
+    if (state.appMode === 'hybrid') {
+        btnSyncData.classList.remove('hidden');
+    } else {
+        // Em modo Local (não sync) ou Cloud (sync automático/direto), esconde o botão manual
+        btnSyncData.classList.add('hidden');
+    }
+}
+
+// --- Nova Função: Salvar Modo de Armazenamento ---
+async function saveStorageMode() {
+    const select = document.getElementById('app-storage-mode');
+    const newMode = select.value;
+    
+    state.appMode = newMode;
+    await dbHelper.setSetting('app_mode', newMode);
+    
+    alert(`Modo de armazenamento alterado para: ${newMode.toUpperCase()}.\nAlgumas funcionalidades podem mudar.`);
+    updateUIByMode();
+    document.getElementById('config-modal').classList.add('hidden');
+}
 
 // --- Migração (Opcional) ---
 async function migrateLocalStorageToIndexedDB() {
@@ -295,13 +331,11 @@ async function migrateLocalStorageToIndexedDB() {
 
     console.log("Iniciando migração para IndexedDB...");
     try {
-        // Migrar Usuários
         const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
         for (const u of localUsers) {
             await dbHelper.add('users', u);
         }
 
-        // Migrar Leads
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key && key.startsWith('local_leads_')) {
@@ -309,14 +343,12 @@ async function migrateLocalStorageToIndexedDB() {
                 const leads = JSON.parse(localStorage.getItem(key) || '[]');
                 for (const l of leads) {
                     const leadToSave = { ...l, userEmail: email };
-                    // Garante que não tenha chaves de controle antigas que conflitem
                     delete leadToSave.id; 
                     await dbHelper.add('leads', leadToSave);
                 }
             }
         }
 
-        // Migrar Configs
         const balance = localStorage.getItem('leads_balance');
         if (balance) await dbHelper.setSetting('leads_balance', balance);
         
@@ -330,7 +362,6 @@ async function migrateLocalStorageToIndexedDB() {
     }
 }
 
-// --- Destaque Visual ---
 function setupVisualFeedback() {
     const inputs = document.querySelectorAll('input, textarea, select');
     const handleInput = (e) => {
@@ -348,19 +379,18 @@ function setupVisualFeedback() {
     });
 }
 
-// Filtragem de Fictícios e Duplicados
 async function filterInvalidAndDuplicateLeads(newLeads) {
     let existingLeads = [];
     
     if (state.user) {
-        // Busca do IndexedDB
-        existingLeads = await dbHelper.getLeadsByUser(state.user.email);
-    }
-
-    // Se estiver visualizando salvos, não precisa concatenar pois já buscamos do banco
-    // Mas para garantir comparação com estado atual da memória se houver algo volátil:
-    if (state.isShowingSaved && state.leads.length > existingLeads.length) {
-         // Lógica defensiva, normalmente dbHelper.getLeadsByUser é a fonte da verdade
+        if (state.appMode === 'cloud' && auth.currentUser) {
+            // No modo Cloud, a verificação ideal seria no servidor, mas faremos local se possível
+            // ou assumimos a lista carregada na memória (se estiver em Meus Contatos)
+            // Para simplificar e manter performance, usamos o que estiver no state.leads se for visualização
+            if (state.isShowingSaved) existingLeads = state.leads;
+        } else {
+            existingLeads = await dbHelper.getLeadsByUser(state.user.email);
+        }
     }
 
     const existingPhones = new Set(existingLeads.map(l => l.phone ? l.phone.replace(/\D/g, '') : ''));
@@ -390,14 +420,12 @@ async function filterInvalidAndDuplicateLeads(newLeads) {
     });
 }
 
-// --- Autenticação ---
 function checkAuth() {
     if (state.user) {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         
-        let modeLabel = ' (Híbrido)';
-        document.getElementById('user-name-display').innerText = state.user.name + modeLabel;
+        updateUIByMode(); // Atualiza label
         
         if (state.user.email === ADMIN_EMAIL) {
             btnAdminReset.classList.remove('hidden');
@@ -413,12 +441,10 @@ function checkAuth() {
 }
 
 async function login(email, password, name) {
-    // 1. Tenta autenticação local via IndexedDB
     let userFound = await dbHelper.get('users', email);
     let loginSuccess = false;
 
     if (userFound && userFound.password === password) {
-        // Atualiza nome se necessário
         if (name && name.trim() !== "" && (!userFound.name || userFound.name !== name)) {
             userFound.name = name;
             await dbHelper.add('users', userFound);
@@ -434,12 +460,11 @@ async function login(email, password, name) {
         await dbHelper.setSetting('local_session_user', state.user);
         loginSuccess = true;
         
-        // Tenta sync auth background
         if (auth) {
              auth.signInWithEmailAndPassword(email, password)
                  .then(async (cred) => {
                      state.user.uid = cred.user.uid;
-                     state.user.source = 'hybrid';
+                     state.user.source = state.appMode;
                      await dbHelper.setSetting('local_session_user', state.user);
                  })
                  .catch(err => console.log("Login Firebase bg falhou:", err));
@@ -449,7 +474,6 @@ async function login(email, password, name) {
         return;
     }
 
-    // 2. Se não achou localmente, tenta Firebase
     if (!loginSuccess) {
         if (!auth) return alert("Firebase não configurado.");
         try {
@@ -469,14 +493,13 @@ async function login(email, password, name) {
                 uid: fbUser.uid,
                 mode: 'hybrid'
             };
-            // Salva no IndexedDB
             await dbHelper.add('users', newUserLocal);
 
             state.user = {
                 name: finalName,
                 email: email,
                 uid: fbUser.uid,
-                source: 'hybrid'
+                source: state.appMode
             };
             await dbHelper.setSetting('local_session_user', state.user);
             
@@ -488,7 +511,6 @@ async function login(email, password, name) {
 }
 
 async function register(name, email, password) {
-    // 1. Cria Localmente no IndexedDB
     const existingUser = await dbHelper.get('users', email);
     if (existingUser) {
          return alert("Usuário já existe localmente.");
@@ -503,11 +525,9 @@ async function register(name, email, password) {
     };
     await dbHelper.add('users', newUser);
     
-    // Saldo inicial
     await dbHelper.setSetting('leads_balance', 50);
     state.leadsBalance = 50;
 
-    // 2. Tenta Criar na Nuvem
     if (auth) {
         auth.createUserWithEmailAndPassword(email, password)
             .then(async (userCredential) => {
@@ -537,8 +557,6 @@ async function register(name, email, password) {
 async function logout() {
     state.user = null;
     await dbHelper.delete('settings', 'local_session_user'); 
-    // Limpa app_mode apenas se desejar forçar login novamente sem memory
-    // await dbHelper.delete('settings', 'app_mode'); 
     if (auth) auth.signOut();
     location.reload(); 
 }
@@ -566,19 +584,16 @@ async function syncSystem() {
     btn.disabled = true;
 
     try {
-        // 1. Sincronizar Usuário
         if (!auth.currentUser) {
             const currentUserLocal = await dbHelper.get('users', state.user.email);
             
             if (currentUserLocal) {
                 try {
                     await auth.signInWithEmailAndPassword(currentUserLocal.email, currentUserLocal.password);
-                    console.log("Sync Auth: Logado no Firebase.");
                 } catch (authErr) {
                     if (authErr.code === 'auth/user-not-found') {
                         await auth.createUserWithEmailAndPassword(currentUserLocal.email, currentUserLocal.password);
                         await auth.currentUser.updateProfile({ displayName: currentUserLocal.name });
-                        console.log("Sync Auth: Usuário recriado na nuvem.");
                     } else if (authErr.code === 'auth/wrong-password') {
                         throw new Error("Conflito de senha na nuvem. Faça login manualmente.");
                     } else {
@@ -589,13 +604,11 @@ async function syncSystem() {
             }
         }
 
-        // 2. Sincronizar Leads
         const localLeads = await dbHelper.getLeadsByUser(state.user.email);
         
         let syncedCount = 0;
         let errorCount = 0;
 
-        // Filtra apenas leads sem ID do Firestore
         const leadsToSync = localLeads.filter(lead => !lead.firestoreId);
 
         if (leadsToSync.length === 0) {
@@ -607,23 +620,18 @@ async function syncSystem() {
 
         for (const lead of leadsToSync) {
             try {
-                // Prepara objeto para envio
                 const leadToSend = { ...lead };
-                // Remove chaves internas do IndexedDB ao enviar para o Firestore
                 delete leadToSend.id; 
                 delete leadToSend.isMock;
                 
-                // Firestore não aceita undefined
                 Object.keys(leadToSend).forEach(key => {
                     if (leadToSend[key] === undefined) leadToSend[key] = null;
                 });
                 
                 if (!leadToSend.createdAt) leadToSend.createdAt = firebase.firestore.FieldValue.serverTimestamp();
 
-                // Envia para o Firestore
                 const docRef = await db.collection('users').doc(state.user.uid).collection('leads').add(leadToSend);
 
-                // Atualiza o objeto local no IndexedDB com o novo firestoreId
                 lead.firestoreId = docRef.id;
                 await dbHelper.add('leads', lead);
                 
@@ -654,8 +662,6 @@ async function syncSystem() {
     }
 }
 
-
-// --- Funções de Admin ---
 async function resetAccess() {
     if (confirm("ADMIN: Deseja zerar o saldo de leads?")) {
         state.leadsBalance = 0; 
@@ -676,7 +682,6 @@ async function addAdminLeads() {
     }
 }
 
-// --- Gerenciamento de Templates ---
 function loadDefaultMessage() {
     const defaultTpl = state.templates.find(t => t.isDefault) || state.templates[0];
     if (defaultTpl) {
@@ -722,7 +727,6 @@ async function saveNewTemplate() {
         alert("Modelo salvo com sucesso!");
     }
 
-    // Recarrega templates
     state.templates = await dbHelper.getAll('templates');
     nameInput.value = '';
     contentInput.value = '';
@@ -769,7 +773,6 @@ async function deleteTemplate(id) {
 
 async function setDefaultTemplate(id) {
     state.templates.forEach(t => t.isDefault = (t.id === id));
-    // Salva todos para garantir o toggle
     for(const t of state.templates) {
         await dbHelper.add('templates', t);
     }
@@ -808,7 +811,6 @@ function renderTemplatesList() {
     });
 }
 
-// --- Validação e Gerenciamento da API e Leads ---
 function isApiActive() {
     return (state.apiKey && state.leadsBalance > 0);
 }
@@ -886,7 +888,6 @@ async function validateAndSaveApiKey() {
     updateApiStatusUI();
 }
 
-// --- Recarga de Leads ---
 function generateChallenge() {
     state.challengeNumber = Math.floor(Math.random() * 901) + 100;
     document.getElementById('challenge-number').innerText = state.challengeNumber;
@@ -938,8 +939,7 @@ async function verifyChallenge() {
     }
 }
 
-// --- CARREGAR MEUS CONTATOS (GRID) ---
-
+// --- CARREGAR MEUS CONTATOS (ALTERADO PARA SUPORTAR MODOS) ---
 async function loadMyContacts() {
     if (!state.user) return alert("Faça login para ver seus contatos.");
 
@@ -954,40 +954,50 @@ async function loadMyContacts() {
 
     let loadedLeads = [];
 
-    // Busca do IndexedDB
-    loadedLeads = await dbHelper.getLeadsByUser(state.user.email);
-    
-    // Fallback nuvem para primeiro carregamento (apenas se tiver internet e nuvem)
-    if (loadedLeads.length === 0 && auth && auth.currentUser) {
+    // ALTERAÇÃO: Lógica de carregamento baseada no modo
+    if (state.appMode === 'cloud') {
+        if (!auth.currentUser) {
+            alert("Modo Nuvem requer login ativo no Firebase.");
+            leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Erro: Não conectado à nuvem.</td></tr>';
+            return;
+        }
         try {
-            const snapshot = await db.collection('users').doc(auth.currentUser.uid).collection('leads').get();
-            const cloudLeads = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
-            
-            if (cloudLeads.length > 0) {
-                loadedLeads = cloudLeads;
-                // Sincroniza "down" para o IndexedDB
-                for(const l of loadedLeads) {
-                    l.userEmail = state.user.email;
-                    // Remove id se existir para deixar o autoIncrement do IDB funcionar, 
-                    // a menos que queiramos manter consistência, mas o IDB usa chave numérica por padrão aqui.
-                    const toSave = {...l};
-                    delete toSave.id; 
-                    await dbHelper.add('leads', toSave);
-                }
-            }
+            const snapshot = await db.collection('users').doc(auth.currentUser.uid).collection('leads').orderBy('createdAt', 'desc').get();
+            loadedLeads = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
         } catch (e) {
-            console.log("Sem leads locais e sem conexão para baixar.");
+            console.error("Erro ao buscar da nuvem:", e);
+            alert("Erro ao buscar dados da nuvem.");
+        }
+    } else {
+        // Modo Local ou Híbrido: Carrega do IndexedDB
+        loadedLeads = await dbHelper.getLeadsByUser(state.user.email);
+        
+        // Fallback nuvem no modo Híbrido se local estiver vazio
+        if (state.appMode === 'hybrid' && loadedLeads.length === 0 && auth && auth.currentUser) {
+            try {
+                const snapshot = await db.collection('users').doc(auth.currentUser.uid).collection('leads').get();
+                const cloudLeads = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+                
+                if (cloudLeads.length > 0) {
+                    loadedLeads = cloudLeads;
+                    for(const l of loadedLeads) {
+                        l.userEmail = state.user.email;
+                        const toSave = {...l};
+                        delete toSave.id; 
+                        await dbHelper.add('leads', toSave);
+                    }
+                }
+            } catch (e) {
+                console.log("Sem leads locais e sem conexão para baixar.");
+            }
         }
     }
 
-    // Como o IDB retorna objetos com chave 'id', vamos garantir que a interface saiba lidar
-    // O IDB 'id' é numérico auto-incremento.
     state.leads = loadedLeads;
     populateNicheFilter(state.leads);
     applyFilters(); 
 }
 
-// --- Lógica de Busca ---
 async function searchLeads(event) {
     event.preventDefault();
     state.isShowingSaved = false;
@@ -1036,8 +1046,14 @@ async function searchLeads(event) {
                 updateApiStatusUI();
                 updateResultsBadge(true);
                 
-                // Salva Localmente (IndexedDB)
-                await saveLeadsToLocal(leads, niche);
+                // ALTERAÇÃO: Salva conforme o modo selecionado
+                if (state.appMode === 'cloud') {
+                     // No modo Cloud, salva direto na nuvem, mas sem bloquear a UI se falhar
+                     await saveLeadsToFirestore(leads, niche);
+                } else {
+                    // Local ou Híbrido: Salva no IndexedDB
+                    await saveLeadsToLocal(leads, niche);
+                }
             } else {
                 alert("A busca retornou resultados, mas todos já existiam no seu banco de dados ou eram inválidos.");
             }
@@ -1045,7 +1061,6 @@ async function searchLeads(event) {
             updateResultsBadge(true); 
         }
     } else {
-        // Modo Simulação (Mock)
         let rawMocks = generateMockLeads(niche, city, stateInput, limit);
         leads = rawMocks; 
         updateResultsBadge(false);
@@ -1057,7 +1072,6 @@ async function searchLeads(event) {
     applyFilters(); 
 }
 
-// --- LOGICA DE FILTRO ---
 function setupFilterListeners() {
     filterText.addEventListener('input', () => { state.currentPage = 1; applyFilters(); });
     filterStatus.addEventListener('change', () => { state.currentPage = 1; applyFilters(); });
@@ -1080,7 +1094,6 @@ function applyFilters() {
     const st = filterStatus.value;
     const ni = filterNiche.value;
 
-    // Preservamos o índice original do array state.leads para manipulação
     const indexedLeads = state.leads.map((lead, index) => ({...lead, _originalIndex: index}));
 
     const filtered = indexedLeads.filter(lead => {
@@ -1098,7 +1111,7 @@ function applyFilters() {
     renderLeads(filtered);
 }
 
-// --- PERSISTÊNCIA ---
+// --- PERSISTÊNCIA (ALTERADO PARA SUPORTAR MODOS) ---
 
 async function saveCurrentLeadsToDB() {
     if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
@@ -1113,24 +1126,29 @@ async function saveCurrentLeadsToDB() {
         return alert("Todos os leads desta lista já foram salvos anteriormente.");
     }
 
-    // Salva Localmente (IndexedDB)
-    await saveLeadsToLocal(validLeads, niche);
-    
-    if (navigator.onLine) {
-        alert("Dados salvos localmente! Clique em 'Sync Nuvem' para fazer backup online.");
+    if (state.appMode === 'cloud') {
+        await saveLeadsToFirestore(validLeads, niche);
+        alert("Dados salvos na NUVEM com sucesso!");
+    } else if (state.appMode === 'local') {
+        await saveLeadsToLocal(validLeads, niche);
+        alert("Dados salvos LOCALMENTE (Modo Local).");
     } else {
-        alert("Dados salvos OFFLINE. Sincronize quando tiver internet.");
+        // Híbrido
+        await saveLeadsToLocal(validLeads, niche);
+        if (navigator.onLine) {
+            alert("Dados salvos localmente! Clique em 'Sync Nuvem' para enviar ao Firebase.");
+        } else {
+            alert("Dados salvos OFFLINE. Sincronize quando tiver internet.");
+        }
     }
 }
 
 async function saveLeadsToLocal(leads, niche) {
     if (!state.user) return;
     
-    // Busca leads atuais para double-check de duplicidade na hora da inserção
     const currentData = await dbHelper.getLeadsByUser(state.user.email);
     
     for (const lead of leads) {
-        // Evitar duplicatas exatas
         const exists = currentData.some(d => d.name === lead.name && d.phone === lead.phone);
         if (!exists) {
             const leadToSave = {
@@ -1140,13 +1158,11 @@ async function saveLeadsToLocal(leads, niche) {
                 leadStatus: lead.leadStatus || 'Novo',
                 followUpNotes: lead.followUpNotes || '',
                 createdAt: new Date().toISOString(),
-                firestoreId: null // Marca como não sincronizado
+                firestoreId: null
             };
 
-            // Remove propriedades de controle de array se existirem
             delete leadToSave._originalIndex;
             delete leadToSave.isMock;
-            // Se tiver id do array mock, remove para o IDB gerar o seu
             if (typeof leadToSave.id === 'string' && leadToSave.id.startsWith('mock')) delete leadToSave.id;
 
             await dbHelper.add('leads', leadToSave);
@@ -1155,9 +1171,37 @@ async function saveLeadsToLocal(leads, niche) {
     console.log("Leads salvos no IndexedDB.");
 }
 
-// --- BACKUP E RESTORE (Atualizado para Async/IDB) ---
+// --- NOVA FUNÇÃO: Salvar Direto no Firestore (Modo Cloud) ---
+async function saveLeadsToFirestore(leads, niche) {
+    if (!state.user || !auth.currentUser) return alert("Erro: Login necessário para salvar na nuvem.");
+
+    let savedCount = 0;
+    
+    for (const lead of leads) {
+        try {
+            const leadToSend = {
+                ...lead,
+                searchNiche: niche,
+                leadStatus: lead.leadStatus || 'Novo',
+                followUpNotes: lead.followUpNotes || '',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            // Limpa propriedades locais
+            delete leadToSend._originalIndex;
+            delete leadToSend.isMock;
+            delete leadToSend.id; // Não envia ID local/mock
+
+            await db.collection('users').doc(auth.currentUser.uid).collection('leads').add(leadToSend);
+            savedCount++;
+        } catch(e) {
+            console.error("Erro ao salvar lead na nuvem:", e);
+        }
+    }
+    console.log(`Leads salvos na nuvem: ${savedCount}`);
+}
+
 async function backupData() {
-    // Busca dados do IndexedDB
     let leads = [];
     if(state.user) {
         leads = await dbHelper.getLeadsByUser(state.user.email);
@@ -1194,36 +1238,27 @@ function restoreData(event) {
             const backupObj = JSON.parse(e.target.result);
             if (confirm("Isso substituirá/mesclará seus dados locais atuais. Deseja continuar?")) {
                 
-                // Restaura Settings
                 if(backupObj.leadsBalance) await dbHelper.setSetting('leads_balance', backupObj.leadsBalance);
                 
-                // Restaura Templates
                 if(backupObj.templates && Array.isArray(backupObj.templates)) {
                     for(const t of backupObj.templates) {
                         await dbHelper.add('templates', t);
                     }
                 }
 
-                // Restaura Users
                 if(backupObj.usersDb && Array.isArray(backupObj.usersDb)) {
                     for(const u of backupObj.usersDb) {
                         await dbHelper.add('users', u);
                     }
                 }
                 
-                // Restaura Leads
-                // Se o backup for da versão antiga (string JSON no campo leads), trata diferente
-                // Se for nova (array de objetos), insere direto
                 if (backupObj.version === "2.0-idb" && Array.isArray(backupObj.leads)) {
                     for(const l of backupObj.leads) {
-                        // Verifica se usuário está logado para vincular, senão usa o do backup
                         if(state.user && !l.userEmail) l.userEmail = state.user.email;
-                        // Remove ID para não conflitar chaves, deixa auto-increment gerar novo
                         delete l.id; 
                         await dbHelper.add('leads', l);
                     }
                 } else if (backupObj.leads && typeof backupObj.leads === 'string' && state.user) {
-                    // Legado
                     const parsedLeads = JSON.parse(backupObj.leads);
                     for(const l of parsedLeads) {
                         l.userEmail = state.user.email;
@@ -1241,7 +1276,6 @@ function restoreData(event) {
     reader.readAsText(file);
 }
 
-// --- GERENCIAMENTO DE LEADS ---
 function openLeadDetails(index) {
     state.currentLeadIndex = index;
     const lead = state.leads[index];
@@ -1279,45 +1313,61 @@ async function saveLeadDetails() {
     lead.followUpNotes = detailNotes.value;
     
     if (state.isShowingSaved) {
-        // Atualiza no IndexedDB
-        // Precisamos garantir que o objeto tenha o ID correto do IDB
-        await dbHelper.add('leads', lead);
-
-        // Se tiver ID da nuvem e estiver online, atualiza lá também
-        if (lead.firestoreId && auth.currentUser) {
+        // No modo Cloud, atualiza direto
+        if (state.appMode === 'cloud' && lead.firestoreId && auth.currentUser) {
             db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
                 leadStatus: lead.leadStatus,
                 followUpNotes: lead.followUpNotes
             }).catch(err => console.error("Erro update firestore", err));
+            alert("Alterações salvas na nuvem!");
+        } else {
+            // Modos Local e Híbrido: Atualiza IDB
+            // Precisamos garantir que o objeto tenha o ID correto do IDB se estivermos no modo local/híbrido
+            if (lead.id) {
+                await dbHelper.add('leads', lead);
+            }
+            
+            // Se for híbrido e tiver ID da nuvem, tenta sync
+            if (state.appMode === 'hybrid' && lead.firestoreId && auth.currentUser) {
+                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
+                    leadStatus: lead.leadStatus,
+                    followUpNotes: lead.followUpNotes
+                }).catch(err => console.error("Erro update firestore", err));
+            }
+            alert("Alterações salvas!");
         }
-        alert("Alterações salvas!");
-        // Recarrega para garantir consistência
+        
         loadMyContacts();
     } else {
         alert("Alterações salvas na memória (lista temporária). Salve a lista para persistir.");
     }
     
     leadDetailsModal.classList.add('hidden');
+    applyFilters();
 }
 
 async function deleteLead(index) {
     if (confirm("Tem certeza que deseja excluir este lead?")) {
-        // Se for lista salva, remove do banco
         if (state.isShowingSaved) {
             const lead = state.leads[index];
             
-            // Remove Local (IDB)
-            if (lead.id) {
-                await dbHelper.delete('leads', lead.id);
-            }
-            
-            // Remove Nuvem se existir
-            if (lead.firestoreId && auth.currentUser) {
+            // Modo Cloud
+            if (state.appMode === 'cloud' && lead.firestoreId && auth.currentUser) {
                 db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
-                .catch(err => console.error("Erro ao deletar na nuvem", err));
+                    .catch(err => console.error("Erro ao deletar na nuvem", err));
+            } else {
+                // Modo Local/Híbrido
+                if (lead.id) {
+                    await dbHelper.delete('leads', lead.id);
+                }
+                
+                // Se híbrido e sincronizado, deleta da nuvem
+                if (state.appMode === 'hybrid' && lead.firestoreId && auth.currentUser) {
+                    db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
+                    .catch(err => console.error("Erro ao deletar na nuvem", err));
+                }
             }
 
-            // Remove da memória visual
             state.leads.splice(index, 1);
         } else {
             state.leads.splice(index, 1);
@@ -1326,7 +1376,6 @@ async function deleteLead(index) {
     }
 }
 
-// --- RENDERIZAÇÃO ---
 function renderLeads(leadsToRender) {
     leadsBody.innerHTML = '';
     resultCount.innerText = leadsToRender.length;
@@ -1374,8 +1423,10 @@ function renderLeads(leadsToRender) {
         if (state.isShowingSaved) {
             if (lead.firestoreId) {
                 syncIcon = '<i class="fas fa-cloud" title="Sincronizado na Nuvem" style="color:var(--primary-color); margin-left:5px;"></i>';
+            } else if (state.appMode === 'local') {
+                syncIcon = '<i class="fas fa-hdd" title="Salvo Localmente" style="color:var(--secondary-color); margin-left:5px;"></i>';
             } else {
-                syncIcon = '<i class="fas fa-save" title="Salvo apenas Localmente (IDB)" style="color:var(--secondary-color); margin-left:5px;"></i>';
+                syncIcon = '<i class="fas fa-save" title="Aguardando Sync" style="color:var(--warning-text); margin-left:5px;"></i>';
             }
         }
         
@@ -1435,7 +1486,6 @@ function changePage(newPage) {
     applyFilters(); 
 }
 
-// --- INTEGRAÇÃO API (Mantido) ---
 async function fetchSerperLeads(query, limit) {
     const url = 'https://google.serper.dev/places';
     const myHeaders = new Headers();
@@ -1523,13 +1573,12 @@ function generateMockLeads(niche, city, uf, count) {
             ratingCount: Math.floor(Math.random() * 200),
             leadStatus: 'Novo',
             isMock: true,
-            id: 'mock_' + i + '_' + Date.now() // ID temporário para o Mock
+            id: 'mock_' + i + '_' + Date.now() 
         });
     }
     return leads;
 }
 
-// --- Utils ---
 function removeAccents(str) {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -1539,7 +1588,6 @@ function getStatusClass(status) {
     return `status-${slug}`;
 }
 
-// --- Modal de Mensagem ---
 function openMessageModal(leadIndex) {
     const lead = state.leads[leadIndex];
     const modal = document.getElementById('message-modal');
@@ -1659,7 +1707,6 @@ function updateResultsBadge(isReal) {
     }
 }
 
-// --- Gerenciamento de Eventos UI ---
 function setupEventListeners() {
     document.getElementById('link-register').onclick = (e) => { e.preventDefault(); toggleAuthBox('register'); };
     document.getElementById('link-login-reg').onclick = (e) => { e.preventDefault(); toggleAuthBox('login'); };
@@ -1755,6 +1802,11 @@ function setupEventListeners() {
 
     if(btnSyncData) {
         btnSyncData.onclick = syncSystem;
+    }
+
+    const btnSaveStorageMode = document.getElementById('btn-save-storage-mode');
+    if (btnSaveStorageMode) {
+        btnSaveStorageMode.onclick = saveStorageMode;
     }
 }
 

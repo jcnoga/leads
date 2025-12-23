@@ -39,6 +39,7 @@
             <div class="auth-box hidden" id="register-box">
                 <h2>Criar Conta</h2>
                 <form id="register-form">
+                    <!-- O modo será definido nas configurações, padrão híbrido -->
                     <input type="hidden" id="register-mode-select" value="hybrid">
 
                     <input type="text" id="reg-name" placeholder="Seu Nome Completo" required>
@@ -70,7 +71,7 @@
         <header>
             <div class="header-content">
                 <div class="user-info">
-                    <span>Olá, <strong id="user-name-display">Visitante</strong></span>
+                    <span>Olá, <strong id="user-name-display">Visitante</strong> <small id="app-mode-display"></small></span>
                 </div>
                 <div class="header-actions">
                     <button id="btn-sync-data" class="btn-outline" title="Sincronizar dados locais com a nuvem">
@@ -319,8 +320,20 @@
                 <!-- TAB DADOS & BACKUP -->
                 <div id="tab-data" class="tab-content">
                     <div class="config-section">
+                        <h4>Modo de Armazenamento</h4>
+                        <p>Defina como os dados serão salvos no aplicativo.</p>
+                        <select id="app-storage-mode" class="mode-select" style="width: 100%;">
+                            <option value="local">Local (Apenas Dispositivo/Offline)</option>
+                            <option value="cloud">Nuvem (Apenas Firebase/Online)</option>
+                            <option value="hybrid">Híbrido (Local + Sincronização)</option>
+                        </select>
+                        <button id="btn-save-storage-mode" class="btn-primary btn-sm" style="margin-top: 10px;">Salvar Modo</button>
+                        <p class="input-hint" style="margin-top: 5px;">* Alterações podem exigir recarregamento da página.</p>
+                    </div>
+
+                    <div class="config-section">
                         <h4>Gestão de Dados Locais (IndexedDB)</h4>
-                        <p>Gerencie seus dados salvos no navegador (Modo Local/Híbrido).</p>
+                        <p>Gerencie seus dados salvos no navegador.</p>
                         
                         <div class="backup-actions">
                             <button id="btn-backup" class="btn-backup">
