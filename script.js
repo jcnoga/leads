@@ -1,3 +1,15 @@
+/* --- START OF FILE script.js --- */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
+};
+
 const API_KEYS_CONFIG = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
@@ -11,7 +23,7 @@ const DEFAULT_TEMPLATES = [
     { id: 'default', name: 'Padrão do Sistema', content: DEFAULT_TEMPLATE_TEXT, isDefault: true }
 ];
 
-// --- Estado da Aplicação (Atualizado) ---
+// --- Estado da Aplicação ---
 const state = {
     providerId: localStorage.getItem('selected_provider_id') || 'KEY_1', 
     apiKey: '', 
@@ -22,12 +34,16 @@ const state = {
     templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
     challengeNumber: 0,
     currentLeadIndex: null,
+    // Garante que o padrão seja Híbrido se não houver nada salvo
     appMode: localStorage.getItem('app_mode') || 'hybrid',
     // Controle de Paginação
     currentPage: 1,
     itemsPerPage: 10,
     isShowingSaved: false 
 };
+
+// Variável de controle para edição
+let editingTemplateId = null; 
 
 // Inicializa a apiKey correta
 if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
@@ -39,8 +55,6 @@ if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
 
 // --- Inicializa Firebase ---
 let auth, db;
-// Adicione esta variável logo abaixo do objeto 'state' ou no topo do script
-let editingTemplateId = null; // Controla qual template está sendo editado
 try {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
@@ -144,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
     setupFilterListeners();
-    setupVisualFeedback(); // Item 2: Destaque Visual
+    setupVisualFeedback(); 
     
     const savedMsg = localStorage.getItem('current_draft_message');
     if (savedMsg) {
@@ -158,9 +172,36 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSearchButtonState(); 
 });
 
-// --- NOVAS FUNÇÕES AUXILIARES (Itens 2, 3 e 4) ---
+// --- HELPER: Tradução de Erros do Firebase ---
+function getFirebaseErrorMessage(error) {
+    switch (error.code) {
+        case 'auth/invalid-email':
+            return 'O formato do e-mail é inválido. Verifique se não há espaços ou caracteres incorretos.';
+        case 'auth/user-not-found':
+            return 'Usuário não encontrado. Verifique o e-mail ou cadastre-se.';
+        case 'auth/wrong-password':
+            return 'Senha incorreta. Tente novamente ou use a recuperação de senha.';
+        case 'auth/email-already-in-use':
+            return 'Este e-mail já está sendo usado por outra conta.';
+        case 'auth/weak-password':
+            return 'A senha é muito fraca. Escolha uma senha com pelo menos 6 caracteres.';
+        case 'auth/network-request-failed':
+            return 'Erro de conexão. Verifique sua internet e tente novamente.';
+        case 'auth/too-many-requests':
+            return 'Muitas tentativas falhas consecutivas. O acesso foi bloqueado temporariamente. Tente mais tarde.';
+        case 'auth/operation-not-allowed':
+            return 'O login por e-mail/senha não está habilitado no Firebase Console.';
+        case 'auth/user-disabled':
+            return 'Esta conta foi desativada pelo administrador.';
+        case 'auth/requires-recent-login':
+            return 'Esta operação requer um login recente. Saia e entre novamente.';
+        default:
+            return 'Ocorreu um erro na autenticação: ' + error.message;
+    }
+}
 
-// Item 2: Destaque Visual
+// --- FUNÇÕES AUXILIARES ---
+
 function setupVisualFeedback() {
     const inputs = document.querySelectorAll('input, textarea, select');
     const handleInput = (e) => {
@@ -174,34 +215,28 @@ function setupVisualFeedback() {
         input.addEventListener('input', handleInput);
         input.addEventListener('change', handleInput);
         input.addEventListener('blur', handleInput);
-        // Validação inicial
         if(input.value) handleInput({ target: input });
     });
 }
 
-// Itens 3 e 4: Filtragem de Fictícios e Duplicados
 async function filterInvalidAndDuplicateLeads(newLeads) {
     let existingLeads = [];
     
-    // Carrega leads já salvos localmente (como referência de duplicidade)
     if (state.user) {
         const storageKey = `local_leads_${state.user.email}`;
         existingLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
     }
 
-    // Se estiver visualizando leads salvos no momento, junta com eles também
     if (state.isShowingSaved && state.leads.length > 0) {
         existingLeads = [...existingLeads, ...state.leads];
     }
 
-    // Sets para busca rápida O(1)
     const existingPhones = new Set(existingLeads.map(l => l.phone ? l.phone.replace(/\D/g, '') : ''));
     const existingNames = new Set(existingLeads.map(l => l.name ? l.name.toLowerCase().trim() : ''));
 
     return newLeads.filter(lead => {
         const lowerName = lead.name ? lead.name.toLowerCase() : '';
 
-        // --- REGRA 4: Bloquear Leads Fictícios ---
         const isFictitious = (
             lead.isMock === true || 
             lowerName.includes('teste') || 
@@ -216,16 +251,13 @@ async function filterInvalidAndDuplicateLeads(newLeads) {
             return false;
         }
 
-        // --- REGRA 3: Bloquear Duplicidade no Banco ---
         const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : '';
         const cleanName = lowerName.trim();
 
-        // Verifica duplicidade por telefone
         if (cleanPhone.length > 5 && existingPhones.has(cleanPhone)) {
             console.log(`Lead filtrado (Duplicado por Tel): ${lead.name}`);
             return false;
         }
-        // Verifica duplicidade por nome
         if (existingNames.has(cleanName)) {
             console.log(`Lead filtrado (Duplicado por Nome): ${lead.name}`);
             return false;
@@ -241,6 +273,7 @@ function checkAuth() {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         
+        // Embora o novo padrão seja Híbrido, mantemos a lógica de exibição para compatibilidade
         let modeLabel = '';
         if (state.appMode === 'local') modeLabel = ' (Local)';
         if (state.appMode === 'hybrid') modeLabel = ' (Híbrido)';
@@ -265,11 +298,17 @@ async function login(email, password) {
     let detectedMode = 'cloud'; 
     let loginSuccess = false;
 
+    // Validação Básica
+    if (!email || !password) {
+        alert("Por favor, preencha o e-mail e a senha.");
+        return;
+    }
+
     const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
     const userFound = localUsers.find(u => u.email === email && u.password === password);
 
     if (userFound) {
-        detectedMode = userFound.mode || 'local';
+        detectedMode = userFound.mode || 'local'; // Detecta modo antigo se existir
         state.appMode = detectedMode;
         localStorage.setItem('app_mode', detectedMode);
 
@@ -282,8 +321,10 @@ async function login(email, password) {
         localStorage.setItem('local_session_user', JSON.stringify(state.user));
         loginSuccess = true;
         
+        // Se for Híbrido (agora o padrão), tenta conectar no Firebase
         if (detectedMode === 'hybrid' && auth) {
-             auth.signInWithEmailAndPassword(email, password).catch(err => console.log("Login Firebase falhou no modo híbrido (offline?):", err));
+             auth.signInWithEmailAndPassword(email, password)
+                .catch(err => console.warn("Aviso: Login local ok, mas falha na sincronização silenciosa com Firebase:", err.code));
         }
         
         checkAuth();
@@ -291,42 +332,53 @@ async function login(email, password) {
     }
 
     if (!loginSuccess) {
-        if (!auth) return alert("Firebase não configurado.");
+        if (!auth) return alert("Erro de Configuração: Firebase não foi inicializado corretamente.");
         try {
             await auth.signInWithEmailAndPassword(email, password);
-            state.appMode = 'cloud';
+            state.appMode = 'cloud'; // Fallback para cloud se não achar localmente
             localStorage.setItem('app_mode', 'cloud');
         } catch (error) {
-            alert("Erro no login: " + error.message);
+            alert(getFirebaseErrorMessage(error));
         }
     }
 }
 
 function register(name, email, password) {
+    // Agora o valor virá sempre como 'hybrid' devido ao HTML fixo
     const mode = registerModeSelect.value; 
+
+    // Validação de Campos
+    if (!name || name.trim().length < 2) return alert("Por favor, insira um nome válido.");
+    if (!email || !email.includes('@')) return alert("Por favor, insira um e-mail válido.");
+    if (!password || password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
     
+    // Processo Híbrido: Salva Local E tenta salvar na Nuvem
     if (mode === 'local' || mode === 'hybrid') {
-        const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
-        if (localUsers.find(u => u.email === email)) {
-             return alert("Usuário já existe localmente.");
-        } else {
-            const newUser = {
-                name: name,
-                email: email,
-                password: password,
-                uid: 'local_' + Date.now(),
-                mode: mode 
-            };
-            localUsers.push(newUser);
-            localStorage.setItem('local_users_db', JSON.stringify(localUsers));
-            
-            localStorage.setItem('leads_balance', 50);
-            state.leadsBalance = 50;
+        try {
+            const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
+            if (localUsers.find(u => u.email === email)) {
+                 return alert("Erro: Já existe um usuário local cadastrado com este e-mail.");
+            } else {
+                const newUser = {
+                    name: name,
+                    email: email,
+                    password: password,
+                    uid: 'local_' + Date.now(),
+                    mode: mode 
+                };
+                localUsers.push(newUser);
+                localStorage.setItem('local_users_db', JSON.stringify(localUsers));
+                
+                localStorage.setItem('leads_balance', 50);
+                state.leadsBalance = 50;
+            }
+        } catch (e) {
+            return alert("Erro crítico ao salvar usuário localmente (Storage Cheio ou Corrompido): " + e.message);
         }
     }
 
     if (mode === 'cloud' || mode === 'hybrid') {
-        if (!auth) return alert("Firebase não configurado.");
+        if (!auth) return alert("Erro: Firebase não configurado.");
         auth.createUserWithEmailAndPassword(email, password)
             .then((userCredential) => {
                 localStorage.setItem('leads_balance', 50);
@@ -334,7 +386,8 @@ function register(name, email, password) {
                 return userCredential.user.updateProfile({ displayName: name });
             })
             .then(() => {
-                alert("Conta criada com sucesso! (Modo: " + mode + ")");
+                // Mensagem simplificada pois agora é sempre Híbrido para o usuário
+                alert("Conta criada com sucesso!");
                 toggleAuthBox('login');
             })
             .catch((error) => {
@@ -342,11 +395,11 @@ function register(name, email, password) {
                     alert("Conta criada localmente. O e-mail já existia na nuvem, sincronizando...");
                     toggleAuthBox('login');
                 } else {
-                    alert("Erro no cadastro nuvem: " + error.message);
+                    alert("Falha no cadastro Nuvem: " + getFirebaseErrorMessage(error));
                 }
             });
     } else {
-        alert("Conta local criada com sucesso!");
+        alert("Conta criada com sucesso!");
         toggleAuthBox('login');
     }
 }
@@ -360,14 +413,16 @@ function logout() {
 }
 
 function resetPassword(email) {
-    if (!auth) return alert("Disponível apenas em modo Nuvem/Híbrido com Firebase.");
+    if (!auth) return alert("Funcionalidade indisponível: Firebase não configurado.");
+    if (!email) return alert("Por favor, digite o e-mail para recuperação.");
+
     auth.sendPasswordResetEmail(email)
         .then(() => {
-            alert("E-mail de recuperação enviado!");
+            alert("Sucesso! Verifique sua caixa de entrada (e spam) para redefinir a senha.");
             toggleAuthBox('login');
         })
         .catch((error) => {
-            alert("Erro: " + error.message);
+            alert("Erro ao enviar e-mail: " + getFirebaseErrorMessage(error));
         });
 }
 
@@ -415,20 +470,17 @@ function saveNewTemplate() {
     }
 
     if (editingTemplateId) {
-        // --- MODO EDIÇÃO: Atualiza o existente ---
         const index = state.templates.findIndex(t => t.id === editingTemplateId);
         if (index !== -1) {
             state.templates[index].name = name;
             state.templates[index].content = content;
             alert("Modelo atualizado com sucesso!");
         }
-        // Reseta o estado
         editingTemplateId = null;
         btnSave.innerText = "Adicionar Modelo";
-        btnSave.classList.remove('btn-primary'); // Volta a cor original se mudou
+        btnSave.classList.remove('btn-primary'); 
         btnSave.classList.add('btn-secondary');
     } else {
-        // --- MODO CRIAÇÃO: Adiciona novo ---
         const newTpl = {
             id: Date.now().toString(),
             name: name,
@@ -439,12 +491,40 @@ function saveNewTemplate() {
         alert("Modelo salvo com sucesso!");
     }
 
-    // Persiste e Limpa
     localStorage.setItem('msg_templates', JSON.stringify(state.templates));
     nameInput.value = '';
     contentInput.value = '';
     
     renderTemplatesList();
+}
+
+function editTemplate(id) {
+    const template = state.templates.find(t => t.id === id);
+    if (!template) return;
+
+    document.getElementById('new-template-name').value = template.name;
+    document.getElementById('new-template-content').value = template.content;
+    
+    editingTemplateId = id;
+    
+    const btnSave = document.getElementById('btn-save-template');
+    btnSave.innerText = "Salvar Alterações";
+    btnSave.classList.remove('btn-secondary');
+    btnSave.classList.add('btn-primary'); 
+    
+    document.querySelector('.new-template-form').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyTemplateContent(id) {
+    const template = state.templates.find(t => t.id === id);
+    if (!template) return;
+
+    navigator.clipboard.writeText(template.content).then(() => {
+        alert(`Modelo "${template.name}" copiado para a área de transferência!`);
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+        alert('Não foi possível copiar o texto automaticamente.');
+    });
 }
 
 function deleteTemplate(id) {
@@ -463,42 +543,6 @@ function setDefaultTemplate(id) {
     alert("Modelo definido como padrão.");
 }
 
-
-// Função para carregar os dados no formulário (Modo Edição)
-function editTemplate(id) {
-    const template = state.templates.find(t => t.id === id);
-    if (!template) return;
-
-    document.getElementById('new-template-name').value = template.name;
-    document.getElementById('new-template-content').value = template.content;
-    
-    // Configura estado global
-    editingTemplateId = id;
-    
-    // Muda visualmente o botão para indicar edição
-    const btnSave = document.getElementById('btn-save-template');
-    btnSave.innerText = "Salvar Alterações";
-    btnSave.classList.remove('btn-secondary');
-    btnSave.classList.add('btn-primary'); // Destaca o botão
-    
-    // Rola a tela até o formulário
-    document.querySelector('.new-template-form').scrollIntoView({ behavior: 'smooth' });
-}
-
-// Função para copiar texto para o Clipboard
-
-function copyTemplateContent(id) {
-    const template = state.templates.find(t => t.id === id);
-    if (!template) return;
-
-    navigator.clipboard.writeText(template.content).then(() => {
-        // Feedback visual simples (opcional: pode usar um toast/alert customizado)
-        alert(`Modelo "${template.name}" copiado para a área de transferência!`);
-    }).catch(err => {
-        console.error('Erro ao copiar:', err);
-        alert('Não foi possível copiar o texto automaticamente.');
-    });
-}
 function renderTemplatesList() {
     const list = document.getElementById('templates-list');
     list.innerHTML = '';
@@ -507,16 +551,9 @@ function renderTemplatesList() {
         const li = document.createElement('li');
         li.className = `template-item ${t.isDefault ? 'default-template' : ''}`;
         
-        // Botão de Copiar (Ícone quadrado)
-        const btnCopy = `<button onclick="copyTemplateContent('${t.id}')" class="btn-manage" title="Copiar Texto"><i class="far fa-copy"></i></button>`;
-        
-        // Botão de Editar (Lápis)
-        const btnEdit = `<button onclick="editTemplate('${t.id}')" class="btn-manage" title="Editar Modelo"><i class="fas fa-edit"></i></button>`;
-        
-        // Botão de Excluir (X)
+        const btnCopy = `<button onclick="copyTemplateContent('${t.id}')" class="btn-manage" title="Copiar"><i class="far fa-copy"></i></button>`;
+        const btnEdit = `<button onclick="editTemplate('${t.id}')" class="btn-manage" title="Editar"><i class="fas fa-edit"></i></button>`;
         const btnDelete = t.id !== 'default' ? `<button onclick="deleteTemplate('${t.id}')" class="btn-delete" title="Excluir">X</button>` : '';
-
-        // Botão de Usar Padrão
         const btnDefault = !t.isDefault ? `<button onclick="setDefaultTemplate('${t.id}')" class="btn-manage" style="font-size:0.8rem;">Usar Padrão</button>` : '<span style="color:var(--success); font-size:0.8rem; font-weight:bold; margin-right:5px;"><i class="fas fa-check"></i> Padrão</span>';
 
         li.innerHTML = `
@@ -713,7 +750,7 @@ async function loadMyContacts() {
     applyFilters(); 
 }
 
-// --- Lógica de Busca (Com Filtragem - Itens 3 e 4) ---
+// --- Lógica de Busca ---
 async function searchLeads(event) {
     event.preventDefault();
     state.isShowingSaved = false;
@@ -744,10 +781,8 @@ async function searchLeads(event) {
         }
         
         if (leads.length > 0) {
-            // --- NOVA LÓGICA: Forçar nicho da busca ---
             leads.forEach(l => l.niche = niche);
 
-            // APLICANDO FILTROS (Itens 3 e 4) ANTES DE CONTABILIZAR/SALVAR
             const originalCount = leads.length;
             leads = await filterInvalidAndDuplicateLeads(leads);
             const filteredCount = originalCount - leads.length;
@@ -757,7 +792,6 @@ async function searchLeads(event) {
             }
 
             if (leads.length > 0) {
-                // Só desconta do saldo o que realmente for válido/novo
                 state.leadsBalance -= leads.length;
                 if (state.leadsBalance < 0) state.leadsBalance = 0;
                 localStorage.setItem('leads_balance', state.leadsBalance);
@@ -765,7 +799,6 @@ async function searchLeads(event) {
                 updateApiStatusUI();
                 updateResultsBadge(true);
                 
-                // Salva automaticamente apenas os válidos
                 saveLeadsUniversal(leads, niche); 
             } else {
                 alert("A busca retornou resultados, mas todos já existiam no seu banco de dados ou eram inválidos.");
@@ -776,8 +809,6 @@ async function searchLeads(event) {
     } else {
         // Modo Simulação (Mock)
         let rawMocks = generateMockLeads(niche, city, stateInput, limit);
-        // Mesmo no mock, mantemos a lógica de exibição, mas a filtragem
-        // real ocorre se o usuário tentar salvar.
         leads = rawMocks; 
         updateResultsBadge(false);
     }
@@ -811,7 +842,6 @@ function applyFilters() {
     const st = filterStatus.value;
     const ni = filterNiche.value;
 
-    // Preservamos o _originalIndex para saber quem é quem no array principal state.leads
     const indexedLeads = state.leads.map((lead, index) => ({...lead, _originalIndex: index}));
 
     const filtered = indexedLeads.filter(lead => {
@@ -834,14 +864,12 @@ function applyFilters() {
 async function saveCurrentLeadsToDB() {
     if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
     
-    // Validação extra para mock
     if(state.leads.some(l => l.isMock)) return alert("Atenção: Leads fictícios da simulação não podem ser salvos no banco.");
 
     if(!confirm(`Deseja salvar a lista no modo: ${state.appMode.toUpperCase()}?`)) return;
 
     const niche = state.lastSearch.niche || 'Lista Manual';
     
-    // Nova filtragem de segurança antes de salvar explicitamente
     const validLeads = await filterInvalidAndDuplicateLeads(state.leads);
     
     if (validLeads.length === 0) {
@@ -870,28 +898,44 @@ async function saveLeadsUniversal(leads, niche) {
 
 function saveLeadsToLocal(leads, niche) {
     if (!state.user) return;
-    const storageKey = `local_leads_${state.user.email}`;
-    let currentData = JSON.parse(localStorage.getItem(storageKey) || '[]');
     
-    leads.forEach(lead => {
-        const leadToSave = { ...lead };
-        delete leadToSave._originalIndex;
-        delete leadToSave.isMock;
+    try {
+        const storageKey = `local_leads_${state.user.email}`;
+        let currentData = [];
         
-        // Evitar duplicatas exatas se já existir (Redundância de segurança)
-        const exists = currentData.some(d => d.name === leadToSave.name && d.phone === leadToSave.phone);
-        if (!exists) {
-            currentData.push({
-                ...leadToSave,
-                searchNiche: niche,
-                leadStatus: lead.leadStatus || 'Novo',
-                followUpNotes: lead.followUpNotes || '',
-                createdAt: new Date().toISOString()
-            });
+        try {
+            const stored = localStorage.getItem(storageKey);
+            currentData = stored ? JSON.parse(stored) : [];
+        } catch (e) {
+            console.error("Dados locais corrompidos, reiniciando array.", e);
+            currentData = []; // Fallback seguro
         }
-    });
-    localStorage.setItem(storageKey, JSON.stringify(currentData));
-    console.log("Leads salvos localmente.");
+        
+        leads.forEach(lead => {
+            const leadToSave = { ...lead };
+            delete leadToSave._originalIndex;
+            delete leadToSave.isMock;
+            
+            const exists = currentData.some(d => d.name === leadToSave.name && d.phone === leadToSave.phone);
+            if (!exists) {
+                currentData.push({
+                    ...leadToSave,
+                    searchNiche: niche,
+                    leadStatus: lead.leadStatus || 'Novo',
+                    followUpNotes: lead.followUpNotes || '',
+                    createdAt: new Date().toISOString()
+                });
+            }
+        });
+        localStorage.setItem(storageKey, JSON.stringify(currentData));
+        console.log("Leads salvos localmente.");
+    } catch (error) {
+        if (error.name === 'QuotaExceededError' || error.code === 22) {
+            alert("ERRO DE ARMAZENAMENTO: O limite do navegador foi atingido.\n\nPor favor, faça backup dos seus dados e limpe o banco de dados (Gerenciador de Banco) para continuar salvando.");
+        } else {
+            alert("Erro desconhecido ao salvar localmente: " + error.message);
+        }
+    }
 }
 
 async function saveLeadsToFirestore(leads, niche = 'Manual') {
@@ -899,7 +943,7 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
     if (state.appMode === 'local') return;
 
     if (!auth || !auth.currentUser) {
-        console.warn("Ignorando salvamento na Nuvem: Usuário não autenticado no Firebase (Modo Híbrido Offline?).");
+        console.warn("Usuário desconectado ao tentar salvar na Nuvem. Salvando apenas localmente.");
         return;
     }
 
@@ -909,16 +953,17 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
     try {
         const batch = db.batch();
         const uid = auth.currentUser.uid;
+        // Limit Firestore Batch (max 500 ops)
+        const MAX_BATCH_SIZE = 450;
+        const leadsToProcess = validLeads.slice(0, MAX_BATCH_SIZE); 
 
-        validLeads.forEach(lead => {
+        leadsToProcess.forEach(lead => {
             const leadToSave = { ...lead };
             delete leadToSave._originalIndex;
             delete leadToSave.isMock;
 
             Object.keys(leadToSave).forEach(key => {
-                if (leadToSave[key] === undefined) {
-                    leadToSave[key] = null;
-                }
+                if (leadToSave[key] === undefined) leadToSave[key] = null;
             });
 
             const docRef = db.collection('users').doc(uid).collection('leads').doc();
@@ -933,6 +978,7 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
         
         await batch.commit();
         console.log("Leads salvos no Firebase.");
+        
         if (state.appMode === 'cloud') {
             alert("Dados salvos na nuvem com sucesso!");
         }
@@ -941,12 +987,15 @@ async function saveLeadsToFirestore(leads, niche = 'Manual') {
         console.error("Erro ao salvar leads no Firebase:", error);
         
         if (error.code === 'permission-denied') {
-            const msg = "Atenção: Os dados foram salvos LOCALMENTE, mas a sincronização com a Nuvem falhou (Permissão/Login).\nVerifique sua conexão ou faça login novamente.";
-            alert(msg);
+            alert("Erro de Permissão: Você não tem autorização para gravar neste banco de dados na Nuvem.");
+        } else if (error.code === 'unavailable') {
+            alert("Erro de Conexão com a Nuvem: O serviço está temporariamente offline ou sua internet caiu. Os dados estão salvos localmente.");
+        } else if (error.code === 'resource-exhausted') {
+            alert("Cota do Firebase Excedida: O limite gratuito do banco de dados foi atingido.");
         } else {
-            if (state.appMode === 'cloud') {
+             if (state.appMode === 'cloud') {
                  alert("Erro ao sincronizar com a nuvem: " + error.message);
-            }
+             }
         }
     }
 }
@@ -974,25 +1023,61 @@ function backupData() {
 
 function restoreData(event) {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) return; 
+
+    // Validação de tipo de arquivo
+    if (!file.name.toLowerCase().endsWith('.json')) {
+        alert("Formato inválido. Por favor, selecione um arquivo .JSON gerado por este sistema.");
+        return;
+    }
 
     const reader = new FileReader();
+    
+    reader.onerror = () => {
+        alert("Erro ao ler o arquivo do disco.");
+        reader.abort();
+    };
+
     reader.onload = function(e) {
         try {
-            const backupObj = JSON.parse(e.target.result);
+            const jsonString = e.target.result;
+            const backupObj = JSON.parse(jsonString);
+
+            // Validação da Estrutura do Backup
+            if (!backupObj || typeof backupObj !== 'object') {
+                throw new Error("O conteúdo do arquivo não é um objeto JSON válido.");
+            }
+            if (!backupObj.version && !backupObj.timestamp && !backupObj.leads && !backupObj.usersDb) {
+                 throw new Error("O arquivo não parece ser um backup válido deste sistema (campos ausentes).");
+            }
+
             if (confirm("Isso substituirá seus dados locais atuais. Deseja continuar?")) {
-                if(backupObj.leadsBalance) localStorage.setItem('leads_balance', backupObj.leadsBalance);
-                if(backupObj.templates) localStorage.setItem('msg_templates', backupObj.templates);
-                if(backupObj.usersDb) localStorage.setItem('local_users_db', backupObj.usersDb);
-                
-                if(backupObj.leads && state.user) {
-                    localStorage.setItem(`local_leads_${state.user.email}`, backupObj.leads);
+                try {
+                    if(backupObj.leadsBalance) localStorage.setItem('leads_balance', backupObj.leadsBalance);
+                    if(backupObj.templates) localStorage.setItem('msg_templates', backupObj.templates);
+                    if(backupObj.usersDb) localStorage.setItem('local_users_db', backupObj.usersDb);
+                    
+                    if(backupObj.leads && state.user) {
+                        localStorage.setItem(`local_leads_${state.user.email}`, backupObj.leads);
+                    }
+                    alert("Restauração concluída com sucesso! A página será recarregada.");
+                    location.reload();
+                } catch (storageError) {
+                    if (storageError.name === 'QuotaExceededError') {
+                        alert("Erro ao Restaurar: O arquivo de backup é muito grande para o armazenamento do navegador.");
+                    } else {
+                        throw storageError;
+                    }
                 }
-                alert("Restauração concluída! A página será recarregada.");
-                location.reload();
             }
         } catch (error) {
-            alert("Erro ao ler backup: " + error.message);
+            if (error instanceof SyntaxError) {
+                alert("Erro Crítico: O arquivo selecionado está corrompido ou não é um JSON válido.");
+            } else {
+                alert("Erro ao processar backup: " + error.message);
+            }
+        } finally {
+            restoreFileInput.value = '';
         }
     };
     reader.readAsText(file);
@@ -1035,13 +1120,11 @@ function saveLeadDetails() {
     lead.leadStatus = detailStatus.value;
     lead.followUpNotes = detailNotes.value;
     
-    // Se estiver no modo "Meus Contatos", precisamos salvar persistente
     if (state.isShowingSaved) {
         if (state.appMode === 'local') {
             const storageKey = `local_leads_${state.user.email}`;
             localStorage.setItem(storageKey, JSON.stringify(state.leads));
         } else if (state.appMode === 'cloud' || (state.appMode === 'hybrid' && auth.currentUser)) {
-            // Update Firestore se tiver ID
             if (lead.firestoreId) {
                 db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
                     leadStatus: lead.leadStatus,
@@ -1060,7 +1143,6 @@ function saveLeadDetails() {
 
 function deleteLead(index) {
     if (confirm("Tem certeza que deseja excluir este lead?")) {
-        // Se for lista salva, remove do banco/localstorage
         if (state.isShowingSaved) {
             const lead = state.leads[index];
             if (state.appMode === 'local') {
@@ -1068,13 +1150,12 @@ function deleteLead(index) {
                 const storageKey = `local_leads_${state.user.email}`;
                 localStorage.setItem(storageKey, JSON.stringify(state.leads));
             } else if (lead.firestoreId) {
-                // Cloud delete
                 db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
                 .then(() => {
                     state.leads.splice(index, 1);
                     applyFilters();
                 });
-                return; // Async handle
+                return;
             }
         } else {
             state.leads.splice(index, 1);
@@ -1095,7 +1176,6 @@ function renderLeads(leadsToRender) {
         return;
     }
 
-    // Paginação
     const totalPages = Math.ceil(leadsToRender.length / state.itemsPerPage);
     if (state.currentPage > totalPages) state.currentPage = totalPages;
     if (state.currentPage < 1) state.currentPage = 1;
@@ -1105,7 +1185,6 @@ function renderLeads(leadsToRender) {
     const paginatedLeads = leadsToRender.slice(start, end);
 
     paginatedLeads.forEach((lead) => {
-        // Usamos o _originalIndex anexado no applyFilters para manter referência correta
         const actualIndex = lead._originalIndex; 
         
         const row = document.createElement('tr');
@@ -1186,7 +1265,8 @@ function changePage(newPage) {
     applyFilters(); 
 }
 
-// --- INTEGRAÇÃO API ---
+// --- INTEGRAÇÃO API ATUALIZADA ---
+
 async function fetchSerperLeads(query, limit) {
     const url = 'https://google.serper.dev/places';
     const myHeaders = new Headers();
@@ -1197,7 +1277,21 @@ async function fetchSerperLeads(query, limit) {
 
     try {
         const response = await fetch(url, { method: 'POST', headers: myHeaders, body: raw });
-        if (!response.ok) throw new Error("Falha na API Serper");
+        
+        // Tratamento de Status HTTP Específico
+        if (response.status === 401 || response.status === 403) {
+            throw new Error("Chave de API inválida ou não autorizada. Verifique suas configurações.");
+        }
+        if (response.status === 429) {
+             throw new Error("Limite de requisições excedido (API Rate Limit). Tente novamente em alguns instantes.");
+        }
+        if (response.status >= 500) {
+             throw new Error("Erro interno no servidor da Serper. Tente novamente mais tarde.");
+        }
+        if (!response.ok) {
+            throw new Error(`Erro desconhecido na API Serper (Status: ${response.status})`);
+        }
+
         const result = await response.json();
         
         if (result.places) {
@@ -1216,7 +1310,12 @@ async function fetchSerperLeads(query, limit) {
         }
     } catch (error) {
         console.error('Erro na requisição Serper:', error);
-        alert('Erro ao conectar com a API Serper.');
+        
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            alert('Erro de Conexão: Não foi possível contatar a API Serper. Verifique sua conexão com a internet.');
+        } else {
+            alert('Falha na Busca: ' + error.message);
+        }
         return [];
     }
 }
@@ -1234,8 +1333,21 @@ async function fetchSerpAPILeads(query, limit) {
 
     try {
         const response = await fetch(`${baseUrl}?${params.toString()}`);
-        if (!response.ok) throw new Error("Falha na API SerpAPI");
+        
+        if (response.status === 401 || response.status === 403) {
+            throw new Error("Chave de API SerpAPI inválida.");
+        }
+        if (response.status === 402) {
+             throw new Error("Saldo da conta SerpAPI esgotado/bloqueado.");
+        }
+        if (!response.ok) throw new Error(`Erro na resposta da API SerpAPI (Status: ${response.status})`);
+
         const result = await response.json();
+        
+        if (result.error) {
+            throw new Error(`Erro retornado pela SerpAPI: ${result.error}`);
+        }
+
         if (result.local_results) {
             return result.local_results.map(place => ({
                 name: place.title,
@@ -1252,7 +1364,12 @@ async function fetchSerpAPILeads(query, limit) {
         }
     } catch (error) {
         console.error('Erro na requisição SerpAPI:', error);
-        alert('Erro ao conectar com a API SerpAPI. Verifique CORS/Proxy.');
+        
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            alert('Erro de Conexão: Falha ao acessar SerpAPI. Verifique sua internet ou problemas de CORS.');
+        } else {
+            alert('Falha na Busca SerpAPI: ' + error.message);
+        }
         return [];
     }
 }
@@ -1289,7 +1406,7 @@ function getStatusClass(status) {
     return `status-${slug}`;
 }
 
-// --- ITEM 1: Seletor de Templates no Modal (Atualizado) ---
+// --- Modal de Mensagem ---
 function openMessageModal(leadIndex) {
     const lead = state.leads[leadIndex];
     const modal = document.getElementById('message-modal');
@@ -1297,25 +1414,21 @@ function openMessageModal(leadIndex) {
     const btnWhats = document.getElementById('btn-send-whatsapp');
     const selectTemplate = document.getElementById('modal-template-select');
 
-    // 1. Popula o Select com os templates existentes
     selectTemplate.innerHTML = '';
     state.templates.forEach(tpl => {
         const option = document.createElement('option');
         option.value = tpl.id;
         option.innerText = tpl.name + (tpl.isDefault ? ' (Padrão)' : '');
-        // Seleciona o padrão
         if (tpl.isDefault) option.selected = true;
         selectTemplate.appendChild(option);
     });
     
-    // Adiciona opção "Texto Atual da Dashboard" se necessário
     const currentDashboardText = document.getElementById('message-template-input').value;
     const customOption = document.createElement('option');
     customOption.value = 'custom_dashboard';
     customOption.innerText = '📝 Texto Editado na Tela Principal';
     selectTemplate.appendChild(customOption);
 
-    // Função interna para gerar o texto
     const generateText = (templateContent) => {
         const nichoVal = lead.niche || "";
         const cidadeVal = lead.address ? lead.address.split(',')[0] : "sua cidade";
@@ -1329,7 +1442,6 @@ function openMessageModal(leadIndex) {
         return message.replace(/\s+/g, ' ').trim();
     };
 
-    // Listener para troca de template
     selectTemplate.onchange = () => {
         let content = "";
         if (selectTemplate.value === 'custom_dashboard') {
@@ -1342,7 +1454,6 @@ function openMessageModal(leadIndex) {
         updateWhatsAppLink(textArea.value);
     };
 
-    // Função para atualizar o link do botão
     const updateWhatsAppLink = (msg) => {
         const cleanPhone = lead.phone.replace(/\D/g, '');
         if (cleanPhone) {
@@ -1355,10 +1466,8 @@ function openMessageModal(leadIndex) {
         }
     };
     
-    // Listener para edição manual no textarea do modal
     textArea.oninput = () => updateWhatsAppLink(textArea.value);
 
-    // Inicialização: Dispara o onchange para carregar o template padrão selecionado
     selectTemplate.onchange();
 
     modal.classList.remove('hidden');
@@ -1442,7 +1551,6 @@ function setupEventListeners() {
 
     document.getElementById('lead-search-form').onsubmit = searchLeads;
 
-    // Novo listener para Meus Contatos
     if(btnShowSavedLeads) {
         btnShowSavedLeads.onclick = loadMyContacts;
     }
