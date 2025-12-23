@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de Leads Profissional - Híbrido</title>
+    <title>Gerador de Leads Profissional - IndexedDB</title>
     <link rel="stylesheet" href="style.css">
     <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -25,6 +25,7 @@
                 <h2>Acesso ao Sistema</h2>
                 <p>Gerador de Leads Profissional</p>
                 <form id="login-form">
+                    <input type="text" id="login-name" placeholder="Seu Nome (Opcional)" >
                     <input type="email" id="login-email" placeholder="Seu e-mail" required>
                     <input type="password" id="login-password" placeholder="Sua senha" required>
                     <button type="submit" class="btn-primary">Entrar</button>
@@ -38,15 +39,7 @@
             <div class="auth-box hidden" id="register-box">
                 <h2>Criar Conta</h2>
                 <form id="register-form">
-                    <!-- SELETOR DE MODO (Apenas no Cadastro) -->
-                    <div class="mode-selector-container">
-                        <label for="register-mode-select" class="mode-label">Definir Modo de Operação:</label>
-                        <select id="register-mode-select" class="mode-select">
-                            <option value="local" selected>Local (Offline) - Recomendado</option>
-                            <option value="hybrid">Híbrido (Local + Nuvem)</option>
-                            <option value="cloud">Nuvem (Firebase)</option>
-                        </select>
-                    </div>
+                    <input type="hidden" id="register-mode-select" value="hybrid">
 
                     <input type="text" id="reg-name" placeholder="Seu Nome Completo" required>
                     <input type="email" id="reg-email" placeholder="Seu e-mail" required>
@@ -60,7 +53,7 @@
 
             <div class="auth-box hidden" id="forgot-box">
                 <h2>Recuperar Senha</h2>
-                <p>Informe seu e-mail para receber as instruções (Apenas Nuvem/Híbrido).</p>
+                <p>Informe seu e-mail para receber as instruções.</p>
                 <form id="forgot-form">
                     <input type="email" id="forgot-email" placeholder="E-mail cadastrado" required>
                     <button type="submit" class="btn-primary">Recuperar</button>
@@ -72,7 +65,7 @@
         </div>
     </section>
 
-    <!-- APLICAÇÃO PRINCIPAL (Visível apenas após login) -->
+    <!-- APLICAÇÃO PRINCIPAL -->
     <section id="app-section" class="hidden">
         <header>
             <div class="header-content">
@@ -80,12 +73,14 @@
                     <span>Olá, <strong id="user-name-display">Visitante</strong></span>
                 </div>
                 <div class="header-actions">
-                    <!-- Botão Meus Contatos -->
+                    <button id="btn-sync-data" class="btn-outline" title="Sincronizar dados locais com a nuvem">
+                        <i class="fas fa-sync-alt"></i> Sync Nuvem
+                    </button>
+
                     <button id="btn-show-saved-leads" class="btn-primary-outline">
                         <i class="fas fa-address-book"></i> Meus Contatos
                     </button>
 
-                    <!-- Botões Admin (Invisíveis por padrão) -->
                     <button id="btn-admin-add" class="btn-outline btn-admin-success hidden">
                         <i class="fas fa-plus-circle"></i> +10 Leads
                     </button>
@@ -153,7 +148,6 @@
                         </div>
                     </div>
 
-                    <!-- SELEÇÃO DE TEMPLATE NA BUSCA -->
                     <div class="form-group template-group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                             <label for="message-template-input">Mensagem de Abordagem (Editável)</label>
@@ -165,16 +159,13 @@
                         </div>
                     </div>
 
-                    <!-- Botão de Busca -->
                     <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
                     
-                    <!-- Botão Salvar Leads -->
                     <button type="button" id="btn-save-db-direct" class="btn-success full-width" style="margin-top: 10px;">
                         <i class="fas fa-save"></i> Salvar Leads
                     </button>
                 </form>
                 
-                <!-- Status da API / Leads -->
                 <div id="api-status-warning" class="warning-box hidden">
                     <i class="fas fa-exclamation-triangle"></i> 
                     <span id="api-warning-text">Chave API não configurada. Exibindo <strong>leads fictícios</strong>.</span>
@@ -193,16 +184,13 @@
 
             <div class="results-panel hidden" id="results-panel">
                 <div class="results-header">
-                    <!-- Título Editável dinamicamente -->
                     <h2 id="results-title">Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
-                    <!-- BOTÕES DE EXPORTAÇÃO DA BUSCA ATUAL -->
                     <div class="export-buttons">
                         <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
                         <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
                     </div>
                 </div>
 
-                <!-- ÁREA DE FILTROS -->
                 <div class="filters-container">
                     <div class="filter-group">
                         <label for="filter-text">Buscar (Nome/Geral)</label>
@@ -225,7 +213,6 @@
                         <label for="filter-niche">Nicho</label>
                         <select id="filter-niche">
                             <option value="">Todos</option>
-                            <!-- Preenchido via JS -->
                         </select>
                     </div>
                 </div>
@@ -241,15 +228,11 @@
                             </tr>
                         </thead>
                         <tbody id="leads-body">
-                            <!-- Leads serão inseridos aqui -->
                         </tbody>
                     </table>
                 </div>
 
-                <!-- Container de Paginação -->
-                <div id="pagination-controls" class="pagination-container hidden">
-                    <!-- Botões gerados via JS -->
-                </div>
+                <div id="pagination-controls" class="pagination-container hidden"></div>
             </div>
         </main>
 
@@ -262,7 +245,6 @@
                 <div class="config-tabs">
                     <button class="tab-btn active" data-tab="tab-api">API & Leads</button>
                     <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
-                    <!-- ABA BACKUP -->
                     <button class="tab-btn" data-tab="tab-data">Dados & Backup</button>
                 </div>
 
@@ -334,10 +316,10 @@
                     </div>
                 </div>
 
-                <!-- TAB DADOS & BACKUP (NOVO) -->
+                <!-- TAB DADOS & BACKUP -->
                 <div id="tab-data" class="tab-content">
                     <div class="config-section">
-                        <h4>Gestão de Dados Locais</h4>
+                        <h4>Gestão de Dados Locais (IndexedDB)</h4>
                         <p>Gerencie seus dados salvos no navegador (Modo Local/Híbrido).</p>
                         
                         <div class="backup-actions">
@@ -348,7 +330,6 @@
                             <button id="btn-restore-trigger" class="btn-restore">
                                 <i class="fas fa-upload"></i> Restaurar Dados
                             </button>
-                            <!-- Input oculto para upload -->
                             <input type="file" id="restore-file-input" accept=".json" class="hidden">
                         </div>
                         
@@ -362,7 +343,7 @@
             </div>
         </div>
 
-        <!-- MODAL: Gerenciar Banco de Leads -->
+        <!-- MODAL: Gerenciar Banco de Dados -->
         <div id="database-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-db">&times;</span>
@@ -460,12 +441,9 @@
                 <span class="close-modal-msg">&times;</span>
                 <h3>Gerador de Abordagem</h3>
                 
-                <!-- NOVO: Seletor de Modelo no Modal (Item 1) -->
                 <div style="margin-bottom: 5px;">
                     <label for="modal-template-select" style="font-size:0.9rem; color:var(--text-muted);">Selecionar Modelo:</label>
-                    <select id="modal-template-select" class="modal-template-selector">
-                        <!-- Opções carregadas via JS -->
-                    </select>
+                    <select id="modal-template-select" class="modal-template-selector"></select>
                 </div>
 
                 <div class="message-box">

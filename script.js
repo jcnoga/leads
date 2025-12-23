@@ -1,17 +1,114 @@
-/* --- START OF FILE script.js --- */
-
 const firebaseConfig = {
-  apiKey: "AIzaSyAY06PHLqEUCBzg9SjnH4N6xe9ZzM8OLvo",
-  authDomain: "projeto-bfed3.firebaseapp.com",
-  projectId: "projeto-bfed3",
-  storageBucket: "projeto-bfed3.firebasestorage.app",
-  messagingSenderId: "785289237066",
-  appId: "1:785289237066:web:d5871c2a002a90e2d5ccb3"
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
 };
 
 const API_KEYS_CONFIG = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
+};
+
+// --- HELPER INDEXEDDB (NOVO) ---
+const dbHelper = {
+    dbName: 'LeadsManagerDB',
+    version: 1,
+    db: null,
+
+    async open() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.version);
+
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                
+                // Store para Usuários
+                if (!db.objectStoreNames.contains('users')) {
+                    db.createObjectStore('users', { keyPath: 'email' });
+                }
+                
+                // Store para Leads (Contatos)
+                if (!db.objectStoreNames.contains('leads')) {
+                    const store = db.createObjectStore('leads', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('userEmail', 'userEmail', { unique: false });
+                    store.createIndex('phone', 'phone', { unique: false });
+                }
+
+                // Store para Configurações/Sessão (simula key-value simples)
+                if (!db.objectStoreNames.contains('settings')) {
+                    db.createObjectStore('settings', { keyPath: 'key' });
+                }
+
+                // Store para Templates
+                if (!db.objectStoreNames.contains('templates')) {
+                    db.createObjectStore('templates', { keyPath: 'id' });
+                }
+            };
+
+            request.onsuccess = (e) => {
+                this.db = e.target.result;
+                resolve(this.db);
+            };
+
+            request.onerror = (e) => reject("Erro ao abrir DB: " + e.target.error);
+        });
+    },
+
+    async add(storeName, data) {
+        return this.transaction(storeName, 'readwrite', store => store.put(data));
+    },
+
+    async get(storeName, key) {
+        return this.transaction(storeName, 'readonly', store => store.get(key));
+    },
+
+    async getAll(storeName) {
+        return this.transaction(storeName, 'readonly', store => store.getAll());
+    },
+
+    async delete(storeName, key) {
+        return this.transaction(storeName, 'readwrite', store => store.delete(key));
+    },
+
+    // Busca Leads por Email do Usuário
+    async getLeadsByUser(email) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject("DB não inicializado");
+            const tx = this.db.transaction('leads', 'readonly');
+            const store = tx.objectStore('leads');
+            const index = store.index('userEmail');
+            const request = index.getAll(email);
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    transaction(storeName, mode, callback) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject("DB não inicializado");
+            const tx = this.db.transaction(storeName, mode);
+            const store = tx.objectStore(storeName);
+            const request = callback(store);
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    // Métodos específicos para Configurações (Key-Value)
+    async setSetting(key, value) {
+        return this.add('settings', { key, value });
+    },
+
+    async getSetting(key) {
+        const result = await this.get('settings', key);
+        return result ? result.value : null;
+    }
 };
 
 // --- Configurações Iniciais ---
@@ -24,18 +121,16 @@ const DEFAULT_TEMPLATES = [
 
 // --- Estado da Aplicação ---
 const state = {
-    providerId: localStorage.getItem('selected_provider_id') || 'KEY_1', 
+    providerId: 'KEY_1', 
     apiKey: '', 
-    leadsBalance: parseInt(localStorage.getItem('leads_balance')) || 0,
+    leadsBalance: 0,
     user: null, 
     leads: [],
     lastSearch: { niche: '', city: '', state: '' },
-    templates: JSON.parse(localStorage.getItem('msg_templates')) || DEFAULT_TEMPLATES,
+    templates: [],
     challengeNumber: 0,
     currentLeadIndex: null,
-    // Garante que o padrão seja Híbrido se não houver nada salvo
-    appMode: localStorage.getItem('app_mode') || 'hybrid',
-    // Controle de Paginação
+    appMode: 'hybrid', 
     currentPage: 1,
     itemsPerPage: 10,
     isShowingSaved: false 
@@ -43,14 +138,6 @@ const state = {
 
 // Variável de controle para edição
 let editingTemplateId = null; 
-
-// Inicializa a apiKey correta
-if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
-    state.apiKey = API_KEYS_CONFIG[state.providerId];
-    if (!localStorage.getItem('selected_provider_id')) {
-        localStorage.setItem('selected_provider_id', 'KEY_1');
-    }
-}
 
 // --- Inicializa Firebase ---
 let auth, db;
@@ -114,7 +201,6 @@ const filterText = document.getElementById('filter-text');
 const filterStatus = document.getElementById('filter-status');
 const filterNiche = document.getElementById('filter-niche');
 
-// NOVOS ELEMENTOS
 const registerModeSelect = document.getElementById('register-mode-select'); 
 const btnBackup = document.getElementById('btn-backup');
 const btnRestoreTrigger = document.getElementById('btn-restore-trigger');
@@ -123,35 +209,66 @@ const btnSaveDbDirect = document.getElementById('btn-save-db-direct');
 const btnShowSavedLeads = document.getElementById('btn-show-saved-leads');
 const paginationControls = document.getElementById('pagination-controls');
 const resultsTitle = document.getElementById('results-title');
+const btnSyncData = document.getElementById('btn-sync-data');
 
 
 // --- Inicialização ---
-document.addEventListener('DOMContentLoaded', () => {
-    if (auth) {
-        auth.onAuthStateChanged((user) => {
-            if (state.appMode === 'local') return;
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Abrir Banco de Dados IndexedDB
+    try {
+        await dbHelper.open();
+        // Migração única se necessário
+        await migrateLocalStorageToIndexedDB();
+    } catch (e) {
+        console.error("Falha fatal ao abrir IndexedDB:", e);
+        alert("Erro ao carregar banco de dados local. Recarregue a página.");
+        return;
+    }
 
+    // 2. Carregar Configurações Iniciais do DB
+    state.providerId = (await dbHelper.getSetting('selected_provider_id')) || 'KEY_1';
+    state.leadsBalance = parseInt((await dbHelper.getSetting('leads_balance'))) || 0;
+    state.appMode = 'hybrid'; 
+    
+    // Configurar API Key
+    if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
+        state.apiKey = API_KEYS_CONFIG[state.providerId];
+    } else {
+        // Fallback default
+        state.apiKey = API_KEYS_CONFIG['KEY_1'];
+    }
+
+    // Carregar Templates
+    const savedTemplates = await dbHelper.getAll('templates');
+    state.templates = savedTemplates.length > 0 ? savedTemplates : DEFAULT_TEMPLATES;
+    if(savedTemplates.length === 0) {
+        await dbHelper.add('templates', DEFAULT_TEMPLATES[0]);
+    }
+
+    // 3. Checar Sessão
+    if (auth) {
+        auth.onAuthStateChanged(async (user) => {
             if (user) {
-                state.user = {
-                    name: user.displayName || user.email,
-                    email: user.email,
-                    uid: user.uid,
-                    source: 'firebase'
-                };
-                checkAuth();
-            } else if (!state.user || state.user.source === 'firebase') {
-                state.user = null;
+                if (state.user) {
+                    state.user.uid = user.uid;
+                    state.user.source = 'hybrid';
+                } else {
+                    state.user = {
+                        name: user.displayName || user.email,
+                        email: user.email,
+                        uid: user.uid,
+                        source: 'hybrid'
+                    };
+                }
+                await dbHelper.setSetting('local_session_user', state.user);
                 checkAuth();
             }
         });
     }
 
-    const localSession = localStorage.getItem('local_session_user');
+    const localSession = await dbHelper.getSetting('local_session_user');
     if (localSession && !state.user) {
-        state.user = JSON.parse(localSession);
-        if (!state.appMode && localStorage.getItem('app_mode')) {
-             state.appMode = localStorage.getItem('app_mode');
-        }
+        state.user = localSession;
         checkAuth();
     }
 
@@ -159,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFilterListeners();
     setupVisualFeedback(); 
     
-    const savedMsg = localStorage.getItem('current_draft_message');
+    const savedMsg = await dbHelper.getSetting('current_draft_message');
     if (savedMsg) {
         messageTemplateInput.value = savedMsg;
     } else {
@@ -171,36 +288,49 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSearchButtonState(); 
 });
 
-// --- HELPER: Tradução de Erros do Firebase ---
-function getFirebaseErrorMessage(error) {
-    switch (error.code) {
-        case 'auth/invalid-email':
-            return 'O formato do e-mail é inválido. Verifique se não há espaços ou caracteres incorretos.';
-        case 'auth/user-not-found':
-            return 'Usuário não encontrado. Verifique o e-mail ou cadastre-se.';
-        case 'auth/wrong-password':
-            return 'Senha incorreta. Tente novamente ou use a recuperação de senha.';
-        case 'auth/email-already-in-use':
-            return 'Este e-mail já está sendo usado por outra conta.';
-        case 'auth/weak-password':
-            return 'A senha é muito fraca. Escolha uma senha com pelo menos 6 caracteres.';
-        case 'auth/network-request-failed':
-            return 'Erro de conexão. Verifique sua internet e tente novamente.';
-        case 'auth/too-many-requests':
-            return 'Muitas tentativas falhas consecutivas. O acesso foi bloqueado temporariamente. Tente mais tarde.';
-        case 'auth/operation-not-allowed':
-            return 'O login por e-mail/senha não está habilitado no Firebase Console.';
-        case 'auth/user-disabled':
-            return 'Esta conta foi desativada pelo administrador.';
-        case 'auth/requires-recent-login':
-            return 'Esta operação requer um login recente. Saia e entre novamente.';
-        default:
-            return 'Ocorreu um erro na autenticação: ' + error.message;
+// --- Migração (Opcional) ---
+async function migrateLocalStorageToIndexedDB() {
+    const migrated = localStorage.getItem('idb_migrated_v1');
+    if (migrated) return;
+
+    console.log("Iniciando migração para IndexedDB...");
+    try {
+        // Migrar Usuários
+        const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
+        for (const u of localUsers) {
+            await dbHelper.add('users', u);
+        }
+
+        // Migrar Leads
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('local_leads_')) {
+                const email = key.replace('local_leads_', '');
+                const leads = JSON.parse(localStorage.getItem(key) || '[]');
+                for (const l of leads) {
+                    const leadToSave = { ...l, userEmail: email };
+                    // Garante que não tenha chaves de controle antigas que conflitem
+                    delete leadToSave.id; 
+                    await dbHelper.add('leads', leadToSave);
+                }
+            }
+        }
+
+        // Migrar Configs
+        const balance = localStorage.getItem('leads_balance');
+        if (balance) await dbHelper.setSetting('leads_balance', balance);
+        
+        const provId = localStorage.getItem('selected_provider_id');
+        if (provId) await dbHelper.setSetting('selected_provider_id', provId);
+
+        localStorage.setItem('idb_migrated_v1', 'true');
+        console.log("Migração concluída.");
+    } catch (err) {
+        console.error("Erro na migração:", err);
     }
 }
 
-// --- FUNÇÕES AUXILIARES ---
-
+// --- Destaque Visual ---
 function setupVisualFeedback() {
     const inputs = document.querySelectorAll('input, textarea, select');
     const handleInput = (e) => {
@@ -218,16 +348,19 @@ function setupVisualFeedback() {
     });
 }
 
+// Filtragem de Fictícios e Duplicados
 async function filterInvalidAndDuplicateLeads(newLeads) {
     let existingLeads = [];
     
     if (state.user) {
-        const storageKey = `local_leads_${state.user.email}`;
-        existingLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        // Busca do IndexedDB
+        existingLeads = await dbHelper.getLeadsByUser(state.user.email);
     }
 
-    if (state.isShowingSaved && state.leads.length > 0) {
-        existingLeads = [...existingLeads, ...state.leads];
+    // Se estiver visualizando salvos, não precisa concatenar pois já buscamos do banco
+    // Mas para garantir comparação com estado atual da memória se houver algo volátil:
+    if (state.isShowingSaved && state.leads.length > existingLeads.length) {
+         // Lógica defensiva, normalmente dbHelper.getLeadsByUser é a fonte da verdade
     }
 
     const existingPhones = new Set(existingLeads.map(l => l.phone ? l.phone.replace(/\D/g, '') : ''));
@@ -245,22 +378,13 @@ async function filterInvalidAndDuplicateLeads(newLeads) {
             lead.phone === '000000000'
         );
 
-        if (isFictitious) {
-            console.log(`Lead filtrado (Fictício): ${lead.name}`);
-            return false;
-        }
+        if (isFictitious) return false;
 
         const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : '';
         const cleanName = lowerName.trim();
 
-        if (cleanPhone.length > 5 && existingPhones.has(cleanPhone)) {
-            console.log(`Lead filtrado (Duplicado por Tel): ${lead.name}`);
-            return false;
-        }
-        if (existingNames.has(cleanName)) {
-            console.log(`Lead filtrado (Duplicado por Nome): ${lead.name}`);
-            return false;
-        }
+        if (cleanPhone.length > 5 && existingPhones.has(cleanPhone)) return false;
+        if (existingNames.has(cleanName)) return false;
 
         return true;
     });
@@ -272,12 +396,7 @@ function checkAuth() {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         
-        // Embora o novo padrão seja Híbrido, mantemos a lógica de exibição para compatibilidade
-        let modeLabel = '';
-        if (state.appMode === 'local') modeLabel = ' (Local)';
-        if (state.appMode === 'hybrid') modeLabel = ' (Híbrido)';
-        if (state.appMode === 'cloud') modeLabel = ' (Nuvem)';
-
+        let modeLabel = ' (Híbrido)';
         document.getElementById('user-name-display').innerText = state.user.name + modeLabel;
         
         if (state.user.email === ADMIN_EMAIL) {
@@ -293,153 +412,264 @@ function checkAuth() {
     }
 }
 
-async function login(email, password) {
-    let detectedMode = 'cloud'; 
+async function login(email, password, name) {
+    // 1. Tenta autenticação local via IndexedDB
+    let userFound = await dbHelper.get('users', email);
     let loginSuccess = false;
 
-    // Validação Básica
-    if (!email || !password) {
-        alert("Por favor, preencha o e-mail e a senha.");
-        return;
-    }
-
-    const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
-    const userFound = localUsers.find(u => u.email === email && u.password === password);
-
-    if (userFound) {
-        detectedMode = userFound.mode || 'local'; // Detecta modo antigo se existir
-        state.appMode = detectedMode;
-        localStorage.setItem('app_mode', detectedMode);
+    if (userFound && userFound.password === password) {
+        // Atualiza nome se necessário
+        if (name && name.trim() !== "" && (!userFound.name || userFound.name !== name)) {
+            userFound.name = name;
+            await dbHelper.add('users', userFound);
+        }
 
         state.user = {
             name: userFound.name,
             email: userFound.email,
-            uid: userFound.uid,
+            uid: userFound.uid || 'local_' + Date.now(),
             source: 'local'
         };
-        localStorage.setItem('local_session_user', JSON.stringify(state.user));
+        
+        await dbHelper.setSetting('local_session_user', state.user);
         loginSuccess = true;
         
-        // Se for Híbrido (agora o padrão), tenta conectar no Firebase
-        if (detectedMode === 'hybrid' && auth) {
+        // Tenta sync auth background
+        if (auth) {
              auth.signInWithEmailAndPassword(email, password)
-                .catch(err => console.warn("Aviso: Login local ok, mas falha na sincronização silenciosa com Firebase:", err.code));
+                 .then(async (cred) => {
+                     state.user.uid = cred.user.uid;
+                     state.user.source = 'hybrid';
+                     await dbHelper.setSetting('local_session_user', state.user);
+                 })
+                 .catch(err => console.log("Login Firebase bg falhou:", err));
         }
         
         checkAuth();
-        if (detectedMode === 'local') return;
+        return;
     }
 
+    // 2. Se não achou localmente, tenta Firebase
     if (!loginSuccess) {
-        if (!auth) return alert("Erro de Configuração: Firebase não foi inicializado corretamente.");
+        if (!auth) return alert("Firebase não configurado.");
         try {
-            await auth.signInWithEmailAndPassword(email, password);
-            state.appMode = 'cloud'; // Fallback para cloud se não achar localmente
-            localStorage.setItem('app_mode', 'cloud');
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            const fbUser = userCredential.user;
+            
+            const finalName = name || fbUser.displayName || email.split('@')[0];
+
+            if (name && fbUser.displayName !== name) {
+                await fbUser.updateProfile({ displayName: name });
+            }
+
+            const newUserLocal = {
+                name: finalName,
+                email: email,
+                password: password, 
+                uid: fbUser.uid,
+                mode: 'hybrid'
+            };
+            // Salva no IndexedDB
+            await dbHelper.add('users', newUserLocal);
+
+            state.user = {
+                name: finalName,
+                email: email,
+                uid: fbUser.uid,
+                source: 'hybrid'
+            };
+            await dbHelper.setSetting('local_session_user', state.user);
+            
+            checkAuth();
         } catch (error) {
-            alert(getFirebaseErrorMessage(error));
+            alert("Erro no login: " + error.message);
         }
     }
 }
 
-function register(name, email, password) {
-    // Agora o valor virá sempre como 'hybrid' devido ao HTML fixo
-    const mode = registerModeSelect.value; 
-
-    // Validação de Campos
-    if (!name || name.trim().length < 2) return alert("Por favor, insira um nome válido.");
-    if (!email || !email.includes('@')) return alert("Por favor, insira um e-mail válido.");
-    if (!password || password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
-    
-    // Processo Híbrido: Salva Local E tenta salvar na Nuvem
-    if (mode === 'local' || mode === 'hybrid') {
-        try {
-            const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
-            if (localUsers.find(u => u.email === email)) {
-                 return alert("Erro: Já existe um usuário local cadastrado com este e-mail.");
-            } else {
-                const newUser = {
-                    name: name,
-                    email: email,
-                    password: password,
-                    uid: 'local_' + Date.now(),
-                    mode: mode 
-                };
-                localUsers.push(newUser);
-                localStorage.setItem('local_users_db', JSON.stringify(localUsers));
-                
-                localStorage.setItem('leads_balance', 50);
-                state.leadsBalance = 50;
-            }
-        } catch (e) {
-            return alert("Erro crítico ao salvar usuário localmente (Storage Cheio ou Corrompido): " + e.message);
-        }
+async function register(name, email, password) {
+    // 1. Cria Localmente no IndexedDB
+    const existingUser = await dbHelper.get('users', email);
+    if (existingUser) {
+         return alert("Usuário já existe localmente.");
     }
 
-    if (mode === 'cloud' || mode === 'hybrid') {
-        if (!auth) return alert("Erro: Firebase não configurado.");
+    const newUser = {
+        name: name,
+        email: email,
+        password: password,
+        uid: 'local_' + Date.now(),
+        mode: 'hybrid' 
+    };
+    await dbHelper.add('users', newUser);
+    
+    // Saldo inicial
+    await dbHelper.setSetting('leads_balance', 50);
+    state.leadsBalance = 50;
+
+    // 2. Tenta Criar na Nuvem
+    if (auth) {
         auth.createUserWithEmailAndPassword(email, password)
-            .then((userCredential) => {
-                localStorage.setItem('leads_balance', 50);
-                state.leadsBalance = 50;
+            .then(async (userCredential) => {
+                newUser.uid = userCredential.user.uid;
+                await dbHelper.add('users', newUser);
                 return userCredential.user.updateProfile({ displayName: name });
             })
             .then(() => {
-                // Mensagem simplificada pois agora é sempre Híbrido para o usuário
-                alert("Conta criada com sucesso!");
+                alert("Conta criada com sucesso! Você pode fazer login.");
                 toggleAuthBox('login');
             })
             .catch((error) => {
-                if(error.code === 'auth/email-already-in-use' && mode === 'hybrid') {
-                    alert("Conta criada localmente. O e-mail já existia na nuvem, sincronizando...");
+                if(error.code === 'auth/email-already-in-use') {
+                    alert("Conta criada localmente. O e-mail já existia na nuvem. Faça login para sincronizar.");
                     toggleAuthBox('login');
                 } else {
-                    alert("Falha no cadastro Nuvem: " + getFirebaseErrorMessage(error));
+                    alert("Conta criada LOCALMENTE. Erro na nuvem: " + error.message);
+                    toggleAuthBox('login');
                 }
             });
     } else {
-        alert("Conta criada com sucesso!");
+        alert("Conta local criada com sucesso!");
         toggleAuthBox('login');
     }
 }
 
-function logout() {
+async function logout() {
     state.user = null;
-    localStorage.removeItem('local_session_user'); 
-    localStorage.removeItem('app_mode'); 
+    await dbHelper.delete('settings', 'local_session_user'); 
+    // Limpa app_mode apenas se desejar forçar login novamente sem memory
+    // await dbHelper.delete('settings', 'app_mode'); 
     if (auth) auth.signOut();
     location.reload(); 
 }
 
 function resetPassword(email) {
-    if (!auth) return alert("Funcionalidade indisponível: Firebase não configurado.");
-    if (!email) return alert("Por favor, digite o e-mail para recuperação.");
-
+    if (!auth) return alert("Disponível apenas em modo Nuvem/Híbrido com Firebase.");
     auth.sendPasswordResetEmail(email)
         .then(() => {
-            alert("Sucesso! Verifique sua caixa de entrada (e spam) para redefinir a senha.");
+            alert("E-mail de recuperação enviado!");
             toggleAuthBox('login');
         })
         .catch((error) => {
-            alert("Erro ao enviar e-mail: " + getFirebaseErrorMessage(error));
+            alert("Erro: " + error.message);
         });
 }
 
+// --- SINCRONIZAÇÃO ROBUSTA ---
+async function syncSystem() {
+    if (!state.user) return alert("Faça login para sincronizar.");
+    if (!navigator.onLine) return alert("Sem conexão com a internet.");
+
+    const btn = document.getElementById('btn-sync-data');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+    btn.disabled = true;
+
+    try {
+        // 1. Sincronizar Usuário
+        if (!auth.currentUser) {
+            const currentUserLocal = await dbHelper.get('users', state.user.email);
+            
+            if (currentUserLocal) {
+                try {
+                    await auth.signInWithEmailAndPassword(currentUserLocal.email, currentUserLocal.password);
+                    console.log("Sync Auth: Logado no Firebase.");
+                } catch (authErr) {
+                    if (authErr.code === 'auth/user-not-found') {
+                        await auth.createUserWithEmailAndPassword(currentUserLocal.email, currentUserLocal.password);
+                        await auth.currentUser.updateProfile({ displayName: currentUserLocal.name });
+                        console.log("Sync Auth: Usuário recriado na nuvem.");
+                    } else if (authErr.code === 'auth/wrong-password') {
+                        throw new Error("Conflito de senha na nuvem. Faça login manualmente.");
+                    } else {
+                        throw authErr;
+                    }
+                }
+                if(auth.currentUser) state.user.uid = auth.currentUser.uid;
+            }
+        }
+
+        // 2. Sincronizar Leads
+        const localLeads = await dbHelper.getLeadsByUser(state.user.email);
+        
+        let syncedCount = 0;
+        let errorCount = 0;
+
+        // Filtra apenas leads sem ID do Firestore
+        const leadsToSync = localLeads.filter(lead => !lead.firestoreId);
+
+        if (leadsToSync.length === 0) {
+            alert("Todos os leads locais já estão sincronizados!");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        for (const lead of leadsToSync) {
+            try {
+                // Prepara objeto para envio
+                const leadToSend = { ...lead };
+                // Remove chaves internas do IndexedDB ao enviar para o Firestore
+                delete leadToSend.id; 
+                delete leadToSend.isMock;
+                
+                // Firestore não aceita undefined
+                Object.keys(leadToSend).forEach(key => {
+                    if (leadToSend[key] === undefined) leadToSend[key] = null;
+                });
+                
+                if (!leadToSend.createdAt) leadToSend.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+
+                // Envia para o Firestore
+                const docRef = await db.collection('users').doc(state.user.uid).collection('leads').add(leadToSend);
+
+                // Atualiza o objeto local no IndexedDB com o novo firestoreId
+                lead.firestoreId = docRef.id;
+                await dbHelper.add('leads', lead);
+                
+                syncedCount++;
+
+            } catch (err) {
+                console.error(`Erro ao sincronizar lead ${lead.name}:`, err);
+                errorCount++;
+            }
+        }
+
+        let msg = `Sincronização concluída.\nEnviados com sucesso: ${syncedCount}`;
+        if (errorCount > 0) {
+            msg += `\nFalhas: ${errorCount} (Verifique conexão e tente novamente).`;
+        }
+        alert(msg);
+
+        if (state.isShowingSaved) {
+            loadMyContacts();
+        }
+
+    } catch (globalError) {
+        console.error("Erro fatal na sincronização:", globalError);
+        alert("Erro ao iniciar sincronização: " + globalError.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+
 // --- Funções de Admin ---
-function resetAccess() {
+async function resetAccess() {
     if (confirm("ADMIN: Deseja zerar o saldo de leads?")) {
         state.leadsBalance = 0; 
-        localStorage.setItem('leads_balance', 0);
+        await dbHelper.setSetting('leads_balance', 0);
         updateApiStatusUI();
         updateSearchButtonState();
         alert("Saldo zerado.");
     }
 }
 
-function addAdminLeads() {
+async function addAdminLeads() {
     if (confirm("ADMIN: Adicionar 10 leads ao saldo?")) {
         state.leadsBalance += 10;
-        localStorage.setItem('leads_balance', state.leadsBalance);
+        await dbHelper.setSetting('leads_balance', state.leadsBalance);
         updateApiStatusUI();
         updateSearchButtonState();
         alert("10 leads adicionados.");
@@ -451,11 +681,11 @@ function loadDefaultMessage() {
     const defaultTpl = state.templates.find(t => t.isDefault) || state.templates[0];
     if (defaultTpl) {
         messageTemplateInput.value = defaultTpl.content;
-        localStorage.setItem('current_draft_message', defaultTpl.content);
+        dbHelper.setSetting('current_draft_message', defaultTpl.content);
     }
 }
 
-function saveNewTemplate() {
+async function saveNewTemplate() {
     const nameInput = document.getElementById('new-template-name');
     const contentInput = document.getElementById('new-template-content');
     const btnSave = document.getElementById('btn-save-template');
@@ -473,6 +703,7 @@ function saveNewTemplate() {
         if (index !== -1) {
             state.templates[index].name = name;
             state.templates[index].content = content;
+            await dbHelper.add('templates', state.templates[index]);
             alert("Modelo atualizado com sucesso!");
         }
         editingTemplateId = null;
@@ -487,17 +718,19 @@ function saveNewTemplate() {
             isDefault: false
         };
         state.templates.push(newTpl);
+        await dbHelper.add('templates', newTpl);
         alert("Modelo salvo com sucesso!");
     }
 
-    localStorage.setItem('msg_templates', JSON.stringify(state.templates));
+    // Recarrega templates
+    state.templates = await dbHelper.getAll('templates');
     nameInput.value = '';
     contentInput.value = '';
     
     renderTemplatesList();
 }
 
-function editTemplate(id) {
+async function editTemplate(id) {
     const template = state.templates.find(t => t.id === id);
     if (!template) return;
 
@@ -526,17 +759,21 @@ function copyTemplateContent(id) {
     });
 }
 
-function deleteTemplate(id) {
+async function deleteTemplate(id) {
     if (confirm("Deseja excluir este modelo?")) {
+        await dbHelper.delete('templates', id);
         state.templates = state.templates.filter(t => t.id !== id);
-        localStorage.setItem('msg_templates', JSON.stringify(state.templates));
         renderTemplatesList();
     }
 }
 
-function setDefaultTemplate(id) {
+async function setDefaultTemplate(id) {
     state.templates.forEach(t => t.isDefault = (t.id === id));
-    localStorage.setItem('msg_templates', JSON.stringify(state.templates));
+    // Salva todos para garantir o toggle
+    for(const t of state.templates) {
+        await dbHelper.add('templates', t);
+    }
+    
     renderTemplatesList();
     loadDefaultMessage(); 
     alert("Modelo definido como padrão.");
@@ -641,7 +878,7 @@ async function validateAndSaveApiKey() {
 
     state.providerId = selectedProvider;
     state.apiKey = key;
-    localStorage.setItem('selected_provider_id', selectedProvider);
+    await dbHelper.setSetting('selected_provider_id', selectedProvider);
     
     msg.innerText = "Preferência salva com sucesso! Adquira créditos abaixo para usar dados reais.";
     msg.style.color = "orange";
@@ -666,7 +903,7 @@ function updateWhatsappLink() {
     }
 }
 
-function verifyChallenge() {
+async function verifyChallenge() {
     const responseInput = document.getElementById('challenge-response').value.trim();
     
     if (!responseInput.includes('-')) {
@@ -685,7 +922,7 @@ function verifyChallenge() {
 
     if (providedHash === expectedHash) {
         state.leadsBalance += leadsQty;
-        localStorage.setItem('leads_balance', state.leadsBalance);
+        await dbHelper.setSetting('leads_balance', state.leadsBalance);
         
         alert(`Sucesso! ${leadsQty} leads adicionados ao seu saldo.`);
         
@@ -712,38 +949,39 @@ async function loadMyContacts() {
     state.isShowingSaved = true;
     state.currentPage = 1; 
     
-    // Atualiza Título
     resultsTitle.innerHTML = 'Meus Contatos <span class="badge-real">(Salvos)</span>: <span id="result-count">...</span>';
     dataSourceBadge.classList.add('hidden'); 
 
     let loadedLeads = [];
 
-    // Lógica Híbrida de Carregamento
-    if (state.appMode === 'local') {
-        const storageKey = `local_leads_${state.user.email}`;
-        loadedLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    } else {
-        // Nuvem ou Híbrido
-        if (!auth.currentUser && state.appMode === 'hybrid') {
-            const storageKey = `local_leads_${state.user.email}`;
-            loadedLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        } else {
-            try {
-                const snapshot = await db.collection('users').doc(state.user.uid || auth.currentUser.uid).collection('leads')
-                    .orderBy('createdAt', 'desc')
-                    .get();
-                
-                loadedLeads = snapshot.docs.map(doc => {
-                    return { ...doc.data(), firestoreId: doc.id };
-                });
-            } catch (error) {
-                console.error("Erro ao buscar leads:", error);
-                const storageKey = `local_leads_${state.user.email}`;
-                loadedLeads = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    // Busca do IndexedDB
+    loadedLeads = await dbHelper.getLeadsByUser(state.user.email);
+    
+    // Fallback nuvem para primeiro carregamento (apenas se tiver internet e nuvem)
+    if (loadedLeads.length === 0 && auth && auth.currentUser) {
+        try {
+            const snapshot = await db.collection('users').doc(auth.currentUser.uid).collection('leads').get();
+            const cloudLeads = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+            
+            if (cloudLeads.length > 0) {
+                loadedLeads = cloudLeads;
+                // Sincroniza "down" para o IndexedDB
+                for(const l of loadedLeads) {
+                    l.userEmail = state.user.email;
+                    // Remove id se existir para deixar o autoIncrement do IDB funcionar, 
+                    // a menos que queiramos manter consistência, mas o IDB usa chave numérica por padrão aqui.
+                    const toSave = {...l};
+                    delete toSave.id; 
+                    await dbHelper.add('leads', toSave);
+                }
             }
+        } catch (e) {
+            console.log("Sem leads locais e sem conexão para baixar.");
         }
     }
 
+    // Como o IDB retorna objetos com chave 'id', vamos garantir que a interface saiba lidar
+    // O IDB 'id' é numérico auto-incremento.
     state.leads = loadedLeads;
     populateNicheFilter(state.leads);
     applyFilters(); 
@@ -793,12 +1031,13 @@ async function searchLeads(event) {
             if (leads.length > 0) {
                 state.leadsBalance -= leads.length;
                 if (state.leadsBalance < 0) state.leadsBalance = 0;
-                localStorage.setItem('leads_balance', state.leadsBalance);
+                await dbHelper.setSetting('leads_balance', state.leadsBalance);
                 
                 updateApiStatusUI();
                 updateResultsBadge(true);
                 
-                saveLeadsUniversal(leads, niche); 
+                // Salva Localmente (IndexedDB)
+                await saveLeadsToLocal(leads, niche);
             } else {
                 alert("A busca retornou resultados, mas todos já existiam no seu banco de dados ou eram inválidos.");
             }
@@ -841,6 +1080,7 @@ function applyFilters() {
     const st = filterStatus.value;
     const ni = filterNiche.value;
 
+    // Preservamos o índice original do array state.leads para manipulação
     const indexedLeads = state.leads.map((lead, index) => ({...lead, _originalIndex: index}));
 
     const filtered = indexedLeads.filter(lead => {
@@ -858,157 +1098,81 @@ function applyFilters() {
     renderLeads(filtered);
 }
 
-// --- PERSISTÊNCIA UNIVERSAL ---
+// --- PERSISTÊNCIA ---
 
 async function saveCurrentLeadsToDB() {
     if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
-    
     if(state.leads.some(l => l.isMock)) return alert("Atenção: Leads fictícios da simulação não podem ser salvos no banco.");
 
-    if(!confirm(`Deseja salvar a lista no modo: ${state.appMode.toUpperCase()}?`)) return;
+    if(!confirm(`Deseja salvar a lista?`)) return;
 
     const niche = state.lastSearch.niche || 'Lista Manual';
-    
     const validLeads = await filterInvalidAndDuplicateLeads(state.leads);
     
     if (validLeads.length === 0) {
         return alert("Todos os leads desta lista já foram salvos anteriormente.");
     }
 
-    await saveLeadsUniversal(validLeads, niche);
+    // Salva Localmente (IndexedDB)
+    await saveLeadsToLocal(validLeads, niche);
     
-    if(state.appMode === 'local') {
-        alert("Dados salvos localmente com sucesso!");
+    if (navigator.onLine) {
+        alert("Dados salvos localmente! Clique em 'Sync Nuvem' para fazer backup online.");
+    } else {
+        alert("Dados salvos OFFLINE. Sincronize quando tiver internet.");
     }
 }
 
-async function saveLeadsUniversal(leads, niche) {
-    const validLeads = leads.filter(lead => !lead.isMock);
-    if (validLeads.length === 0) return;
-
-    if (state.appMode === 'local' || state.appMode === 'hybrid') {
-        saveLeadsToLocal(validLeads, niche);
-    }
-
-    if (state.appMode === 'cloud' || state.appMode === 'hybrid') {
-        await saveLeadsToFirestore(validLeads, niche);
-    }
-}
-
-function saveLeadsToLocal(leads, niche) {
+async function saveLeadsToLocal(leads, niche) {
     if (!state.user) return;
     
-    try {
-        const storageKey = `local_leads_${state.user.email}`;
-        let currentData = [];
-        
-        try {
-            const stored = localStorage.getItem(storageKey);
-            currentData = stored ? JSON.parse(stored) : [];
-        } catch (e) {
-            console.error("Dados locais corrompidos, reiniciando array.", e);
-            currentData = []; // Fallback seguro
-        }
-        
-        leads.forEach(lead => {
-            const leadToSave = { ...lead };
-            delete leadToSave._originalIndex;
-            delete leadToSave.isMock;
-            
-            const exists = currentData.some(d => d.name === leadToSave.name && d.phone === leadToSave.phone);
-            if (!exists) {
-                currentData.push({
-                    ...leadToSave,
-                    searchNiche: niche,
-                    leadStatus: lead.leadStatus || 'Novo',
-                    followUpNotes: lead.followUpNotes || '',
-                    createdAt: new Date().toISOString()
-                });
-            }
-        });
-        localStorage.setItem(storageKey, JSON.stringify(currentData));
-        console.log("Leads salvos localmente.");
-    } catch (error) {
-        if (error.name === 'QuotaExceededError' || error.code === 22) {
-            alert("ERRO DE ARMAZENAMENTO: O limite do navegador foi atingido.\n\nPor favor, faça backup dos seus dados e limpe o banco de dados (Gerenciador de Banco) para continuar salvando.");
-        } else {
-            alert("Erro desconhecido ao salvar localmente: " + error.message);
-        }
-    }
-}
-
-async function saveLeadsToFirestore(leads, niche = 'Manual') {
-    if (!state.user) return;
-    if (state.appMode === 'local') return;
-
-    if (!auth || !auth.currentUser) {
-        console.warn("Usuário desconectado ao tentar salvar na Nuvem. Salvando apenas localmente.");
-        return;
-    }
-
-    const validLeads = leads.filter(lead => !lead.isMock);
-    if (validLeads.length === 0) return;
-
-    try {
-        const batch = db.batch();
-        const uid = auth.currentUser.uid;
-        // Limit Firestore Batch (max 500 ops)
-        const MAX_BATCH_SIZE = 450;
-        const leadsToProcess = validLeads.slice(0, MAX_BATCH_SIZE); 
-
-        leadsToProcess.forEach(lead => {
-            const leadToSave = { ...lead };
-            delete leadToSave._originalIndex;
-            delete leadToSave.isMock;
-
-            Object.keys(leadToSave).forEach(key => {
-                if (leadToSave[key] === undefined) leadToSave[key] = null;
-            });
-
-            const docRef = db.collection('users').doc(uid).collection('leads').doc();
-            batch.set(docRef, {
-                ...leadToSave,
+    // Busca leads atuais para double-check de duplicidade na hora da inserção
+    const currentData = await dbHelper.getLeadsByUser(state.user.email);
+    
+    for (const lead of leads) {
+        // Evitar duplicatas exatas
+        const exists = currentData.some(d => d.name === lead.name && d.phone === lead.phone);
+        if (!exists) {
+            const leadToSave = {
+                ...lead,
+                userEmail: state.user.email,
                 searchNiche: niche,
                 leadStatus: lead.leadStatus || 'Novo',
                 followUpNotes: lead.followUpNotes || '',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        });
-        
-        await batch.commit();
-        console.log("Leads salvos no Firebase.");
-        
-        if (state.appMode === 'cloud') {
-            alert("Dados salvos na nuvem com sucesso!");
-        }
+                createdAt: new Date().toISOString(),
+                firestoreId: null // Marca como não sincronizado
+            };
 
-    } catch (error) {
-        console.error("Erro ao salvar leads no Firebase:", error);
-        
-        if (error.code === 'permission-denied') {
-            alert("Erro de Permissão: Você não tem autorização para gravar neste banco de dados na Nuvem.");
-        } else if (error.code === 'unavailable') {
-            alert("Erro de Conexão com a Nuvem: O serviço está temporariamente offline ou sua internet caiu. Os dados estão salvos localmente.");
-        } else if (error.code === 'resource-exhausted') {
-            alert("Cota do Firebase Excedida: O limite gratuito do banco de dados foi atingido.");
-        } else {
-             if (state.appMode === 'cloud') {
-                 alert("Erro ao sincronizar com a nuvem: " + error.message);
-             }
+            // Remove propriedades de controle de array se existirem
+            delete leadToSave._originalIndex;
+            delete leadToSave.isMock;
+            // Se tiver id do array mock, remove para o IDB gerar o seu
+            if (typeof leadToSave.id === 'string' && leadToSave.id.startsWith('mock')) delete leadToSave.id;
+
+            await dbHelper.add('leads', leadToSave);
         }
     }
+    console.log("Leads salvos no IndexedDB.");
 }
 
-// --- BACKUP E RESTORE ---
-function backupData() {
+// --- BACKUP E RESTORE (Atualizado para Async/IDB) ---
+async function backupData() {
+    // Busca dados do IndexedDB
+    let leads = [];
+    if(state.user) {
+        leads = await dbHelper.getLeadsByUser(state.user.email);
+    }
+    const templates = await dbHelper.getAll('templates');
+    const users = await dbHelper.getAll('users');
+
     const backupObj = {
-        version: "1.0",
+        version: "2.0-idb",
         timestamp: new Date().toISOString(),
         userEmail: state.user ? state.user.email : 'anon',
-        leadsBalance: localStorage.getItem('leads_balance'),
-        templates: localStorage.getItem('msg_templates'),
-        leads: state.user ? localStorage.getItem(`local_leads_${state.user.email}`) : null,
-        usersDb: localStorage.getItem('local_users_db')
+        leadsBalance: await dbHelper.getSetting('leads_balance'),
+        templates: templates,
+        leads: leads,
+        usersDb: users
     };
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj));
@@ -1022,61 +1186,56 @@ function backupData() {
 
 function restoreData(event) {
     const file = event.target.files[0];
-    if (!file) return; 
-
-    // Validação de tipo de arquivo
-    if (!file.name.toLowerCase().endsWith('.json')) {
-        alert("Formato inválido. Por favor, selecione um arquivo .JSON gerado por este sistema.");
-        return;
-    }
+    if (!file) return;
 
     const reader = new FileReader();
-    
-    reader.onerror = () => {
-        alert("Erro ao ler o arquivo do disco.");
-        reader.abort();
-    };
-
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         try {
-            const jsonString = e.target.result;
-            const backupObj = JSON.parse(jsonString);
-
-            // Validação da Estrutura do Backup
-            if (!backupObj || typeof backupObj !== 'object') {
-                throw new Error("O conteúdo do arquivo não é um objeto JSON válido.");
-            }
-            if (!backupObj.version && !backupObj.timestamp && !backupObj.leads && !backupObj.usersDb) {
-                 throw new Error("O arquivo não parece ser um backup válido deste sistema (campos ausentes).");
-            }
-
-            if (confirm("Isso substituirá seus dados locais atuais. Deseja continuar?")) {
-                try {
-                    if(backupObj.leadsBalance) localStorage.setItem('leads_balance', backupObj.leadsBalance);
-                    if(backupObj.templates) localStorage.setItem('msg_templates', backupObj.templates);
-                    if(backupObj.usersDb) localStorage.setItem('local_users_db', backupObj.usersDb);
-                    
-                    if(backupObj.leads && state.user) {
-                        localStorage.setItem(`local_leads_${state.user.email}`, backupObj.leads);
-                    }
-                    alert("Restauração concluída com sucesso! A página será recarregada.");
-                    location.reload();
-                } catch (storageError) {
-                    if (storageError.name === 'QuotaExceededError') {
-                        alert("Erro ao Restaurar: O arquivo de backup é muito grande para o armazenamento do navegador.");
-                    } else {
-                        throw storageError;
+            const backupObj = JSON.parse(e.target.result);
+            if (confirm("Isso substituirá/mesclará seus dados locais atuais. Deseja continuar?")) {
+                
+                // Restaura Settings
+                if(backupObj.leadsBalance) await dbHelper.setSetting('leads_balance', backupObj.leadsBalance);
+                
+                // Restaura Templates
+                if(backupObj.templates && Array.isArray(backupObj.templates)) {
+                    for(const t of backupObj.templates) {
+                        await dbHelper.add('templates', t);
                     }
                 }
+
+                // Restaura Users
+                if(backupObj.usersDb && Array.isArray(backupObj.usersDb)) {
+                    for(const u of backupObj.usersDb) {
+                        await dbHelper.add('users', u);
+                    }
+                }
+                
+                // Restaura Leads
+                // Se o backup for da versão antiga (string JSON no campo leads), trata diferente
+                // Se for nova (array de objetos), insere direto
+                if (backupObj.version === "2.0-idb" && Array.isArray(backupObj.leads)) {
+                    for(const l of backupObj.leads) {
+                        // Verifica se usuário está logado para vincular, senão usa o do backup
+                        if(state.user && !l.userEmail) l.userEmail = state.user.email;
+                        // Remove ID para não conflitar chaves, deixa auto-increment gerar novo
+                        delete l.id; 
+                        await dbHelper.add('leads', l);
+                    }
+                } else if (backupObj.leads && typeof backupObj.leads === 'string' && state.user) {
+                    // Legado
+                    const parsedLeads = JSON.parse(backupObj.leads);
+                    for(const l of parsedLeads) {
+                        l.userEmail = state.user.email;
+                        await dbHelper.add('leads', l);
+                    }
+                }
+
+                alert("Restauração concluída! A página será recarregada.");
+                location.reload();
             }
         } catch (error) {
-            if (error instanceof SyntaxError) {
-                alert("Erro Crítico: O arquivo selecionado está corrompido ou não é um JSON válido.");
-            } else {
-                alert("Erro ao processar backup: " + error.message);
-            }
-        } finally {
-            restoreFileInput.value = '';
+            alert("Erro ao ler backup: " + error.message);
         }
     };
     reader.readAsText(file);
@@ -1112,7 +1271,7 @@ function openLeadDetails(index) {
     leadDetailsModal.classList.remove('hidden');
 }
 
-function saveLeadDetails() {
+async function saveLeadDetails() {
     if (state.currentLeadIndex === null) return;
     
     const lead = state.leads[state.currentLeadIndex];
@@ -1120,42 +1279,46 @@ function saveLeadDetails() {
     lead.followUpNotes = detailNotes.value;
     
     if (state.isShowingSaved) {
-        if (state.appMode === 'local') {
-            const storageKey = `local_leads_${state.user.email}`;
-            localStorage.setItem(storageKey, JSON.stringify(state.leads));
-        } else if (state.appMode === 'cloud' || (state.appMode === 'hybrid' && auth.currentUser)) {
-            if (lead.firestoreId) {
-                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
-                    leadStatus: lead.leadStatus,
-                    followUpNotes: lead.followUpNotes
-                }).catch(err => console.error("Erro update firestore", err));
-            }
+        // Atualiza no IndexedDB
+        // Precisamos garantir que o objeto tenha o ID correto do IDB
+        await dbHelper.add('leads', lead);
+
+        // Se tiver ID da nuvem e estiver online, atualiza lá também
+        if (lead.firestoreId && auth.currentUser) {
+            db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
+                leadStatus: lead.leadStatus,
+                followUpNotes: lead.followUpNotes
+            }).catch(err => console.error("Erro update firestore", err));
         }
         alert("Alterações salvas!");
+        // Recarrega para garantir consistência
+        loadMyContacts();
     } else {
         alert("Alterações salvas na memória (lista temporária). Salve a lista para persistir.");
     }
     
     leadDetailsModal.classList.add('hidden');
-    applyFilters();
 }
 
-function deleteLead(index) {
+async function deleteLead(index) {
     if (confirm("Tem certeza que deseja excluir este lead?")) {
+        // Se for lista salva, remove do banco
         if (state.isShowingSaved) {
             const lead = state.leads[index];
-            if (state.appMode === 'local') {
-                state.leads.splice(index, 1);
-                const storageKey = `local_leads_${state.user.email}`;
-                localStorage.setItem(storageKey, JSON.stringify(state.leads));
-            } else if (lead.firestoreId) {
-                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
-                .then(() => {
-                    state.leads.splice(index, 1);
-                    applyFilters();
-                });
-                return;
+            
+            // Remove Local (IDB)
+            if (lead.id) {
+                await dbHelper.delete('leads', lead.id);
             }
+            
+            // Remove Nuvem se existir
+            if (lead.firestoreId && auth.currentUser) {
+                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
+                .catch(err => console.error("Erro ao deletar na nuvem", err));
+            }
+
+            // Remove da memória visual
+            state.leads.splice(index, 1);
         } else {
             state.leads.splice(index, 1);
         }
@@ -1163,8 +1326,7 @@ function deleteLead(index) {
     }
 }
 
-// --- RENDERIZAÇÃO E PAGINAÇÃO ---
-
+// --- RENDERIZAÇÃO ---
 function renderLeads(leadsToRender) {
     leadsBody.innerHTML = '';
     resultCount.innerText = leadsToRender.length;
@@ -1207,11 +1369,20 @@ function renderLeads(leadsToRender) {
         const status = lead.leadStatus || 'Novo';
         const statusClass = getStatusClass(status);
         let cityState = lead.address;
+
+        let syncIcon = '';
+        if (state.isShowingSaved) {
+            if (lead.firestoreId) {
+                syncIcon = '<i class="fas fa-cloud" title="Sincronizado na Nuvem" style="color:var(--primary-color); margin-left:5px;"></i>';
+            } else {
+                syncIcon = '<i class="fas fa-save" title="Salvo apenas Localmente (IDB)" style="color:var(--secondary-color); margin-left:5px;"></i>';
+            }
+        }
         
         row.innerHTML = `
             <td>
                 <div class="lead-info-primary">
-                    <span class="lead-name">${lead.name}</span>
+                    <span class="lead-name">${lead.name} ${syncIcon}</span>
                     <span class="status-badge ${statusClass}">${status}</span>
                 </div>
             </td>
@@ -1264,8 +1435,7 @@ function changePage(newPage) {
     applyFilters(); 
 }
 
-// --- INTEGRAÇÃO API ATUALIZADA ---
-
+// --- INTEGRAÇÃO API (Mantido) ---
 async function fetchSerperLeads(query, limit) {
     const url = 'https://google.serper.dev/places';
     const myHeaders = new Headers();
@@ -1276,21 +1446,7 @@ async function fetchSerperLeads(query, limit) {
 
     try {
         const response = await fetch(url, { method: 'POST', headers: myHeaders, body: raw });
-        
-        // Tratamento de Status HTTP Específico
-        if (response.status === 401 || response.status === 403) {
-            throw new Error("Chave de API inválida ou não autorizada. Verifique suas configurações.");
-        }
-        if (response.status === 429) {
-             throw new Error("Limite de requisições excedido (API Rate Limit). Tente novamente em alguns instantes.");
-        }
-        if (response.status >= 500) {
-             throw new Error("Erro interno no servidor da Serper. Tente novamente mais tarde.");
-        }
-        if (!response.ok) {
-            throw new Error(`Erro desconhecido na API Serper (Status: ${response.status})`);
-        }
-
+        if (!response.ok) throw new Error("Falha na API Serper");
         const result = await response.json();
         
         if (result.places) {
@@ -1309,12 +1465,7 @@ async function fetchSerperLeads(query, limit) {
         }
     } catch (error) {
         console.error('Erro na requisição Serper:', error);
-        
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            alert('Erro de Conexão: Não foi possível contatar a API Serper. Verifique sua conexão com a internet.');
-        } else {
-            alert('Falha na Busca: ' + error.message);
-        }
+        alert('Erro ao conectar com a API Serper.');
         return [];
     }
 }
@@ -1332,21 +1483,8 @@ async function fetchSerpAPILeads(query, limit) {
 
     try {
         const response = await fetch(`${baseUrl}?${params.toString()}`);
-        
-        if (response.status === 401 || response.status === 403) {
-            throw new Error("Chave de API SerpAPI inválida.");
-        }
-        if (response.status === 402) {
-             throw new Error("Saldo da conta SerpAPI esgotado/bloqueado.");
-        }
-        if (!response.ok) throw new Error(`Erro na resposta da API SerpAPI (Status: ${response.status})`);
-
+        if (!response.ok) throw new Error("Falha na API SerpAPI");
         const result = await response.json();
-        
-        if (result.error) {
-            throw new Error(`Erro retornado pela SerpAPI: ${result.error}`);
-        }
-
         if (result.local_results) {
             return result.local_results.map(place => ({
                 name: place.title,
@@ -1363,12 +1501,7 @@ async function fetchSerpAPILeads(query, limit) {
         }
     } catch (error) {
         console.error('Erro na requisição SerpAPI:', error);
-        
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            alert('Erro de Conexão: Falha ao acessar SerpAPI. Verifique sua internet ou problemas de CORS.');
-        } else {
-            alert('Falha na Busca SerpAPI: ' + error.message);
-        }
+        alert('Erro ao conectar com a API SerpAPI. Verifique CORS/Proxy.');
         return [];
     }
 }
@@ -1389,7 +1522,8 @@ function generateMockLeads(niche, city, uf, count) {
             rating: (Math.random() * 2 + 3).toFixed(1),
             ratingCount: Math.floor(Math.random() * 200),
             leadStatus: 'Novo',
-            isMock: true
+            isMock: true,
+            id: 'mock_' + i + '_' + Date.now() // ID temporário para o Mock
         });
     }
     return leads;
@@ -1466,9 +1600,7 @@ function openMessageModal(leadIndex) {
     };
     
     textArea.oninput = () => updateWhatsAppLink(textArea.value);
-
     selectTemplate.onchange();
-
     modal.classList.remove('hidden');
 }
 
@@ -1536,7 +1668,7 @@ function setupEventListeners() {
 
     document.getElementById('login-form').onsubmit = (e) => {
         e.preventDefault();
-        login(document.getElementById('login-email').value, document.getElementById('login-password').value);
+        login(document.getElementById('login-email').value, document.getElementById('login-password').value, document.getElementById('login-name').value);
     };
     document.getElementById('register-form').onsubmit = (e) => {
         e.preventDefault();
@@ -1555,7 +1687,7 @@ function setupEventListeners() {
     }
 
     messageTemplateInput.addEventListener('input', () => {
-        localStorage.setItem('current_draft_message', messageTemplateInput.value);
+        dbHelper.setSetting('current_draft_message', messageTemplateInput.value);
     });
 
     document.getElementById('btn-config').onclick = () => {
@@ -1620,6 +1752,10 @@ function setupEventListeners() {
     };
     document.getElementById('btn-export-csv').onclick = exportToCSV;
     document.getElementById('btn-export-xlsx').onclick = exportToXLSX;
+
+    if(btnSyncData) {
+        btnSyncData.onclick = syncSystem;
+    }
 }
 
 function toggleAuthBox(type) {
