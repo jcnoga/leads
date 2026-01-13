@@ -1,9 +1,19 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+
+<!-- PWA Meta Tags -->
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Leads Pro">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1055/1055644.png">
+<link rel="manifest" href="manifest.json">
+
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de Leads Profissional - IndexedDB</title>
+    <title>Gerador de Leads Profissional - Híbrido</title>
     <link rel="stylesheet" href="style.css">
     <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -25,6 +35,7 @@
                 <h2>Acesso ao Sistema</h2>
                 <p>Gerador de Leads Profissional</p>
                 <form id="login-form">
+                    <!-- NOVO: Campo Nome no Login -->
                     <input type="text" id="login-name" placeholder="Seu Nome (Opcional)" >
                     <input type="email" id="login-email" placeholder="Seu e-mail" required>
                     <input type="password" id="login-password" placeholder="Sua senha" required>
@@ -39,7 +50,7 @@
             <div class="auth-box hidden" id="register-box">
                 <h2>Criar Conta</h2>
                 <form id="register-form">
-                    <!-- O modo será definido nas configurações, padrão híbrido -->
+                    <!-- MODO HÍBRIDO OBRIGATÓRIO (Seletor removido visualmente) -->
                     <input type="hidden" id="register-mode-select" value="hybrid">
 
                     <input type="text" id="reg-name" placeholder="Seu Nome Completo" required>
@@ -66,22 +77,25 @@
         </div>
     </section>
 
-    <!-- APLICAÇÃO PRINCIPAL -->
+    <!-- APLICAÇÃO PRINCIPAL (Visível apenas após login) -->
     <section id="app-section" class="hidden">
         <header>
             <div class="header-content">
                 <div class="user-info">
-                    <span>Olá, <strong id="user-name-display">Visitante</strong> <small id="app-mode-display"></small></span>
+                    <span>Olá, <strong id="user-name-display">Visitante</strong></span>
                 </div>
                 <div class="header-actions">
+                    <!-- NOVO: Botão de Sincronização -->
                     <button id="btn-sync-data" class="btn-outline" title="Sincronizar dados locais com a nuvem">
                         <i class="fas fa-sync-alt"></i> Sync Nuvem
                     </button>
 
+                    <!-- Botão Meus Contatos -->
                     <button id="btn-show-saved-leads" class="btn-primary-outline">
                         <i class="fas fa-address-book"></i> Meus Contatos
                     </button>
 
+                    <!-- Botões Admin (Invisíveis por padrão) -->
                     <button id="btn-admin-add" class="btn-outline btn-admin-success hidden">
                         <i class="fas fa-plus-circle"></i> +10 Leads
                     </button>
@@ -149,6 +163,7 @@
                         </div>
                     </div>
 
+                    <!-- SELEÇÃO DE TEMPLATE NA BUSCA -->
                     <div class="form-group template-group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                             <label for="message-template-input">Mensagem de Abordagem (Editável)</label>
@@ -160,13 +175,16 @@
                         </div>
                     </div>
 
+                    <!-- Botão de Busca -->
                     <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
                     
+                    <!-- Botão Salvar Leads -->
                     <button type="button" id="btn-save-db-direct" class="btn-success full-width" style="margin-top: 10px;">
                         <i class="fas fa-save"></i> Salvar Leads
                     </button>
                 </form>
                 
+                <!-- Status da API / Leads -->
                 <div id="api-status-warning" class="warning-box hidden">
                     <i class="fas fa-exclamation-triangle"></i> 
                     <span id="api-warning-text">Chave API não configurada. Exibindo <strong>leads fictícios</strong>.</span>
@@ -185,13 +203,16 @@
 
             <div class="results-panel hidden" id="results-panel">
                 <div class="results-header">
+                    <!-- Título Editável dinamicamente -->
                     <h2 id="results-title">Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
+                    <!-- BOTÕES DE EXPORTAÇÃO DA BUSCA ATUAL -->
                     <div class="export-buttons">
                         <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
                         <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
                     </div>
                 </div>
 
+                <!-- ÁREA DE FILTROS -->
                 <div class="filters-container">
                     <div class="filter-group">
                         <label for="filter-text">Buscar (Nome/Geral)</label>
@@ -214,6 +235,7 @@
                         <label for="filter-niche">Nicho</label>
                         <select id="filter-niche">
                             <option value="">Todos</option>
+                            <!-- Preenchido via JS -->
                         </select>
                     </div>
                 </div>
@@ -229,11 +251,15 @@
                             </tr>
                         </thead>
                         <tbody id="leads-body">
+                            <!-- Leads serão inseridos aqui -->
                         </tbody>
                     </table>
                 </div>
 
-                <div id="pagination-controls" class="pagination-container hidden"></div>
+                <!-- Container de Paginação -->
+                <div id="pagination-controls" class="pagination-container hidden">
+                    <!-- Botões gerados via JS -->
+                </div>
             </div>
         </main>
 
@@ -246,6 +272,7 @@
                 <div class="config-tabs">
                     <button class="tab-btn active" data-tab="tab-api">API & Leads</button>
                     <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
+                    <!-- ABA BACKUP -->
                     <button class="tab-btn" data-tab="tab-data">Dados & Backup</button>
                 </div>
 
@@ -317,23 +344,11 @@
                     </div>
                 </div>
 
-                <!-- TAB DADOS & BACKUP -->
+                <!-- TAB DADOS & BACKUP (NOVO) -->
                 <div id="tab-data" class="tab-content">
                     <div class="config-section">
-                        <h4>Modo de Armazenamento</h4>
-                        <p>Defina como os dados serão salvos no aplicativo.</p>
-                        <select id="app-storage-mode" class="mode-select" style="width: 100%;">
-                            <option value="local">Local (Apenas Dispositivo/Offline)</option>
-                            <option value="cloud">Nuvem (Apenas Firebase/Online)</option>
-                            <option value="hybrid">Híbrido (Local + Sincronização)</option>
-                        </select>
-                        <button id="btn-save-storage-mode" class="btn-primary btn-sm" style="margin-top: 10px;">Salvar Modo</button>
-                        <p class="input-hint" style="margin-top: 5px;">* Alterações podem exigir recarregamento da página.</p>
-                    </div>
-
-                    <div class="config-section">
-                        <h4>Gestão de Dados Locais (IndexedDB)</h4>
-                        <p>Gerencie seus dados salvos no navegador.</p>
+                        <h4>Gestão de Dados Locais</h4>
+                        <p>Gerencie seus dados salvos no navegador (Modo Local/Híbrido).</p>
                         
                         <div class="backup-actions">
                             <button id="btn-backup" class="btn-backup">
@@ -343,6 +358,7 @@
                             <button id="btn-restore-trigger" class="btn-restore">
                                 <i class="fas fa-upload"></i> Restaurar Dados
                             </button>
+                            <!-- Input oculto para upload -->
                             <input type="file" id="restore-file-input" accept=".json" class="hidden">
                         </div>
                         
@@ -356,7 +372,7 @@
             </div>
         </div>
 
-        <!-- MODAL: Gerenciar Banco de Dados -->
+        <!-- MODAL: Gerenciar Banco de Leads -->
         <div id="database-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-db">&times;</span>
@@ -454,9 +470,12 @@
                 <span class="close-modal-msg">&times;</span>
                 <h3>Gerador de Abordagem</h3>
                 
+                <!-- NOVO: Seletor de Modelo no Modal (Item 1) -->
                 <div style="margin-bottom: 5px;">
                     <label for="modal-template-select" style="font-size:0.9rem; color:var(--text-muted);">Selecionar Modelo:</label>
-                    <select id="modal-template-select" class="modal-template-selector"></select>
+                    <select id="modal-template-select" class="modal-template-selector">
+                        <!-- Opções carregadas via JS -->
+                    </select>
                 </div>
 
                 <div class="message-box">
@@ -478,5 +497,18 @@
     </section>
 
     <script src="script.js"></script>
+	
+	
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Service Worker registrado!', reg))
+                .catch(err => console.error('Falha ao registrar Service Worker', err));
+        });
+    }
+</script>	
+	
+	
 </body>
 </html>
