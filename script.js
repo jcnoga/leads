@@ -1,2065 +1,1884 @@
 const firebaseConfig = {
-    apiKey: "AIzaSyB30QPE40atu__s4z3WlDBXHaryIE6asfE",
-    authDomain: "consultor-3016e.firebaseapp.com",
-    projectId: "consultor-3016e",
-    storageBucket: "consultor-3016e.appspot.com",
-    messagingSenderId: "819781871365",
-    appId: "1:819781871365:web:a13d6930c8738a69af396c",
-    measurementId: "G-C86JBXTK16"
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
 };
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+const API_KEYS_CONFIG = {
+    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
+    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
+};
 
-// --- LÓGICA DA APLICAÇÃO ---
+// --- HELPER INDEXEDDB ---
+const dbHelper = {
+    dbName: 'LeadsManagerDB',
+    version: 1,
+    db: null,
 
-const app = document.getElementById('app');
-const loginSection = document.getElementById('login-section');
-const loginForm = document.getElementById('login-form');
-const registerForm = document.getElementById('register-form');
-const resetPasswordForm = document.getElementById('reset-password-form');
-const forgotPasswordLink = document.querySelector('.forgot-password');
-const toggleFormsLinks = document.querySelectorAll('.toggle-form');
-const companyNameEl = document.getElementById('company-name');
-const logoutBtn = document.getElementById('logoutBtn');
-const saveDataBtn = document.getElementById('save-data');
-const yearSelector = document.getElementById('year-selector');
-const mainNav = document.getElementById('main-nav');
-const tabContents = document.querySelectorAll('.tab-content');
-const recalculateAnnualBtn = document.getElementById('recalculate-annual');
-const deleteAccountBtn = document.getElementById('delete-account-btn');
-const exportPdfMonthlyBtn = document.getElementById('export-pdf-monthly');
-const exportExcelMonthlyBtn = document.getElementById('export-excel-monthly');
-const recalculateAllBtn = document.getElementById('recalculate-all');
-const saveSettingsBtn = document.getElementById('save-settings');
-const allowManualEditCheckbox = document.getElementById('allow-manual-edit');
-const btnResetPopulateDemo = document.getElementById('btn-reset-populate-demo'); // Botão Reset+Simulação
+    async open() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.version);
 
-// Botões de Relatório
-const btnFullReport = document.getElementById('btn-full-report');
-const btnExportDaily = document.getElementById('btn-export-daily');
-const btnExportCompany = document.getElementById('btn-export-company');
-const btnExportMonthlyInputs = document.getElementById('btn-export-monthly-inputs');
-const btnExportAnnual = document.getElementById('btn-export-annual');
-const btnExportEvolution = document.getElementById('btn-export-evolution');
-const btnExportGlossary = document.getElementById('btn-export-glossary');
-const btnExportConsultant = document.getElementById('btn-export-consultant');
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                
+                // Store para Usuários
+                if (!db.objectStoreNames.contains('users')) {
+                    db.createObjectStore('users', { keyPath: 'email' });
+                }
+                
+                // Store para Leads (Contatos)
+                if (!db.objectStoreNames.contains('leads')) {
+                    const store = db.createObjectStore('leads', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('userEmail', 'userEmail', { unique: false });
+                    store.createIndex('phone', 'phone', { unique: false });
+                }
 
-// Botões XLSX (Novos)
-const btnExportCompanyXLSX = document.getElementById('btn-export-company-xlsx');
-const btnImportCompanyXLSX = document.getElementById('btn-import-company-xlsx');
-const btnExportDailyXLSX = document.getElementById('btn-export-daily-xlsx');
-const btnImportDailyXLSX = document.getElementById('btn-import-daily-xlsx');
-const btnExportMonthlyXLSX = document.getElementById('btn-export-monthly-xlsx');
-const btnImportMonthlyXLSX = document.getElementById('btn-import-monthly-xlsx');
-const btnExportAnnualXLSX = document.getElementById('btn-export-annual-xlsx');
-const btnExportEvolutionXLSX = document.getElementById('btn-export-evolution-xlsx');
+                // Store para Configurações/Sessão
+                if (!db.objectStoreNames.contains('settings')) {
+                    db.createObjectStore('settings', { keyPath: 'key' });
+                }
 
-// Botões de Backup
-const btnBackupLocal = document.getElementById('btn-backup-local');
-const btnRestoreLocal = document.getElementById('btn-restore-local');
-const inputRestoreFile = document.getElementById('input-restore-file');
+                // Store para Templates
+                if (!db.objectStoreNames.contains('templates')) {
+                    db.createObjectStore('templates', { keyPath: 'id' });
+                }
+            };
 
-// Elementos da aba Diária
-const dailyEntryForm = document.getElementById('daily-entry-form');
-const dailyMonthSelector = document.getElementById('daily-month-selector');
-const dailyMessageEl = document.getElementById('daily-message');
-const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            request.onsuccess = (e) => {
+                this.db = e.target.result;
+                resolve(this.db);
+            };
 
-// Elementos da aba Diagnóstico
-const diagnosisForm = document.getElementById('diagnosis-form');
+            request.onerror = (e) => reject("Erro ao abrir DB: " + e.target.error);
+        });
+    },
 
-// Elementos da Nova Aba Consultor
-const saveConsultantDiagnosisBtn = document.getElementById('save-consultant-diagnosis');
-const consultantDiagnosisText = document.getElementById('consultant-diagnosis-text');
+    async add(storeName, data) {
+        return this.transaction(storeName, 'readwrite', store => store.put(data));
+    },
 
-// Elementos de Desbloqueio e Acesso
-const btnGenerateUnlockCode = document.getElementById('btn-generate-unlock-code');
-const generatedCodeDisplay = document.getElementById('generated-code-display');
-const btnTestAccess = document.getElementById('btn-test-access');
-const btnResetAuth = document.getElementById('btn-reset-auth');
-const accessStatusDisplay = document.getElementById('access-status-display');
-const statusText = document.getElementById('status-text');
-const expirationText = document.getElementById('expiration-text');
-const daysLeftText = document.getElementById('days-left-text');
+    async get(storeName, key) {
+        return this.transaction(storeName, 'readonly', store => store.get(key));
+    },
 
-// Elementos da Área de Informação de Campos
-const monthlyFieldInfoBox = document.getElementById('monthly-field-info');
-const monthlyFieldText = document.getElementById('monthly-field-text');
+    async getAll(storeName) {
+        return this.transaction(storeName, 'readonly', store => store.getAll());
+    },
 
-// --- ESTADO DA APLICAÇÃO ---
-let currentUser = null;
-let currentYear = new Date().getFullYear();
-let financialData = {};
-let userSettings = {};
-let currentlyEditingIndex = null;
-const DEFAULT_COMPANY_NAME = 'Noga Consultoria'; 
-const ADMIN_EMAIL = 'jcnvap@gmail.com'; 
-const DEFAULT_TRIAL_DAYS = 0; 
+    async delete(storeName, key) {
+        return this.transaction(storeName, 'readwrite', store => store.delete(key));
+    },
 
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    async getLeadsByUser(email) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject("DB não inicializado");
+            const tx = this.db.transaction('leads', 'readonly');
+            const store = tx.objectStore('leads');
+            const index = store.index('userEmail');
+            const request = index.getAll(email);
 
-const INPUT_FIELDS = [
-    'faturamento', 'numeroDeVendas', 'custosVariaveis', 'custosFixos', 'despesasOperacionais', 'depreciacao',
-    'outrasReceitasDespesas', 'investimentos', 'financiamentosEntradas', 'amortizacaoDividas', 'aporteSocios',
-    'distribuicaoLucros', 'impostos'
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    transaction(storeName, mode, callback) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject("DB não inicializado");
+            const tx = this.db.transaction(storeName, mode);
+            const store = tx.objectStore(storeName);
+            const request = callback(store);
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    async setSetting(key, value) {
+        return this.add('settings', { key, value });
+    },
+
+    async getSetting(key) {
+        const result = await this.get('settings', key);
+        return result ? result.value : null;
+    }
+};
+
+// --- Configurações Iniciais ---
+const ADMIN_EMAIL = "jcnvap@gmail.com";
+const DEFAULT_TEMPLATE_TEXT = "Olá, tudo bem? 👋\nNotei que você atua como {nicho} em {cidade} {estado} e identifiquei que o seu negócio possui um grande potencial para atrair mais clientes por meio de algumas ações estratégicas no ambiente digital.\nTrabalho ajudando profissionais do seu setor a gerar mais oportunidades e fortalecer a presença online. Posso te mostrar um exemplo simples, sem compromisso?";
+
+const DEFAULT_TEMPLATES = [
+    { id: 'default', name: 'Padrão do Sistema', content: DEFAULT_TEMPLATE_TEXT, isDefault: true }
 ];
 
-const FIELD_DESCRIPTIONS = {
-    'faturamento': 'Receita bruta total obtida com a venda de produtos ou prestação de serviços no mês.',
-    'numeroDeVendas': 'Quantidade total de transações comerciais (pedidos ou contratos) realizadas no mês.',
-    'custosVariaveis': 'Gastos que aumentam ou diminuem conforme o volume de vendas (ex: matéria-prima, comissões).',
-    'custosFixos': 'Gastos recorrentes que independem das vendas (ex: aluguel, salários administrativos, internet).',
-    'despesasOperacionais': 'Gastos necessários para manter a operação, mas não ligados diretamente à produção (ex: marketing, escritório).',
-    'depreciacao': 'Perda de valor mensal de equipamentos e bens da empresa (não é uma saída de caixa real).',
-    'outrasReceitasDespesas': 'Entradas ou saídas atípicas, como rendimentos financeiros, multas ou venda de bens usados.',
-    'investimentos': 'Saída de caixa para aquisição de ativos duráveis (CAPEX), como máquinas, veículos ou reformas.',
-    'financiamentosEntradas': 'Dinheiro que entrou no caixa proveniente de empréstimos bancários ou financiamentos.',
-    'amortizacaoDividas': 'Saída de caixa destinada ao pagamento do valor principal de empréstimos e dívidas.',
-    'aporteSocios': 'Dinheiro injetado no caixa da empresa pelos próprios sócios ou investidores.',
-    'distribuicaoLucros': 'Saída de caixa para pagamento de dividendos ou lucros aos sócios.',
-    'impostos': 'Total de tributos pagos sobre o faturamento ou lucro (ex: DAS, ICMS, ISS, IRPJ).'
+// --- Estado da Aplicação ---
+const state = {
+    providerId: 'KEY_1', 
+    apiKey: '', 
+    leadsBalance: 0,
+    user: null, 
+    leads: [],
+    lastSearch: { niche: '', city: '', state: '' },
+    templates: [],
+    challengeNumber: 0,
+    currentLeadIndex: null,
+    appMode: 'hybrid', 
+    currentPage: 1,
+    itemsPerPage: 10,
+    isShowingSaved: false 
 };
 
-const GLOSSARY_DATA = {
-    faturamento: {nome: "Faturamento", formula: "Preço de Venda × Quantidade Vendida", significado: "Valor total das vendas de produtos ou serviços em um período, antes de qualquer dedução.", exemplo: "Vender 100 produtos a R$50 cada gera um faturamento de R$5.000.", dica: "Aumente o faturamento com estratégias de marketing, diversificação de produtos ou ajuste de preços."},
-    faturamentoMedio: {nome: "Faturamento Bruto Médio", formula: "Faturamento Anual Total / 12", significado: "A média mensal do seu faturamento bruto durante o ano. Ajuda a entender a sazonalidade e o desempenho de vendas consistente.", dica: "Compare a média com os meses individuais para identificar seus melhores períodos de venda e planejar campanhas."},
-    volumeVendasMedio: {nome: "Volume de Vendas Médio", formula: "Número de Vendas Anual Total / 12", significado: "O número médio de vendas realizadas por mês. Indica a sua capacidade de atrair e converter clientes.", dica: "Se o volume médio for baixo, foque em estratégias de marketing para atrair mais clientes ou em otimizar sua taxa de conversão."},
-    custosVariaveis: {nome: "Custos Variáveis (CV)", formula: "Custo por Unidade × Quantidade Vendida", significado: "Custos que variam diretamente com o volume de produção ou vendas, como matéria-prima e comissões.", exemplo: "Se o custo da matéria-prima de um produto é R$10, e você vende 100, seu CV é de R$1.000.", dica: "Negocie com fornecedores e otimize a produção para reduzir os custos variáveis por unidade."},
-    custosFixos: {nome: "Custos Fixos (CF)", formula: "Soma dos custos que não variam com a produção", significado: "Custos que a empresa tem todo mês, independentemente de vender muito ou pouco, como aluguel e salários fixos.", exemplo: "Aluguel do escritório de R$2.000 e folha de pagamento de R$8.000 somam R$10.000 de custos fixos.", dica: "Revise periodicamente seus custos fixos para identificar oportunidades de redução sem impactar a operação."},
-    lucroBruto: {nome: "Lucro Bruto", formula: "Faturamento - Custos Variáveis", significado: "Dinheiro que sobra das vendas após subtrair os custos diretos para produzir ou adquirir o que foi vendido.", exemplo: "Faturamento de R$10.000 e CV de R$4.000 resultam em Lucro Bruto de R$6.000.", dica: "É o primeiro indicador de rentabilidade do seu produto ou serviço."},
-    markup: {nome: "Markup Divisor", formula: "((Faturamento - CV) / CV) × 100", significado: "Índice que mostra o quanto seu preço de venda está acima do custo variável do produto.", exemplo: "Custo de R$50 e venda por R$120 resulta em Markup de 140%.", dica: "Use o markup como base para sua estratégia de precificação, garantindo que ele cubra todos os custos e o lucro."},
-    lucroOperacional: {nome: "Lucro Operacional", formula: "Lucro Bruto - Custos Fixos - Despesas Operacionais", significado: "Lucro gerado exclusivamente pela operação principal da empresa, antes de impostos e juros.", exemplo: "Lucro Bruto de R$6.000, com CF de R$3.000, resulta em Lucro Operacional de R$3.000.", dica: "Um lucro operacional positivo mostra que a atividade principal da sua empresa é rentável."},
-    lucroLiquido: {nome: "Lucro Líquido", formula: "Lucro Operacional +/- Outras Receitas/Despesas - Impostos", significado: "O resultado final da empresa após todas as deduções. É o que realmente sobra para os sócios.", exemplo: "Lucro Operacional de R$3.000 menos R$500 de impostos resulta em Lucro Líquido de R$2.500.", dica: "É a métrica final de sucesso financeiro do negócio em um período."},
-    margemLiquida: {nome: "Margem Líquida (%)", formula: "(Lucro Líquido / Faturamento) × 100", significado: "A porcentagem de cada real de faturamento que se transforma em lucro líquido.", exemplo: "Lucro de R$2.500 em um faturamento de R$10.000 resulta em uma margem de 25%.", dica: "Compare sua margem líquida com a média do seu setor para avaliar a competitividade."},
-    pontoEquilibrio: {nome: "Ponto de Equilíbrio", formula: "Custos Fixos / (1 - (Custos Variáveis / Faturamento))", significado: "O valor mínimo de faturamento necessário para cobrir todos os custos, onde o lucro é zero.", exemplo: "Se seus custos fixos são R$5.000 e seus custos variáveis representam 60% do faturamento, seu Ponto de Equilíbrio é R$12.500.", dica: "Conhecer seu ponto de equilíbrio é vital para definir metas de vendas realistas e garantir a sobrevivência do negócio."},
-    ticketMedio: {nome: "Ticket Médio", formula: "Faturamento Total / Número de Vendas", significado: "Valor médio que cada cliente gasta por compra.", exemplo: "Faturamento de R$10.000 com 100 vendas resulta em um Ticket Médio de R$100.", dica: "Crie combos, ofereça produtos complementares (cross-sell) e versões melhores (upsell) para aumentar o ticket médio."},
-    depreciacao: {nome: "Depreciação", formula: "(Custo do Ativo - Valor Residual) / Vida Útil", significado: "É a perda de valor de um ativo (máquina, veículo) ao longo do tempo. É uma despesa que não representa saída de caixa.", exemplo: "Uma máquina de R$50.000 com vida útil de 5 anos deprecia R$10.000 por ano.", dica: "A depreciação reduz o lucro tributável, gerando economia de impostos, e é somada de volta no cálculo do fluxo de caixa."},
-    fluxoCaixaOperacional: {nome: "Fluxo de Caixa Operacional (FCO)", formula: "Lucro Líquido + Depreciação", significado: "Mede o caixa efetivamente gerado pelas operações principais do negócio. É o coração financeiro da empresa.", exemplo: "Lucro de R$8.500 + Depreciação de R$1.000 = FCO de R$9.500.", dica: "Um FCO consistentemente positivo e crescente indica uma operação saudável e eficiente."},
-    fluxoCaixaInvestimentos: {nome: "Fluxo de Caixa de Investimentos (FCI)", formula: "(-) Aquisição de Ativos (+) Venda de Ativos", significado: "Mostra o caixa utilizado na compra (CAPEX) ou gerado na venda de ativos de longo prazo, como máquinas e imóveis.", exemplo: "A compra de uma máquina por R$20.000 gera um FCI de -R$20.000.", dica: "Um FCI negativo indica que a empresa está investindo em seu crescimento futuro."},
-    fluxoCaixaFinanciamentos: {nome: "Fluxo de Caixa de Financiamentos (FCF)", formula: "Novos Empréstimos - Pagamento de Dívidas + Aportes de Sócios - Distribuição de Lucros", significado: "Reflete as transações de caixa com proprietários (sócios) e credores (bancos).", exemplo: "Pegou R$30.000 de empréstimo e pagou R$5.000 aos sócios = FCF de +R$25.000.", dica: "Ajuda a entender como a empresa está financiando suas operações e seu crescimento."},
-    fluxoCaixaLivre: {nome: "Fluxo de Caixa Livre (FCL)", formula: "FCO + FCI + FCF", significado: "A variação total de caixa no período. É a métrica mais importante para a saúde financeira de curto prazo.", exemplo: "FCO de R$9.500 + FCI de -R$20.000 + FCF de R$25.000 = FCL de +R$14.500.", dica: "Um FCL positivo significa que a empresa gerou mais caixa do que gastou, aumentando sua reserva financeira."}
-};
+// Variável de controle para edição
+let editingTemplateId = null; 
 
-// --- FUNÇÕES DE LÓGICA ---
-
-function initialize() {
-    auth.signOut().then(() => {
-        auth.onAuthStateChanged(handleAuthStateChange);
-    });
+// --- Inicializa Firebase ---
+let auth, db;
+try {
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+} catch (e) {
+    console.error("Erro ao inicializar Firebase.", e);
 }
 
-async function handleAuthStateChange(user) {
+// --- Elementos do DOM ---
+const authSection = document.getElementById('auth-section');
+const appSection = document.getElementById('app-section');
+const loginBox = document.getElementById('login-box');
+const registerBox = document.getElementById('register-box');
+const forgotBox = document.getElementById('forgot-box');
+
+const apiStatusWarning = document.getElementById('api-status-warning');
+const apiStatusSuccess = document.getElementById('api-status-success');
+const apiStatusExpired = document.getElementById('api-status-expired');
+const leadsBalanceDisplay = document.getElementById('leads-balance-display');
+const apiProviderBadge = document.getElementById('api-provider-badge');
+
+const leadsBody = document.getElementById('leads-body');
+const resultsPanel = document.getElementById('results-panel');
+const resultCount = document.getElementById('result-count');
+const messageTemplateInput = document.getElementById('message-template-input');
+
+// Admin Buttons
+const btnAdminReset = document.getElementById('btn-admin-reset');
+const btnAdminAdd = document.getElementById('btn-admin-add');
+
+const btnSearchLeads = document.getElementById('btn-search-leads');
+const dataSourceBadge = document.getElementById('data-source-badge');
+
+// Elements for Recharging
+const btnWhatsappRequest = document.getElementById('btn-whatsapp-request');
+const leadsQuantityInput = document.getElementById('leads-quantity');
+
+// Elements for Database Modal
+const databaseModal = document.getElementById('database-modal');
+const dbNicheSelect = document.getElementById('db-niche-select');
+const dbStatusMsg = document.getElementById('db-status-msg');
+
+// Elements for Lead Details Modal
+const leadDetailsModal = document.getElementById('lead-details-modal');
+const detailName = document.getElementById('detail-name');
+const detailNicheBadge = document.getElementById('detail-niche-badge');
+const detailPhone = document.getElementById('detail-phone');
+const detailWebsite = document.getElementById('detail-website');
+const detailRating = document.getElementById('detail-rating');
+const detailRatingCount = document.getElementById('detail-rating-count');
+const detailActivity = document.getElementById('detail-activity');
+const detailAddress = document.getElementById('detail-address');
+const detailStatus = document.getElementById('detail-status');
+const detailNotes = document.getElementById('detail-notes');
+
+// Elements for Filters
+const filterText = document.getElementById('filter-text');
+const filterStatus = document.getElementById('filter-status');
+const filterNiche = document.getElementById('filter-niche');
+
+const registerModeSelect = document.getElementById('register-mode-select'); 
+const btnBackup = document.getElementById('btn-backup');
+const btnRestoreTrigger = document.getElementById('btn-restore-trigger');
+const restoreFileInput = document.getElementById('restore-file-input');
+const btnSaveDbDirect = document.getElementById('btn-save-db-direct');
+const btnShowSavedLeads = document.getElementById('btn-show-saved-leads');
+const paginationControls = document.getElementById('pagination-controls');
+const resultsTitle = document.getElementById('results-title');
+const btnSyncData = document.getElementById('btn-sync-data');
+
+// --- Inicialização ---
+document.addEventListener('DOMContentLoaded', async () => {
     try {
-        if (user) {
-            currentUser = user;
-            [financialData, userSettings] = await Promise.all([
-                loadDataFromFirestore(user.uid, 'financialData'),
-                loadDataFromFirestore(user.uid, 'userSettings')
-            ]);
-            showApp();
-        } else {
-            currentUser = null;
-            showLogin();
-        }
-    } catch (error) { console.error("Erro crítico na autenticação:", error); showLogin(); }
-}
-
-function handleLogin(e) { 
-    e.preventDefault(); 
-    
-    // CORREÇÃO: Evita que o login seja processado se o formulário estiver oculto (ex: usuário tentando cadastrar)
-    if (loginForm.style.display === 'none') return;
-
-    const email = document.getElementById('login-user').value; 
-    const pass = document.getElementById('login-password').value; 
-    const errorEl = document.getElementById('login-error'); 
-    errorEl.textContent = ''; 
-    auth.signInWithEmailAndPassword(email, pass).catch(error => { errorEl.textContent = "Email ou senha inválidos."; }); 
-}
-
-function handleRegister(e) {
-    e.preventDefault();
-    const email = document.getElementById('register-user').value;
-    const company = document.getElementById('register-company').value;
-    const pass = document.getElementById('register-password').value;
-    const errorEl = document.getElementById('register-error');
-    errorEl.textContent = '';
-    
-    auth.createUserWithEmailAndPassword(email, pass)
-        .then(userCredential => {
-            const now = new Date();
-            const expirationDate = new Date();
-            expirationDate.setDate(now.getDate() + DEFAULT_TRIAL_DAYS);
-
-            return db.collection('users').doc(userCredential.user.uid).set({ 
-                email: userCredential.user.email, 
-                company: company || DEFAULT_COMPANY_NAME, 
-                createdAt: firebase.firestore.FieldValue.serverTimestamp() 
-            }).then(() => {
-                return db.collection('userSettings').doc(userCredential.user.uid).set({
-                    corporateName: company || DEFAULT_COMPANY_NAME,
-                    accessExpiration: expirationDate.toISOString(),
-                    lastAccess: now.toISOString()
-                }, { merge: true });
-            });
-        })
-        .then(() => { 
-            alert(`Cadastro realizado com sucesso! Acesso liberado conforme regra do sistema (${DEFAULT_TRIAL_DAYS} dias).`); 
-            toggleForms('login'); 
-        })
-        .catch(error => {
-            switch (error.code) {
-                case 'auth/email-already-in-use': errorEl.textContent = "Este email já está cadastrado."; break;
-                case 'auth/weak-password': errorEl.textContent = "A senha deve ter no mínimo 6 caracteres."; break;
-                case 'auth/invalid-email': errorEl.textContent = "O formato do email é inválido."; break;
-                default: errorEl.textContent = "Erro no cadastro. Verifique a config do Firebase."; console.error("Erro:", error); break;
-            }
-        });
-}
-
-function handlePasswordReset(e) {
-    e.preventDefault();
-    const email = document.getElementById('reset-email').value;
-    const messageEl = document.getElementById('reset-message');
-    messageEl.textContent = 'Enviando...';
-    messageEl.className = '';
-    auth.sendPasswordResetEmail(email)
-        .then(() => { messageEl.textContent = "Email de recuperação enviado! Verifique sua caixa de entrada e spam."; messageEl.className = 'success-message'; })
-        .catch((error) => {
-            messageEl.className = 'error-message';
-            if (error.code === 'auth/user-not-found') messageEl.textContent = "Este email não está cadastrado.";
-            else if (error.code === 'auth/invalid-email') messageEl.textContent = "O formato do email é inválido.";
-            else messageEl.textContent = "Ocorreu um erro. Tente novamente.";
-        });
-}
-
-async function deleteAccountAndData() {
-    if (!currentUser) return;
-    const confirmation = prompt("Atenção: Ação irreversível. Para excluir sua conta e todos os dados, digite 'EXCLUIR'.");
-    if (confirmation !== 'EXCLUIR') { alert("Ação cancelada."); return; }
-    try {
-        await db.collection('financialData').doc(currentUser.uid).delete();
-        await db.collection('userSettings').doc(currentUser.uid).delete();
-        await db.collection('users').doc(currentUser.uid).delete();
-        await currentUser.delete();
-        alert("Conta e dados excluídos com sucesso.");
-    } catch (error) {
-        console.error("Erro ao excluir conta:", error);
-        alert("Erro ao excluir conta. Pode ser necessário fazer login novamente por segurança.");
-    }
-}
-
-function toggleForms(formToShow) {
-    loginForm.style.display = formToShow === 'login' ? 'block' : 'none';
-    registerForm.style.display = formToShow === 'register' ? 'block' : 'none';
-    resetPasswordForm.style.display = formToShow === 'reset' ? 'block' : 'none';
-    document.getElementById('login-error').textContent = '';
-    document.getElementById('register-error').textContent = '';
-    document.getElementById('reset-message').textContent = '';
-}
-
-async function showApp() {
-    loginSection.style.display = 'none';
-    app.style.display = 'block';
-    
-    companyNameEl.textContent = userSettings.corporateName || DEFAULT_COMPANY_NAME;
-    
-    document.getElementById('business-type').value = userSettings.businessType || 'varejo';
-    document.getElementById('benchmark-margem').value = (userSettings.benchmarkMargem != null) ? userSettings.benchmarkMargem : '';
-    document.getElementById('benchmark-custos').value = (userSettings.benchmarkCustos != null) ? userSettings.benchmarkCustos : '';
-    document.getElementById('benchmark-markup').value = (userSettings.benchmarkMarkup != null) ? userSettings.benchmarkMarkup : '';
-
-    document.getElementById('diag-corporate-name').value = userSettings.corporateName || '';
-    document.getElementById('diag-cnpj').value = userSettings.cnpj || '';
-    document.getElementById('diag-responsible').value = userSettings.responsibleName || '';
-    document.getElementById('diag-email').value = userSettings.contactEmail || '';
-    document.getElementById('diag-phone').value = userSettings.phone || '';
-    document.getElementById('diag-sector').value = userSettings.sector || 'Comércio';
-    document.getElementById('diag-tax-regime').value = userSettings.taxRegime || 'Simples Nacional';
-
-    document.getElementById('diag-erp').value = userSettings.hasErp || 'Não';
-    document.getElementById('diag-instagram').value = userSettings.hasInstagram || 'Não';
-    document.getElementById('diag-facebook').value = userSettings.hasFacebook || 'Não';
-    document.getElementById('diag-landingpage').value = userSettings.hasLandingPage || 'Não';
-    document.getElementById('diag-site').value = userSettings.hasSite || 'Não';
-    document.getElementById('diag-ecommerce').value = userSettings.hasEcommerce || 'Não';
-    document.getElementById('diag-ads').value = userSettings.hasAds || 'Não';
-    document.getElementById('diag-marketplace').value = userSettings.marketplaceList || '';
-    
-    document.getElementById('diag-observations').value = userSettings.observations || '';
-    
-    consultantDiagnosisText.value = userSettings.consultantDiagnosis || '';
-
-    allowManualEditCheckbox.checked = userSettings.allowManualEdit === true;
-
-    const isAdmin = currentUser.email === ADMIN_EMAIL;
-    const adminButtons = [btnTestAccess, btnResetAuth];
-    adminButtons.forEach(btn => {
-        if(btn) btn.style.display = isAdmin ? 'inline-block' : 'none';
-    });
-    if(btnGenerateUnlockCode) btnGenerateUnlockCode.style.display = 'inline-block';
-
-    await checkAccessStatus();
-
-    setupYearSelector();
-    setupDailyMonthSelector();
-    updateAllCalculations(); 
-    renderGlossary();
-    renderDailyEntries(currentYear, new Date().getMonth());
-}
-
-function showLogin() {
-    app.style.display = 'none';
-    loginSection.style.display = 'flex';
-}
-
-async function loadDataFromFirestore(userId, collection) {
-    if (!userId || !collection) return {};
-    try {
-        const docRef = db.collection(collection).doc(userId);
-        const doc = await docRef.get();
-        return doc.exists ? doc.data() : {};
-    } catch (error) { console.error(`Erro ao carregar dados da coleção ${collection}:`, error); return {}; }
-}
-
-async function saveDataToFirestore(userId, data, collection) {
-    try { await db.collection(collection).doc(userId).set(data, { merge: true });
-    } catch (error) { console.error(`Erro ao salvar dados na coleção ${collection}:`, error); alert('Falha ao salvar. Verifique sua conexão.'); throw error; }
-}
-
-async function saveMonthlyData() {
-    if (!currentUser) return;
-    if (!financialData[currentYear]) financialData[currentYear] = {};
-    
-    if (!allowManualEditCheckbox.checked) {
-        aggregateDailyData(currentYear);
-    }
-
-    document.querySelectorAll('#monthly-inputs input').forEach(input => {
-        const month = parseInt(input.dataset.month);
-        const field = input.dataset.field;
-        
-        if (!financialData[currentYear][month]) {
-            financialData[currentYear][month] = { dailyEntries: [] };
-        }
-        
-        financialData[currentYear][month][field] = parseFloat(input.value) || 0;
-    });
-
-    try {
-        await saveDataToFirestore(currentUser.uid, financialData, 'financialData');
-        alert('Dados salvos na nuvem com sucesso!');
-        updateAllCalculations(); 
-    } catch (e) {}
-}
-
-
-async function saveBusinessSettings() {
-    if (!currentUser) return;
-    const settings = {
-        ...userSettings,
-        businessType: document.getElementById('business-type').value,
-        benchmarkMargem: parseFloat(document.getElementById('benchmark-margem').value) || 0,
-        benchmarkCustos: parseFloat(document.getElementById('benchmark-custos').value) || 0,
-        benchmarkMarkup: parseFloat(document.getElementById('benchmark-markup').value) || 0,
-        allowManualEdit: allowManualEditCheckbox.checked 
-    };
-    try { 
-        await saveDataToFirestore(currentUser.uid, settings, 'userSettings'); 
-        userSettings = settings; 
-        alert('Configurações salvas com sucesso!');
-    } catch (error) {
-        console.error("Falha ao salvar configurações:", error);
-    }
-}
-
-async function saveDiagnosisData(e) {
-    if (e) e.preventDefault();
-    if (!currentUser) return;
-
-    const corporateName = document.getElementById('diag-corporate-name').value;
-    const cnpj = document.getElementById('diag-cnpj').value;
-    const responsibleName = document.getElementById('diag-responsible').value;
-    const contactEmail = document.getElementById('diag-email').value;
-    const phone = document.getElementById('diag-phone').value;
-    const sector = document.getElementById('diag-sector').value;
-    const taxRegime = document.getElementById('diag-tax-regime').value;
-
-    const hasErp = document.getElementById('diag-erp').value;
-    const hasInstagram = document.getElementById('diag-instagram').value;
-    const hasFacebook = document.getElementById('diag-facebook').value;
-    const hasLandingPage = document.getElementById('diag-landingpage').value;
-    const hasSite = document.getElementById('diag-site').value;
-    const hasEcommerce = document.getElementById('diag-ecommerce').value;
-    const hasAds = document.getElementById('diag-ads').value;
-    const marketplaceList = document.getElementById('diag-marketplace').value;
-    const observations = document.getElementById('diag-observations').value;
-
-    const settings = {
-        ...userSettings,
-        corporateName,
-        cnpj,
-        responsibleName,
-        contactEmail,
-        phone,
-        sector,
-        taxRegime,
-        hasErp,
-        hasInstagram,
-        hasFacebook,
-        hasLandingPage,
-        hasSite,
-        hasEcommerce,
-        hasAds,
-        marketplaceList,
-        observations
-    };
-
-    try {
-        await saveDataToFirestore(currentUser.uid, settings, 'userSettings');
-        userSettings = settings;
-        companyNameEl.textContent = corporateName || DEFAULT_COMPANY_NAME;
-        if(e) alert('Dados do Diagnóstico Empresarial salvos com sucesso!');
-    } catch (error) {
-        console.error("Falha ao salvar diagnóstico:", error);
-    }
-}
-
-async function saveConsultantDiagnosis() {
-    if (!currentUser) return;
-    const diagnosis = consultantDiagnosisText.value;
-
-    const settings = {
-        ...userSettings,
-        consultantDiagnosis: diagnosis
-    };
-
-    try {
-        await saveDataToFirestore(currentUser.uid, settings, 'userSettings');
-        userSettings = settings;
-        alert('Parecer do Consultor salvo com sucesso!');
-    } catch (error) {
-        console.error("Falha ao salvar parecer:", error);
-    }
-}
-
-// === VERIFICAÇÃO E CONTROLE DE ACESSO ===
-
-async function checkAccessStatus() {
-    if (!currentUser) return;
-
-    const now = new Date();
-    
-    let expirationDate = userSettings.accessExpiration ? new Date(userSettings.accessExpiration) : new Date(0); 
-    let lastAccess = userSettings.lastAccess ? new Date(userSettings.lastAccess) : now;
-
-    if (now.getTime() < lastAccess.getTime() - 60000) { 
-        alert("Erro de Sincronização: A data do sistema parece incorreta (anterior ao último acesso). Por favor, ajuste o relógio.");
-        lockAllTabs();
+        await dbHelper.open();
+        await migrateLocalStorageToIndexedDB();
+    } catch (e) {
+        console.error("Falha fatal ao abrir IndexedDB:", e);
+        alert("Erro ao carregar banco de dados local. Recarregue a página.");
         return;
     }
 
-    userSettings.lastAccess = now.toISOString();
-    await saveDataToFirestore(currentUser.uid, { lastAccess: userSettings.lastAccess }, 'userSettings');
+    state.providerId = (await dbHelper.getSetting('selected_provider_id')) || 'KEY_1';
+    state.leadsBalance = parseInt((await dbHelper.getSetting('leads_balance'))) || 0;
+    
+    state.appMode = (await dbHelper.getSetting('app_mode')) || 'hybrid';
+    
+    const storageModeSelect = document.getElementById('app-storage-mode');
+    if (storageModeSelect) {
+        storageModeSelect.value = state.appMode;
+    }
 
-    const timeLeft = expirationDate.getTime() - now.getTime();
-    const daysLeft = Math.ceil(timeLeft / (1000 * 60 * 60 * 24));
-
-    if (timeLeft <= 0) {
-        lockAllTabs();
-        updateAccessDisplay("Expirado", expirationDate, 0);
+    if (state.providerId && API_KEYS_CONFIG[state.providerId]) {
+        state.apiKey = API_KEYS_CONFIG[state.providerId];
     } else {
-        unlockAllTabs();
-        updateAccessDisplay("Ativo", expirationDate, daysLeft);
+        state.apiKey = API_KEYS_CONFIG['KEY_1'];
+    }
+
+    const savedTemplates = await dbHelper.getAll('templates');
+    state.templates = savedTemplates.length > 0 ? savedTemplates : DEFAULT_TEMPLATES;
+    if(savedTemplates.length === 0) {
+        await dbHelper.add('templates', DEFAULT_TEMPLATES[0]);
+    }
+
+    if (auth) {
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                if (state.user) {
+                    state.user.uid = user.uid;
+                    state.user.source = state.appMode;
+                } else {
+                    state.user = {
+                        name: user.displayName || user.email,
+                        email: user.email,
+                        uid: user.uid,
+                        source: state.appMode
+                    };
+                }
+                await dbHelper.setSetting('local_session_user', state.user);
+                checkAuth();
+            }
+        });
+    }
+
+    const localSession = await dbHelper.getSetting('local_session_user');
+    if (localSession && !state.user) {
+        state.user = localSession;
+        checkAuth();
+    }
+
+    setupEventListeners();
+    setupFilterListeners();
+    setupVisualFeedback(); 
+    
+    const savedMsg = await dbHelper.getSetting('current_draft_message');
+    if (savedMsg) {
+        messageTemplateInput.value = savedMsg;
+    } else {
+        loadDefaultMessage();
+    }
+
+    updateApiStatusUI();
+    renderTemplatesList();
+    updateSearchButtonState();
+    updateUIByMode();
+});
+
+function updateUIByMode() {
+    const appModeDisplay = document.getElementById('app-mode-display');
+    if (appModeDisplay) {
+        let label = ' (Híbrido)';
+        if (state.appMode === 'local') label = ' (Local)';
+        if (state.appMode === 'cloud') label = ' (Nuvem)';
+        appModeDisplay.innerText = label;
+    }
+
+    if (state.appMode === 'hybrid') {
+        btnSyncData.classList.remove('hidden');
+    } else {
+        btnSyncData.classList.add('hidden');
     }
 }
 
-function lockAllTabs() {
-    // Lista de abas que DEVEM permanecer visíveis quando o crédito for 0.
-    // Inclui 'entradas-diarias' para garantir acesso a novos usuários.
-    const allowedTabs = ['diagnostico', 'entradas-diarias', 'entradas-mensais', 'configuracoes'];
+async function saveStorageMode() {
+    const select = document.getElementById('app-storage-mode');
+    const newMode = select.value;
     
-    const allTabs = document.querySelectorAll('nav button');
+    state.appMode = newMode;
+    await dbHelper.setSetting('app_mode', newMode);
     
-    allTabs.forEach(tab => {
-        if(allowedTabs.includes(tab.dataset.tab)) {
-            // Remove a classe hidden-tab para garantir que seja exibida
-            tab.classList.remove('hidden-tab');
-        } else {
-            // Adiciona a classe hidden-tab para ocultar as demais abas
-            tab.classList.add('hidden-tab');
+    alert(`Modo de armazenamento alterado para: ${newMode.toUpperCase()}.\nAlgumas funcionalidades podem mudar.`);
+    updateUIByMode();
+    document.getElementById('config-modal').classList.add('hidden');
+}
+
+async function migrateLocalStorageToIndexedDB() {
+    const migrated = localStorage.getItem('idb_migrated_v1');
+    if (migrated) return;
+
+    console.log("Iniciando migração para IndexedDB...");
+    try {
+        const localUsers = JSON.parse(localStorage.getItem('local_users_db') || '[]');
+        for (const u of localUsers) {
+            await dbHelper.add('users', u);
         }
-    });
 
-    // Lógica existente de controle do botão de desbloqueio
-    if(btnGenerateUnlockCode) {
-        btnGenerateUnlockCode.disabled = false;
-        btnGenerateUnlockCode.style.backgroundColor = '#d4ac0d';
-        btnGenerateUnlockCode.textContent = 'Gerar Código de Desbloqueio';
-    }
-}
-
-function unlockAllTabs() {
-    const hiddenTabs = document.querySelectorAll('.hidden-tab');
-    hiddenTabs.forEach(tab => {
-        tab.classList.remove('hidden-tab');
-    });
-    btnGenerateUnlockCode.disabled = true;
-    btnGenerateUnlockCode.style.backgroundColor = '#ccc';
-    btnGenerateUnlockCode.textContent = 'Sistema Desbloqueado';
-}
-
-function updateAccessDisplay(status, date, days) {
-    accessStatusDisplay.style.display = 'block';
-    statusText.textContent = status;
-    statusText.style.color = status === "Ativo" ? "green" : "red";
-    expirationText.textContent = date.toLocaleDateString('pt-BR');
-    daysLeftText.textContent = days > 0 ? days : 0;
-}
-
-// === FUNÇÕES DE DESBLOQUEIO ===
-
-async function handleUnlockTabs() {
-    const CALC_OFFSET = 13;
-    const CALC_MULTIPLIER = 9;
-    const CALC_BASE = 1954;
-
-    const randomNumber = Math.floor(Math.random() * (999 - 100 + 1)) + 100;
-    generatedCodeDisplay.textContent = randomNumber;
-    
-    const expectedBaseCode = (randomNumber + CALC_OFFSET) * CALC_MULTIPLIER + CALC_BASE;
-
-    setTimeout(async () => {
-        const userInput = prompt(`Código gerado: ${randomNumber}.\nDigite a contra-senha no formato: CÓDIGO-DIAS (ex: 5000-30).`);
-
-        if (userInput) {
-            const parts = userInput.split('-');
-            const codeInput = parseInt(parts[0]);
-            const daysInput = parts.length > 1 ? parseInt(parts[1]) : 30; 
-
-            let isValid = false;
-            // Senha mestra
-            if (parts[0] === '130954') {
-                isValid = true;
-            } 
-            else if (codeInput === expectedBaseCode && !isNaN(daysInput) && daysInput > 0) {
-                isValid = true;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('local_leads_')) {
+                const email = key.replace('local_leads_', '');
+                const leads = JSON.parse(localStorage.getItem(key) || '[]');
+                for (const l of leads) {
+                    const leadToSave = { ...l, userEmail: email };
+                    delete leadToSave.id; 
+                    await dbHelper.add('leads', leadToSave);
+                }
             }
-
-            if (isValid) {
-                const now = new Date();
-                const newExpiration = new Date();
-                newExpiration.setDate(now.getDate() + daysInput);
-
-                userSettings.accessExpiration = newExpiration.toISOString();
-                
-                await saveDataToFirestore(currentUser.uid, { accessExpiration: userSettings.accessExpiration }, 'userSettings');
-                
-                alert(`Acesso liberado com sucesso por ${daysInput} dias!`);
-                generatedCodeDisplay.textContent = "Desbloqueado";
-                checkAccessStatus(); 
-                
-            } else {
-                alert("Contra-senha inválida ou formato incorreto. Use CÓDIGO-DIAS.");
-                generatedCodeDisplay.textContent = ""; 
-            }
-        } else {
-             generatedCodeDisplay.textContent = ""; 
         }
-    }, 200); 
-}
 
-async function addTestDay() {
-    if (!currentUser) return;
-    if(confirm("Adicionar 1 dia de teste para a conta atual?")) {
-        const currentExp = userSettings.accessExpiration ? new Date(userSettings.accessExpiration) : new Date();
-        const baseDate = currentExp < new Date() ? new Date() : currentExp;
-        baseDate.setDate(baseDate.getDate() + 1);
+        const balance = localStorage.getItem('leads_balance');
+        if (balance) await dbHelper.setSetting('leads_balance', balance);
         
-        userSettings.accessExpiration = baseDate.toISOString();
-        await saveDataToFirestore(currentUser.uid, { accessExpiration: userSettings.accessExpiration }, 'userSettings');
-        alert("1 Dia de teste adicionado!");
-        checkAccessStatus();
+        const provId = localStorage.getItem('selected_provider_id');
+        if (provId) await dbHelper.setSetting('selected_provider_id', provId);
+
+        localStorage.setItem('idb_migrated_v1', 'true');
+        console.log("Migração concluída.");
+    } catch (err) {
+        console.error("Erro na migração:", err);
+    }
+}
+
+function setupVisualFeedback() {
+    const inputs = document.querySelectorAll('input, textarea, select');
+    const handleInput = (e) => {
+        if (e.target.value && e.target.value.trim() !== '') {
+            e.target.classList.add('input-filled');
+        } else {
+            e.target.classList.remove('input-filled');
+        }
+    };
+    inputs.forEach(input => {
+        input.addEventListener('input', handleInput);
+        input.addEventListener('change', handleInput);
+        input.addEventListener('blur', handleInput);
+        if(input.value) handleInput({ target: input });
+    });
+}
+
+async function filterInvalidAndDuplicateLeads(newLeads) {
+    let existingLeads = [];
+    
+    if (state.user) {
+        if (state.appMode === 'cloud' && auth.currentUser) {
+            if (state.isShowingSaved) existingLeads = state.leads;
+        } else {
+            existingLeads = await dbHelper.getLeadsByUser(state.user.email);
+        }
+    }
+
+    const existingPhones = new Set(existingLeads.map(l => l.phone ? l.phone.replace(/\D/g, '') : ''));
+    const existingNames = new Set(existingLeads.map(l => l.name ? l.name.toLowerCase().trim() : ''));
+
+    return newLeads.filter(lead => {
+        const lowerName = lead.name ? lead.name.toLowerCase() : '';
+
+        const isFictitious = (
+            lead.isMock === true || 
+            lowerName.includes('teste') || 
+            lowerName.includes('exemplo') || 
+            lowerName.includes('admin') ||
+            lead.phone === 'Não informado' ||
+            lead.phone === '000000000'
+        );
+
+        if (isFictitious) return false;
+
+        const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : '';
+        const cleanName = lowerName.trim();
+
+        if (cleanPhone.length > 5 && existingPhones.has(cleanPhone)) return false;
+        if (existingNames.has(cleanName)) return false;
+
+        return true;
+    });
+}
+
+function checkAuth() {
+    if (state.user) {
+        authSection.classList.add('hidden');
+        appSection.classList.remove('hidden');
+        
+        updateUIByMode(); 
+        
+        if (state.user.email === ADMIN_EMAIL) {
+            btnAdminReset.classList.remove('hidden');
+            btnAdminAdd.classList.remove('hidden');
+        } else {
+            btnAdminReset.classList.add('hidden');
+            btnAdminAdd.classList.add('hidden');
+        }
+    } else {
+        authSection.classList.remove('hidden');
+        appSection.classList.add('hidden');
+    }
+}
+
+async function login(email, password, name) {
+    let userFound = await dbHelper.get('users', email);
+    let loginSuccess = false;
+
+    if (userFound && userFound.password === password) {
+        if (name && name.trim() !== "" && (!userFound.name || userFound.name !== name)) {
+            userFound.name = name;
+            await dbHelper.add('users', userFound);
+        }
+
+        state.user = {
+            name: userFound.name,
+            email: userFound.email,
+            uid: userFound.uid || 'local_' + Date.now(),
+            source: 'local'
+        };
+        
+        await dbHelper.setSetting('local_session_user', state.user);
+        loginSuccess = true;
+        
+        if (auth) {
+             auth.signInWithEmailAndPassword(email, password)
+                 .then(async (cred) => {
+                     state.user.uid = cred.user.uid;
+                     state.user.source = state.appMode;
+                     await dbHelper.setSetting('local_session_user', state.user);
+                 })
+                 .catch(err => console.log("Login Firebase bg falhou:", err));
+        }
+        
+        checkAuth();
+        return;
+    }
+
+    if (!loginSuccess) {
+        if (!auth) return alert("Firebase não configurado.");
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            const fbUser = userCredential.user;
+            
+            const finalName = name || fbUser.displayName || email.split('@')[0];
+
+            if (name && fbUser.displayName !== name) {
+                await fbUser.updateProfile({ displayName: name });
+            }
+
+            const newUserLocal = {
+                name: finalName,
+                email: email,
+                password: password, 
+                uid: fbUser.uid,
+                mode: 'hybrid'
+            };
+            await dbHelper.add('users', newUserLocal);
+
+            state.user = {
+                name: finalName,
+                email: email,
+                uid: fbUser.uid,
+                source: state.appMode
+            };
+            await dbHelper.setSetting('local_session_user', state.user);
+            
+            checkAuth();
+        } catch (error) {
+            alert("Erro no login: " + error.message);
+        }
+    }
+}
+
+async function register(name, email, password) {
+    const existingUser = await dbHelper.get('users', email);
+    
+    // VERIFICAÇÃO SE USUÁRIO JÁ EXISTE LOCALMENTE
+    if (existingUser) {
+        if (!auth) return alert("Usuário já existe localmente (Modo Offline).");
+
+        // Tenta criar na nuvem para verificar se existe lá
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(async (userCredential) => {
+                // SUCESSO: Usuário não existia na nuvem, foi criado agora.
+                const uid = userCredential.user.uid;
+                
+                // 1. Atualiza dados locais
+                existingUser.uid = uid;
+                if (name) existingUser.name = name;
+                await dbHelper.add('users', existingUser);
+                
+                // 2. Atualiza Perfil no Auth
+                await userCredential.user.updateProfile({ displayName: name });
+
+                // 3. CORREÇÃO: Cria o documento do usuário no Firestore (Banco de Dados)
+                await db.collection('users').doc(uid).set({
+                    name: name,
+                    email: email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    source: 'sync_creation'
+                });
+                
+                alert("Conta local encontrada. Sincronização com a nuvem realizada com sucesso!");
+                toggleAuthBox('login');
+            })
+            .catch(async (error) => {
+                if (error.code === 'auth/email-already-in-use') {
+                    // ERRO: Usuário já existe na nuvem.
+                    try {
+                        const loginCred = await auth.signInWithEmailAndPassword(email, password);
+                        // Sucesso no login: Vincula IDs
+                        existingUser.uid = loginCred.user.uid;
+                        await dbHelper.add('users', existingUser);
+                        
+                        // Garante que o documento existe no Firestore mesmo se já existia no Auth
+                        await db.collection('users').doc(loginCred.user.uid).set({
+                            name: name || existingUser.name,
+                            email: email,
+                            lastSync: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true }); // Merge para não sobrescrever dados existentes
+                        
+                        alert("Usuário já existe em ambos. Contas vinculadas com sucesso!");
+                        toggleAuthBox('login');
+                    } catch (loginErr) {
+                        alert("Usuário existe localmente e na nuvem, mas as credenciais não conferem. Impossível vincular automaticamente.");
+                    }
+                } else {
+                    alert("Usuário existe localmente. Erro ao conectar com nuvem: " + error.message);
+                }
+            });
+        return; // Interrompe o fluxo padrão de criação
+    }
+
+    // FLUXO PADRÃO PARA NOVOS USUÁRIOS (Sem registro local prévio)
+    const newUser = {
+        name: name,
+        email: email,
+        password: password,
+        uid: 'local_' + Date.now(),
+        mode: 'hybrid' 
+    };
+    await dbHelper.add('users', newUser);
+    
+    await dbHelper.setSetting('leads_balance', 50);
+    state.leadsBalance = 50;
+
+    if (auth) {
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(async (userCredential) => {
+                const uid = userCredential.user.uid;
+                
+                // 1. Atualiza UID local com o da nuvem
+                newUser.uid = uid;
+                await dbHelper.add('users', newUser);
+                
+                // 2. Atualiza Auth Profile
+                await userCredential.user.updateProfile({ displayName: name });
+
+                // 3. CORREÇÃO: Cria o documento do usuário no Firestore (Banco de Dados)
+                await db.collection('users').doc(uid).set({
+                    name: name,
+                    email: email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    leadsBalance: 50 // Inicia saldo na nuvem também
+                });
+
+                alert("Conta criada com sucesso! Você pode fazer login.");
+                toggleAuthBox('login');
+            })
+            .catch((error) => {
+                if(error.code === 'auth/email-already-in-use') {
+                    alert("Conta criada localmente. O e-mail já existia na nuvem. Faça login para sincronizar.");
+                    toggleAuthBox('login');
+                } else {
+                    alert("Conta criada LOCALMENTE. Erro na nuvem: " + error.message);
+                    toggleAuthBox('login');
+                }
+            });
+    } else {
+        alert("Conta local criada com sucesso!");
+        toggleAuthBox('login');
+    }
+}
+async function logout() {
+    state.user = null;
+    await dbHelper.delete('settings', 'local_session_user'); 
+    if (auth) auth.signOut();
+    location.reload(); 
+}
+
+function resetPassword(email) {
+    if (!auth) return alert("Disponível apenas em modo Nuvem/Híbrido com Firebase.");
+    auth.sendPasswordResetEmail(email)
+        .then(() => {
+            alert("E-mail de recuperação enviado!");
+            toggleAuthBox('login');
+        })
+        .catch((error) => {
+            alert("Erro: " + error.message);
+        });
+}
+
+// --- SINCRONIZAÇÃO ROBUSTA ---
+async function syncSystem() {
+    if (!state.user) return alert("Faça login para sincronizar.");
+    if (!navigator.onLine) return alert("Sem conexão com a internet.");
+
+    const btn = document.getElementById('btn-sync-data');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+    btn.disabled = true;
+
+    try {
+        if (!auth.currentUser) {
+            const currentUserLocal = await dbHelper.get('users', state.user.email);
+            
+            if (currentUserLocal) {
+                try {
+                    await auth.signInWithEmailAndPassword(currentUserLocal.email, currentUserLocal.password);
+                } catch (authErr) {
+                    if (authErr.code === 'auth/user-not-found') {
+                        await auth.createUserWithEmailAndPassword(currentUserLocal.email, currentUserLocal.password);
+                        await auth.currentUser.updateProfile({ displayName: currentUserLocal.name });
+                    } else if (authErr.code === 'auth/wrong-password') {
+                        throw new Error("Conflito de senha na nuvem. Faça login manualmente.");
+                    } else {
+                        throw authErr;
+                    }
+                }
+                if(auth.currentUser) state.user.uid = auth.currentUser.uid;
+            }
+        }
+
+        const localLeads = await dbHelper.getLeadsByUser(state.user.email);
+        
+        let syncedCount = 0;
+        let errorCount = 0;
+
+        const leadsToSync = localLeads.filter(lead => !lead.firestoreId);
+
+        if (leadsToSync.length === 0) {
+            alert("Todos os leads locais já estão sincronizados!");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        for (const lead of leadsToSync) {
+            try {
+                const leadToSend = { ...lead };
+                delete leadToSend.id; 
+                delete leadToSend.isMock;
+                
+                Object.keys(leadToSend).forEach(key => {
+                    if (leadToSend[key] === undefined) leadToSend[key] = null;
+                });
+                
+                if (!leadToSend.createdAt) leadToSend.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+
+                const docRef = await db.collection('users').doc(state.user.uid).collection('leads').add(leadToSend);
+
+                lead.firestoreId = docRef.id;
+                await dbHelper.add('leads', lead);
+                
+                syncedCount++;
+
+            } catch (err) {
+                console.error(`Erro ao sincronizar lead ${lead.name}:`, err);
+                errorCount++;
+            }
+        }
+
+        let msg = `Sincronização concluída.\nEnviados com sucesso: ${syncedCount}`;
+        if (errorCount > 0) {
+            msg += `\nFalhas: ${errorCount} (Verifique conexão e tente novamente).`;
+        }
+        alert(msg);
+
+        if (state.isShowingSaved) {
+            loadMyContacts();
+        }
+
+    } catch (globalError) {
+        console.error("Erro fatal na sincronização:", globalError);
+        alert("Erro ao iniciar sincronização: " + globalError.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 }
 
 async function resetAccess() {
-    if (!currentUser) return;
-    if(confirm("ATENÇÃO: Isso irá zerar o período de autorização e bloquear o sistema imediatamente. Continuar?")) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        
-        userSettings.accessExpiration = yesterday.toISOString();
-        await saveDataToFirestore(currentUser.uid, { accessExpiration: userSettings.accessExpiration }, 'userSettings');
-        
-        alert("Autorização zerada. O sistema foi bloqueado.");
-        checkAccessStatus();
+    if (confirm("ADMIN: Deseja zerar o saldo de leads?")) {
+        state.leadsBalance = 0; 
+        await dbHelper.setSetting('leads_balance', 0);
+        updateApiStatusUI();
+        updateSearchButtonState();
+        alert("Saldo zerado.");
     }
 }
 
-btnGenerateUnlockCode.addEventListener('click', handleUnlockTabs);
-btnTestAccess.addEventListener('click', addTestDay);
-btnResetAuth.addEventListener('click', resetAccess);
-
-// === FUNÇÕES DE DADOS DE DEMONSTRAÇÃO E RESET ===
-
-// Função Auxiliar para Geração de Dados Diários Proporcionais
-function generateDailySimulation(year, monthIndex, totals) {
-    // Determina quantos dias exatos tem naquele mês/ano (trata bissextos)
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const entries = [];
-    
-    // Saldos restantes para distribuir (Garante coerência com o total mensal)
-    let remFat = totals.faturamento;
-    let remCustos = totals.custosVariaveis; // Mapeia para 'Comissão' no diário
-    let remDesp = totals.despesasOperacionais;
-    let remVendas = totals.numeroDeVendas;
-
-    for (let day = 1; day <= daysInMonth; day++) {
-        const isLastDay = day === daysInMonth;
-        // Formato de data compatível com input type="date"
-        const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
-        let dFat, dCustos, dDesp, dVendas;
-
-        if (isLastDay) {
-            // No último dia, lançamos exatamente o que sobrou para zerar a diferença (Matemática Exata)
-            dFat = parseFloat(remFat.toFixed(2));
-            dCustos = parseFloat(remCustos.toFixed(2));
-            dDesp = parseFloat(remDesp.toFixed(2));
-            dVendas = Math.round(remVendas);
-        } else {
-            // Distribuição Proporcional com leve variância (Simula realidade de comércio)
-            // Variância entre 0.6x e 1.4x da média diária
-            const variance = 0.6 + Math.random() * 0.8; 
-            const daysLeft = (daysInMonth - day + 1);
-
-            // Calcula a fatia do dia baseada no saldo restante dividido pelos dias que faltam
-            dFat = parseFloat(((remFat / daysLeft) * variance).toFixed(2));
-            dCustos = parseFloat(((remCustos / daysLeft) * variance).toFixed(2));
-            dDesp = parseFloat(((remDesp / daysLeft) * variance).toFixed(2));
-            dVendas = Math.round((remVendas / daysLeft) * variance);
-        }
-
-        // Proteção contra valores negativos (caso a variância seja muito agressiva em saldos baixos)
-        dFat = Math.max(0, dFat);
-        dCustos = Math.max(0, dCustos);
-        dDesp = Math.max(0, dDesp);
-        dVendas = Math.max(0, dVendas);
-
-        // Atualiza saldos para o próximo dia
-        remFat -= dFat;
-        remCustos -= dCustos;
-        remDesp -= dDesp;
-        remVendas -= dVendas;
-
-        entries.push({
-            date: dateStr,
-            faturamento: dFat,
-            despesas: dDesp,
-            comissao: dCustos, 
-            outras: 0, // Campo 'Outras' zerado na simulação padrão
-            vendas: dVendas
-        });
-    }
-    return entries;
-}
-
-async function handleResetAndPopulateDemoData() {
-    if (!currentUser) return;
-
-    const confirmed = confirm(
-        "AVISO: Esta ação irá ZERAR os dados atuais das abas 'Empresa', 'Valores Mensais' e 'Entradas Diárias', preenchendo-os com dados de simulação (Comércio R$ 60k).\n\n" +
-        "Esta ação é irreversível e afetará os dados de todo o ano atual.\n\nDeseja continuar?"
-    );
-
-    if (!confirmed) return;
-
-    // 1. Reset & Configurar Aba Empresa (Lógica Inalterada)
-    const demoCompanyData = {
-        corporateName: "Loja Modelo de Exemplo Ltda",
-        cnpj: "12.345.678/0001-90",
-        responsibleName: "João Empreendedor",
-        contactEmail: currentUser.email,
-        phone: "(11) 98765-4321",
-        sector: "Comércio",
-        taxRegime: "Simples Nacional",
-        hasErp: "Sim",
-        hasInstagram: "Sim",
-        hasFacebook: "Sim",
-        hasSite: "Sim",
-        observations: "Dados gerados automaticamente para demonstração do sistema. Faturamento médio de R$ 60k com distribuição diária proporcional."
-    };
-    
-    // Atualizar userSettings local e na UI (Lógica Inalterada)
-    userSettings = { ...userSettings, ...demoCompanyData, allowManualEdit: true };
-    document.getElementById('diag-corporate-name').value = demoCompanyData.corporateName;
-    document.getElementById('diag-cnpj').value = demoCompanyData.cnpj;
-    document.getElementById('diag-responsible').value = demoCompanyData.responsibleName;
-    document.getElementById('diag-phone').value = demoCompanyData.phone;
-    document.getElementById('diag-sector').value = demoCompanyData.sector;
-    document.getElementById('diag-tax-regime').value = demoCompanyData.taxRegime;
-    document.getElementById('diag-observations').value = demoCompanyData.observations;
-    companyNameEl.textContent = demoCompanyData.corporateName;
-
-    // 2. Reset & Preencher Entradas Mensais E Diárias
-    if (!financialData[currentYear]) financialData[currentYear] = {};
-    
-    for (let i = 0; i < 12; i++) {
-        // Simulação Mensal: Variação aleatória de +/- 10% em torno de 60k
-        const variation = 1 + (Math.random() * 0.2 - 0.1); 
-        const baseRevenue = 60000 * variation;
-        
-        // Definição dos Totais Mensais
-        const monthFaturamento = parseFloat(baseRevenue.toFixed(2));
-        const monthNumVendas = Math.floor(300 * variation);
-        const monthCustosVar = parseFloat((baseRevenue * 0.45).toFixed(2)); // ~45%
-        const monthDespesasOp = parseFloat((3000 + (Math.random() * 500)).toFixed(2));
-
-        // --- Geração dos Lançamentos Diários ---
-        // Chama a função auxiliar para distribuir o total mensal pelos dias do mês
-        const generatedDailyEntries = generateDailySimulation(currentYear, i, {
-            faturamento: monthFaturamento,
-            custosVariaveis: monthCustosVar,
-            despesasOperacionais: monthDespesasOp,
-            numeroDeVendas: monthNumVendas
-        });
-
-        const monthlyData = {
-            faturamento: monthFaturamento,
-            numeroDeVendas: monthNumVendas,
-            custosVariaveis: monthCustosVar,
-            custosFixos: parseFloat((12000 + (Math.random() * 1000)).toFixed(2)),
-            despesasOperacionais: monthDespesasOp,
-            depreciacao: 500,
-            outrasReceitasDespesas: 0,
-            investimentos: i === 5 ? 5000 : 0, // Exemplo pontual
-            financiamentosEntradas: 0,
-            amortizacaoDividas: 0,
-            aporteSocios: 0,
-            distribuicaoLucros: 0,
-            impostos: parseFloat((baseRevenue * 0.08).toFixed(2)), // ~8% Simples
-            
-            // Array preenchido com dados proporcionais
-            dailyEntries: generatedDailyEntries 
-        };
-
-        financialData[currentYear][i] = monthlyData;
-    }
-
-    // 3. Finalização e Salvamento
-    allowManualEditCheckbox.checked = true;
-
-    try {
-        await saveDataToFirestore(currentUser.uid, userSettings, 'userSettings');
-        await saveDataToFirestore(currentUser.uid, financialData, 'financialData');
-        
-        updateAllCalculations(); 
-        
-        // Força a renderização da tabela diária para o mês selecionado atualmente
-        const selectedMonth = parseInt(dailyMonthSelector.value) || 0;
-        renderDailyEntries(currentYear, selectedMonth);
-
-        alert("Simulação concluída! Dados mensais e diários gerados com sucesso.");
-    } catch (error) {
-        console.error("Erro ao preencher dados de demo:", error);
-        alert("Erro ao salvar os dados simulados.");
+async function addAdminLeads() {
+    if (confirm("ADMIN: Adicionar 10 leads ao saldo?")) {
+        state.leadsBalance += 10;
+        await dbHelper.setSetting('leads_balance', state.leadsBalance);
+        updateApiStatusUI();
+        updateSearchButtonState();
+        alert("10 leads adicionados.");
     }
 }
 
-btnResetPopulateDemo.addEventListener('click', handleResetAndPopulateDemoData);
-
-
-// === FUNÇÕES DE BACKUP E RESTORE ===
-
-function exportLocalBackup() {
-    if (!financialData || Object.keys(financialData).length === 0) {
-        const confirmBackup = confirm("Parece que não há dados financeiros carregados. Deseja fazer o backup mesmo assim?");
-        if (!confirmBackup) return;
+function loadDefaultMessage() {
+    const defaultTpl = state.templates.find(t => t.isDefault) || state.templates[0];
+    if (defaultTpl) {
+        messageTemplateInput.value = defaultTpl.content;
+        dbHelper.setSetting('current_draft_message', defaultTpl.content);
     }
-
-    const backupData = {
-        financialData: JSON.parse(JSON.stringify(financialData)), 
-        userSettings: JSON.parse(JSON.stringify(userSettings)), 
-        exportDate: new Date().toISOString(),
-        appVersion: "1.2"
-    };
-
-    const dataStr = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `backup_financeiro_${new Date().toISOString().slice(0,10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 }
 
-function importLocalBackup(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+async function saveNewTemplate() {
+    const nameInput = document.getElementById('new-template-name');
+    const contentInput = document.getElementById('new-template-content');
+    const btnSave = document.getElementById('btn-save-template');
 
-    if (!confirm("ATENÇÃO: Restaurar um backup substituirá TODOS os dados atuais da tela e salvará na nuvem (Firebase). Deseja continuar?")) {
-        e.target.value = ''; 
+    const name = nameInput.value.trim();
+    const content = contentInput.value.trim();
+
+    if (!name || !content) {
+        alert("Preencha o nome e o texto do modelo.");
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async function(event) {
-        try {
-            const parsedData = JSON.parse(event.target.result);
-            if (!parsedData.financialData && !parsedData.userSettings) throw new Error("Arquivo de backup inválido.");
-
-            financialData = parsedData.financialData || {};
-            userSettings = parsedData.userSettings || {};
-
-            await db.collection('financialData').doc(currentUser.uid).set(financialData); 
-            await db.collection('userSettings').doc(currentUser.uid).set(userSettings);
-
-            alert("Dados restaurados com sucesso!");
-            
-            const years = Object.keys(financialData).map(Number);
-            if (years.length > 0) {
-                currentYear = Math.max(...years);
-                let yearExists = false;
-                for(let opt of yearSelector.options){ if(parseInt(opt.value) === currentYear) yearExists = true; }
-                if(!yearExists) {
-                    const option = document.createElement('option');
-                    option.value = currentYear; option.textContent = currentYear;
-                    yearSelector.appendChild(option);
-                }
-                yearSelector.value = currentYear;
-            }
-            showApp(); 
-        } catch (error) {
-            console.error("Erro ao restaurar:", error);
-            alert("Erro ao ler o arquivo de backup ou salvar no banco.");
+    if (editingTemplateId) {
+        const index = state.templates.findIndex(t => t.id === editingTemplateId);
+        if (index !== -1) {
+            state.templates[index].name = name;
+            state.templates[index].content = content;
+            await dbHelper.add('templates', state.templates[index]);
+            alert("Modelo atualizado com sucesso!");
         }
-        e.target.value = ''; 
+        editingTemplateId = null;
+        btnSave.innerText = "Adicionar Modelo";
+        btnSave.classList.remove('btn-primary'); 
+        btnSave.classList.add('btn-secondary');
+    } else {
+        const newTpl = {
+            id: Date.now().toString(),
+            name: name,
+            content: content,
+            isDefault: false
+        };
+        state.templates.push(newTpl);
+        await dbHelper.add('templates', newTpl);
+        alert("Modelo salvo com sucesso!");
+    }
+
+    state.templates = await dbHelper.getAll('templates');
+    nameInput.value = '';
+    contentInput.value = '';
+    
+    renderTemplatesList();
+}
+
+async function editTemplate(id) {
+    const template = state.templates.find(t => t.id === id);
+    if (!template) return;
+
+    document.getElementById('new-template-name').value = template.name;
+    document.getElementById('new-template-content').value = template.content;
+    
+    editingTemplateId = id;
+    
+    const btnSave = document.getElementById('btn-save-template');
+    btnSave.innerText = "Salvar Alterações";
+    btnSave.classList.remove('btn-secondary');
+    btnSave.classList.add('btn-primary'); 
+    
+    document.querySelector('.new-template-form').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyTemplateContent(id) {
+    const template = state.templates.find(t => t.id === id);
+    if (!template) return;
+
+    navigator.clipboard.writeText(template.content).then(() => {
+        alert(`Modelo "${template.name}" copiado para a área de transferência!`);
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+        alert('Não foi possível copiar o texto automaticamente.');
+    });
+}
+
+async function deleteTemplate(id) {
+    if (confirm("Deseja excluir este modelo?")) {
+        await dbHelper.delete('templates', id);
+        state.templates = state.templates.filter(t => t.id !== id);
+        renderTemplatesList();
+    }
+}
+
+async function setDefaultTemplate(id) {
+    state.templates.forEach(t => t.isDefault = (t.id === id));
+    for(const t of state.templates) {
+        await dbHelper.add('templates', t);
+    }
+    
+    renderTemplatesList();
+    loadDefaultMessage(); 
+    alert("Modelo definido como padrão.");
+}
+
+function renderTemplatesList() {
+    const list = document.getElementById('templates-list');
+    list.innerHTML = '';
+
+    state.templates.forEach(t => {
+        const li = document.createElement('li');
+        li.className = `template-item ${t.isDefault ? 'default-template' : ''}`;
+        
+        const btnCopy = `<button onclick="copyTemplateContent('${t.id}')" class="btn-manage" title="Copiar"><i class="far fa-copy"></i></button>`;
+        const btnEdit = `<button onclick="editTemplate('${t.id}')" class="btn-manage" title="Editar"><i class="fas fa-edit"></i></button>`;
+        const btnDelete = t.id !== 'default' ? `<button onclick="deleteTemplate('${t.id}')" class="btn-delete" title="Excluir">X</button>` : '';
+        const btnDefault = !t.isDefault ? `<button onclick="setDefaultTemplate('${t.id}')" class="btn-manage" style="font-size:0.8rem;">Usar Padrão</button>` : '<span style="color:var(--success); font-size:0.8rem; font-weight:bold; margin-right:5px;"><i class="fas fa-check"></i> Padrão</span>';
+
+        li.innerHTML = `
+            <div style="flex: 1; padding-right: 10px;">
+                <strong>${t.name}</strong>
+                <br><small style="color:#666; display:block; margin-top:4px;">${t.content.substring(0, 60)}${t.content.length > 60 ? '...' : ''}</small>
+            </div>
+            <div class="template-actions" style="display:flex; align-items:center; gap:5px;">
+                ${btnCopy}
+                ${btnEdit}
+                ${btnDefault}
+                ${btnDelete}
+            </div>
+        `;
+        list.appendChild(li);
+    });
+}
+
+function isApiActive() {
+    return (state.apiKey && state.leadsBalance > 0);
+}
+
+function updateSearchButtonState() {
+    btnSearchLeads.disabled = false;
+    btnSearchLeads.classList.remove('btn-disabled-red');
+
+    if (isApiActive()) {
+        btnSearchLeads.innerHTML = '<i class="fas fa-search"></i> Buscar Leads';
+    } else {
+        btnSearchLeads.innerHTML = '<i class="fas fa-search"></i> Buscar Leads (Modo Simulação)';
+    }
+}
+
+function updateApiStatusUI() {
+    apiStatusWarning.classList.add('hidden');
+    apiStatusSuccess.classList.add('hidden');
+    apiStatusExpired.classList.add('hidden');
+    
+    const revalidationArea = document.getElementById('revalidation-area');
+    
+    if (!state.apiKey) {
+        apiStatusWarning.classList.remove('hidden');
+        revalidationArea.classList.add('hidden');
+        updateSearchButtonState();
+        return;
+    }
+
+    revalidationArea.classList.remove('hidden'); 
+
+    if (state.leadsBalance > 0) {
+        apiStatusSuccess.classList.remove('hidden');
+        leadsBalanceDisplay.innerText = state.leadsBalance;
+        
+        if (apiProviderBadge) {
+            apiProviderBadge.innerText = state.providerId === 'KEY_2' ? 'SerpAPI' : 'Serper';
+        }
+    } else {
+        apiStatusExpired.classList.remove('hidden');
+    }
+    
+    updateSearchButtonState();
+}
+
+async function validateAndSaveApiKey() {
+    const providerSelect = document.getElementById('api-provider-select');
+    const msg = document.getElementById('api-validation-msg');
+    
+    const selectedProvider = providerSelect.value;
+
+    if (!selectedProvider) {
+        alert("Selecione uma chave de API.");
+        return;
+    }
+
+    const key = API_KEYS_CONFIG[selectedProvider];
+    
+    if (!key || key.includes("SUA_CHAVE")) {
+        msg.innerText = "Chave não configurada no código-fonte. Contate o administrador.";
+        msg.style.color = "red";
+        return;
+    }
+
+    msg.innerText = "Validando chave...";
+    msg.style.color = "blue";
+
+    state.providerId = selectedProvider;
+    state.apiKey = key;
+    await dbHelper.setSetting('selected_provider_id', selectedProvider);
+    
+    msg.innerText = "Preferência salva com sucesso! Adquira créditos abaixo para usar dados reais.";
+    msg.style.color = "orange";
+    
+    updateApiStatusUI();
+}
+
+function generateChallenge() {
+    state.challengeNumber = Math.floor(Math.random() * 901) + 100;
+    document.getElementById('challenge-number').innerText = state.challengeNumber;
+    document.getElementById('challenge-response').value = '';
+    updateWhatsappLink();
+}
+
+function updateWhatsappLink() {
+    const qty = document.getElementById('leads-quantity').value;
+    const code = state.challengeNumber;
+    if (qty && code) {
+        const text = `Olá, gostaria de adquirir ${qty} leads. Meu código de solicitação é: ${code}.`;
+        btnWhatsappRequest.href = `https://wa.me/5534997824990?text=${encodeURIComponent(text)}`;
+    }
+}
+
+async function verifyChallenge() {
+    const responseInput = document.getElementById('challenge-response').value.trim();
+    
+    if (!responseInput.includes('-')) {
+        return alert("Formato inválido. Use o formato fornecido pelo suporte (Ex: 12345-500).");
+    }
+
+    const parts = responseInput.split('-');
+    if (parts.length !== 2) return alert("Formato inválido.");
+
+    const providedHash = parseInt(parts[0]);
+    const leadsQty = parseInt(parts[1]);
+
+    if (isNaN(providedHash) || isNaN(leadsQty)) return alert("Código inválido.");
+
+    const expectedHash = (state.challengeNumber + 13) * 9 + 1954 + leadsQty;
+
+    if (providedHash === expectedHash) {
+        state.leadsBalance += leadsQty;
+        await dbHelper.setSetting('leads_balance', state.leadsBalance);
+        
+        alert(`Sucesso! ${leadsQty} leads adicionados ao seu saldo.`);
+        
+        updateApiStatusUI();
+        document.getElementById('config-modal').classList.add('hidden');
+        
+        document.getElementById('leads-quantity').value = '';
+        document.getElementById('challenge-response').value = '';
+        state.challengeNumber = 0;
+        document.getElementById('challenge-number').innerText = '---';
+    } else {
+        alert("Contra-senha incorreta.");
+    }
+}
+
+// --- CARREGAR MEUS CONTATOS (ALTERADO PARA SUPORTAR MODOS) ---
+async function loadMyContacts() {
+    if (!state.user) return alert("Faça login para ver seus contatos.");
+
+    // Reset UI
+    leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Carregando contatos... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    resultsPanel.classList.remove('hidden');
+    state.isShowingSaved = true;
+    state.currentPage = 1; 
+    
+    resultsTitle.innerHTML = 'Meus Contatos <span class="badge-real">(Salvos)</span>: <span id="result-count">...</span>';
+    dataSourceBadge.classList.add('hidden'); 
+
+    let loadedLeads = [];
+
+    // ALTERAÇÃO: Lógica de carregamento baseada no modo
+    if (state.appMode === 'cloud') {
+        if (!auth.currentUser) {
+            alert("Modo Nuvem requer login ativo no Firebase.");
+            leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Erro: Não conectado à nuvem.</td></tr>';
+            return;
+        }
+        try {
+            const snapshot = await db.collection('users').doc(auth.currentUser.uid).collection('leads').orderBy('createdAt', 'desc').get();
+            loadedLeads = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+        } catch (e) {
+            console.error("Erro ao buscar da nuvem:", e);
+            alert("Erro ao buscar dados da nuvem.");
+        }
+    } else {
+        // Modo Local ou Híbrido: Carrega do IndexedDB
+        loadedLeads = await dbHelper.getLeadsByUser(state.user.email);
+        
+        // Fallback nuvem no modo Híbrido se local estiver vazio
+        if (state.appMode === 'hybrid' && loadedLeads.length === 0 && auth && auth.currentUser) {
+            try {
+                const snapshot = await db.collection('users').doc(auth.currentUser.uid).collection('leads').get();
+                const cloudLeads = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+                
+                if (cloudLeads.length > 0) {
+                    loadedLeads = cloudLeads;
+                    for(const l of loadedLeads) {
+                        l.userEmail = state.user.email;
+                        const toSave = {...l};
+                        delete toSave.id; 
+                        await dbHelper.add('leads', toSave);
+                    }
+                }
+            } catch (e) {
+                console.log("Sem leads locais e sem conexão para baixar.");
+            }
+        }
+    }
+
+    state.leads = loadedLeads;
+    populateNicheFilter(state.leads);
+    applyFilters(); 
+}
+
+async function searchLeads(event) {
+    event.preventDefault();
+    state.isShowingSaved = false;
+    state.currentPage = 1;
+    
+    filterText.value = "";
+    filterStatus.value = "";
+    
+    const niche = document.getElementById('niche').value;
+    const city = document.getElementById('city').value;
+    const stateInput = document.getElementById('state').value;
+    const limit = parseInt(document.getElementById('limit').value);
+
+    state.lastSearch = { niche, city, state: stateInput };
+
+    const query = `${niche} em ${city} ${stateInput}`.trim();
+    leadsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    resultsPanel.classList.remove('hidden');
+    resultsTitle.innerHTML = `Resultados <span id="data-source-badge" class="badge-fictitious">...</span>: <span id="result-count">...</span>`;
+
+    let leads = [];
+
+    if (state.apiKey && state.leadsBalance > 0) {
+        if (state.providerId === 'KEY_2') {
+            leads = await fetchSerpAPILeads(query, limit); 
+        } else {
+            leads = await fetchSerperLeads(query, limit);
+        }
+        
+        if (leads.length > 0) {
+            leads.forEach(l => l.niche = niche);
+
+            const originalCount = leads.length;
+            leads = await filterInvalidAndDuplicateLeads(leads);
+            const filteredCount = originalCount - leads.length;
+
+            if (filteredCount > 0) {
+                console.log(`Foram removidos ${filteredCount} leads (Duplicados ou Fictícios).`);
+            }
+
+            if (leads.length > 0) {
+                state.leadsBalance -= leads.length;
+                if (state.leadsBalance < 0) state.leadsBalance = 0;
+                await dbHelper.setSetting('leads_balance', state.leadsBalance);
+                
+                updateApiStatusUI();
+                updateResultsBadge(true);
+                
+                if (state.appMode === 'cloud') {
+                     // No modo Cloud, salva direto na nuvem, mas sem bloquear a UI se falhar
+                     await saveLeadsToFirestore(leads, niche);
+                } else {
+                    // Local ou Híbrido: Salva no IndexedDB
+                    await saveLeadsToLocal(leads, niche);
+                }
+            } else {
+                alert("A busca retornou resultados, mas todos já existiam no seu banco de dados ou eram inválidos.");
+            }
+        } else {
+            updateResultsBadge(true); 
+        }
+    } else {
+        let rawMocks = generateMockLeads(niche, city, stateInput, limit);
+        leads = rawMocks; 
+        updateResultsBadge(false);
+    }
+
+    state.leads = leads;
+    
+    populateNicheFilter(leads);
+    applyFilters(); 
+}
+
+function setupFilterListeners() {
+    filterText.addEventListener('input', () => { state.currentPage = 1; applyFilters(); });
+    filterStatus.addEventListener('change', () => { state.currentPage = 1; applyFilters(); });
+    filterNiche.addEventListener('change', () => { state.currentPage = 1; applyFilters(); });
+}
+
+function populateNicheFilter(leads) {
+    const niches = new Set(leads.map(l => l.niche));
+    filterNiche.innerHTML = '<option value="">Todos</option>';
+    niches.forEach(n => {
+        const option = document.createElement('option');
+        option.value = n;
+        option.innerText = n;
+        filterNiche.appendChild(option);
+    });
+}
+
+function applyFilters() {
+    const txt = filterText.value.toLowerCase();
+    const st = filterStatus.value;
+    const ni = filterNiche.value;
+
+    const indexedLeads = state.leads.map((lead, index) => ({...lead, _originalIndex: index}));
+
+    const filtered = indexedLeads.filter(lead => {
+        const matchesText = (
+            (lead.name && lead.name.toLowerCase().includes(txt)) || 
+            (lead.niche && lead.niche.toLowerCase().includes(txt)) ||
+            (lead.address && lead.address.toLowerCase().includes(txt))
+        );
+        const matchesStatus = st ? lead.leadStatus === st : true;
+        const matchesNiche = ni ? lead.niche === ni : true;
+
+        return matchesText && matchesStatus && matchesNiche;
+    });
+
+    renderLeads(filtered);
+}
+
+// --- PERSISTÊNCIA (ALTERADO PARA SUPORTAR MODOS) ---
+
+async function saveCurrentLeadsToDB() {
+    if(state.leads.length === 0) return alert("Nenhum lead para salvar.");
+    if(state.leads.some(l => l.isMock)) return alert("Atenção: Leads fictícios da simulação não podem ser salvos no banco.");
+
+    if(!confirm(`Deseja salvar a lista?`)) return;
+
+    const niche = state.lastSearch.niche || 'Lista Manual';
+    const validLeads = await filterInvalidAndDuplicateLeads(state.leads);
+    
+    if (validLeads.length === 0) {
+        return alert("Todos os leads desta lista já foram salvos anteriormente.");
+    }
+
+    if (state.appMode === 'cloud') {
+        await saveLeadsToFirestore(validLeads, niche);
+        alert("Dados salvos na NUVEM com sucesso!");
+    } else if (state.appMode === 'local') {
+        await saveLeadsToLocal(validLeads, niche);
+        alert("Dados salvos LOCALMENTE (Modo Local).");
+    } else {
+        // Híbrido
+        await saveLeadsToLocal(validLeads, niche);
+        if (navigator.onLine) {
+            alert("Dados salvos localmente! Clique em 'Sync Nuvem' para enviar ao Firebase.");
+        } else {
+            alert("Dados salvos OFFLINE. Sincronize quando tiver internet.");
+        }
+    }
+}
+
+async function saveLeadsToLocal(leads, niche) {
+    if (!state.user) return;
+    
+    const currentData = await dbHelper.getLeadsByUser(state.user.email);
+    
+    for (const lead of leads) {
+        const exists = currentData.some(d => d.name === lead.name && d.phone === lead.phone);
+        if (!exists) {
+            const leadToSave = {
+                ...lead,
+                userEmail: state.user.email,
+                searchNiche: niche,
+                leadStatus: lead.leadStatus || 'Novo',
+                followUpNotes: lead.followUpNotes || '',
+                createdAt: new Date().toISOString(),
+                firestoreId: null
+            };
+
+            delete leadToSave._originalIndex;
+            delete leadToSave.isMock;
+            if (typeof leadToSave.id === 'string' && leadToSave.id.startsWith('mock')) delete leadToSave.id;
+
+            await dbHelper.add('leads', leadToSave);
+        }
+    }
+    console.log("Leads salvos no IndexedDB.");
+}
+
+// --- NOVA FUNÇÃO: Salvar Direto no Firestore (Modo Cloud) ---
+async function saveLeadsToFirestore(leads, niche) {
+    if (!state.user || !auth.currentUser) return alert("Erro: Login necessário para salvar na nuvem.");
+
+    let savedCount = 0;
+    const batch = db.batch(); 
+    let operationCounter = 0;
+    
+    try {
+        for (const lead of leads) {
+            const docRef = db.collection('users').doc(auth.currentUser.uid).collection('leads').doc();
+            
+            const leadToSend = {
+                ...lead,
+                searchNiche: niche,
+                leadStatus: lead.leadStatus || 'Novo',
+                followUpNotes: lead.followUpNotes || '',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            delete leadToSend._originalIndex;
+            delete leadToSend.isMock;
+            delete leadToSend.id; 
+            delete leadToSend.firestoreId;
+
+            batch.set(docRef, leadToSend);
+            operationCounter++;
+            savedCount++;
+
+            if (operationCounter >= 450) {
+                await batch.commit();
+                operationCounter = 0;
+            }
+        }
+
+        if (operationCounter > 0) {
+            await batch.commit();
+        }
+        
+        console.log(`Leads salvos na nuvem: ${savedCount}`);
+        
+    } catch(e) {
+        console.error("Erro ao salvar lead na nuvem:", e);
+        if (e.code === 'permission-denied') {
+            alert("Erro de Permissão: O banco de dados recusou a gravação.\nVerifique se as Regras de Segurança no Console do Firebase estão configuradas corretamente.");
+        } else {
+            alert("Erro ao salvar na nuvem: " + e.message);
+        }
+    }
+}
+
+async function backupData() {
+    let leads = [];
+    if(state.user) {
+        leads = await dbHelper.getLeadsByUser(state.user.email);
+    }
+    const templates = await dbHelper.getAll('templates');
+    const users = await dbHelper.getAll('users');
+
+    const backupObj = {
+        version: "2.0-idb",
+        timestamp: new Date().toISOString(),
+        userEmail: state.user ? state.user.email : 'anon',
+        leadsBalance: await dbHelper.getSetting('leads_balance'),
+        templates: templates,
+        leads: leads,
+        usersDb: users
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `backup_leads_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+function restoreData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const backupObj = JSON.parse(e.target.result);
+            if (confirm("Isso substituirá/mesclará seus dados locais atuais. Deseja continuar?")) {
+                
+                if(backupObj.leadsBalance) await dbHelper.setSetting('leads_balance', backupObj.leadsBalance);
+                
+                if(backupObj.templates && Array.isArray(backupObj.templates)) {
+                    for(const t of backupObj.templates) {
+                        await dbHelper.add('templates', t);
+                    }
+                }
+
+                if(backupObj.usersDb && Array.isArray(backupObj.usersDb)) {
+                    for(const u of backupObj.usersDb) {
+                        await dbHelper.add('users', u);
+                    }
+                }
+                
+                if (backupObj.version === "2.0-idb" && Array.isArray(backupObj.leads)) {
+                    for(const l of backupObj.leads) {
+                        if(state.user && !l.userEmail) l.userEmail = state.user.email;
+                        delete l.id; 
+                        await dbHelper.add('leads', l);
+                    }
+                } else if (backupObj.leads && typeof backupObj.leads === 'string' && state.user) {
+                    const parsedLeads = JSON.parse(backupObj.leads);
+                    for(const l of parsedLeads) {
+                        l.userEmail = state.user.email;
+                        await dbHelper.add('leads', l);
+                    }
+                }
+
+                alert("Restauração concluída! A página será recarregada.");
+                location.reload();
+            }
+        } catch (error) {
+            alert("Erro ao ler backup: " + error.message);
+        }
     };
     reader.readAsText(file);
 }
 
-// === FUNÇÕES XLSX ===
-
-// Helper para criar planilha
-function createSheetFromData(data, headers, sheetName) {
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    return wb;
-}
-
-// Helper para ler arquivo Excel
-function readXLSXFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            resolve(workbook);
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-    });
-}
-
-// -- Aba Empresa --
-function handleExportCompanyXLSX() {
-    const formMap = {
-        'Razão Social': userSettings.corporateName,
-        'CNPJ': userSettings.cnpj,
-        'Responsável': userSettings.responsibleName,
-        'Email': userSettings.contactEmail,
-        'Telefone': userSettings.phone,
-        'Setor': userSettings.sector,
-        'Regime': userSettings.taxRegime,
-        'ERP': userSettings.hasErp,
-        'Instagram': userSettings.hasInstagram,
-        'Facebook': userSettings.hasFacebook,
-        'Landing Page': userSettings.hasLandingPage,
-        'Site': userSettings.hasSite,
-        'E-commerce': userSettings.hasEcommerce,
-        'Tráfego Pago': userSettings.hasAds,
-        'Marketplace': userSettings.marketplaceList,
-        'Observações': userSettings.observations
-    };
+function openLeadDetails(index) {
+    state.currentLeadIndex = index;
+    const lead = state.leads[index];
     
-    const rows = Object.entries(formMap);
-    const wb = createSheetFromData(rows, ['Campo', 'Valor'], 'Dados Empresa');
-    XLSX.writeFile(wb, `Empresa_${currentYear}.xlsx`);
+    if (!lead) return; 
+
+    detailName.innerText = lead.name;
+    detailNicheBadge.innerText = lead.niche;
+    detailPhone.innerText = lead.phone || 'Não informado';
+    
+    if (lead.website) {
+        detailWebsite.href = lead.website;
+        detailWebsite.innerText = lead.website;
+    } else {
+        detailWebsite.href = "#";
+        detailWebsite.innerText = "Não disponível";
+    }
+
+    detailRating.innerText = lead.rating ? `${lead.rating} / 5,0` : "N/A";
+    detailRatingCount.innerText = lead.ratingCount || "0";
+    detailActivity.innerText = lead.niche;
+    detailAddress.innerText = lead.address || "Endereço não disponível";
+
+    detailStatus.value = lead.leadStatus || "Novo";
+    detailNotes.value = lead.followUpNotes || "";
+
+    leadDetailsModal.classList.remove('hidden');
 }
 
-async function handleImportCompanyXLSX(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+async function saveLeadDetails() {
+    if (state.currentLeadIndex === null) return;
+    
+    const lead = state.leads[state.currentLeadIndex];
+    lead.leadStatus = detailStatus.value;
+    lead.followUpNotes = detailNotes.value;
+    
+    if (state.isShowingSaved) {
+        if (state.appMode === 'cloud' && lead.firestoreId && auth.currentUser) {
+            db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
+                leadStatus: lead.leadStatus,
+                followUpNotes: lead.followUpNotes
+            }).catch(err => console.error("Erro update firestore", err));
+            alert("Alterações salvas na nuvem!");
+        } else {
+            if (lead.id) {
+                await dbHelper.add('leads', lead);
+            }
+            
+            if (state.appMode === 'hybrid' && lead.firestoreId && auth.currentUser) {
+                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).update({
+                    leadStatus: lead.leadStatus,
+                    followUpNotes: lead.followUpNotes
+                }).catch(err => console.error("Erro update firestore", err));
+            }
+            alert("Alterações salvas!");
+        }
+        
+        loadMyContacts();
+    } else {
+        alert("Alterações salvas na memória (lista temporária). Salve a lista para persistir.");
+    }
+    
+    leadDetailsModal.classList.add('hidden');
+    applyFilters();
+}
 
-    try {
-        const wb = await readXLSXFile(file);
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); // Array of arrays
-
-        const fieldMapReverse = {
-            'Razão Social': 'diag-corporate-name',
-            'CNPJ': 'diag-cnpj',
-            'Responsável': 'diag-responsible',
-            'Email': 'diag-email',
-            'Telefone': 'diag-phone',
-            'Setor': 'diag-sector',
-            'Regime': 'diag-tax-regime',
-            'ERP': 'diag-erp',
-            'Instagram': 'diag-instagram',
-            'Facebook': 'diag-facebook',
-            'Landing Page': 'diag-landingpage',
-            'Site': 'diag-site',
-            'E-commerce': 'diag-ecommerce',
-            'Tráfego Pago': 'diag-ads',
-            'Marketplace': 'diag-marketplace',
-            'Observações': 'diag-observations'
-        };
-
-        let updated = false;
-        data.forEach(row => {
-            if (row.length >= 2) {
-                const key = row[0];
-                const value = row[1];
-                const elementId = fieldMapReverse[key];
-                if (elementId) {
-                    const el = document.getElementById(elementId);
-                    if (el) { el.value = value || ''; updated = true; }
+async function deleteLead(index) {
+    if (confirm("Tem certeza que deseja excluir este lead?")) {
+        if (state.isShowingSaved) {
+            const lead = state.leads[index];
+            
+            if (state.appMode === 'cloud' && lead.firestoreId && auth.currentUser) {
+                db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
+                    .catch(err => console.error("Erro ao deletar na nuvem", err));
+            } else {
+                if (lead.id) {
+                    await dbHelper.delete('leads', lead.id);
+                }
+                
+                if (state.appMode === 'hybrid' && lead.firestoreId && auth.currentUser) {
+                    db.collection('users').doc(auth.currentUser.uid).collection('leads').doc(lead.firestoreId).delete()
+                    .catch(err => console.error("Erro ao deletar na nuvem", err));
                 }
             }
-        });
 
-        if (updated) {
-            saveDiagnosisData(null); // Salva no Firebase
-            alert('Dados da empresa importados com sucesso!');
+            state.leads.splice(index, 1);
+        } else {
+            state.leads.splice(index, 1);
         }
-    } catch (err) {
-        console.error(err);
-        alert('Erro ao importar arquivo. Verifique o formato.');
+        applyFilters(); 
     }
-    e.target.value = '';
 }
 
-// -- Aba Entradas Diárias --
-function handleExportDailyXLSX() {
-    const month = parseInt(dailyMonthSelector.value);
-    const yearData = financialData[currentYear] || {};
-    const monthData = yearData[month] || {};
-    const entries = monthData.dailyEntries || [];
+function renderLeads(leadsToRender) {
+    leadsBody.innerHTML = '';
+    resultCount.innerText = leadsToRender.length;
 
-    if (entries.length === 0) {
-        alert('Não há lançamentos para exportar neste mês.');
+    if (leadsToRender.length === 0) {
+        leadsBody.innerHTML = '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>';
+        paginationControls.classList.add('hidden');
         return;
     }
 
-    const rows = entries.map(e => [e.date, e.faturamento, e.despesas, e.comissao, e.outras, e.vendas]);
-    const wb = createSheetFromData(rows, ['Data', 'Faturamento', 'Despesas', 'Comissão', 'Outras', 'Vendas'], `${MONTHS[month]}_Diario`);
-    XLSX.writeFile(wb, `Diario_${currentYear}_${MONTHS[month]}.xlsx`);
+    const totalPages = Math.ceil(leadsToRender.length / state.itemsPerPage);
+    if (state.currentPage > totalPages) state.currentPage = totalPages;
+    if (state.currentPage < 1) state.currentPage = 1;
+
+    const start = (state.currentPage - 1) * state.itemsPerPage;
+    const end = start + state.itemsPerPage;
+    const paginatedLeads = leadsToRender.slice(start, end);
+
+    paginatedLeads.forEach((lead) => {
+        const actualIndex = lead._originalIndex; 
+        
+        const row = document.createElement('tr');
+        
+        const siteLink = lead.website 
+            ? `<a href="${lead.website}" target="_blank"><i class="fas fa-external-link-alt"></i> Visitar</a>` 
+            : '<span class="text-muted">-</span>';
+
+        const whatsappLink = lead.phone && lead.phone !== 'Não informado' 
+            ? `<button class="btn-action" onclick="openMessageModal(${actualIndex})" title="Gerar Abordagem"><i class="fab fa-whatsapp"></i></button>`
+            : '<button class="btn-action" disabled style="opacity:0.5"><i class="fab fa-whatsapp"></i></button>';
+
+        const actions = `
+            <div class="actions-cell">
+                ${whatsappLink}
+                <button class="btn-manage" onclick="openLeadDetails(${actualIndex})" title="Gerenciar Lead"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteLead(${actualIndex})" title="Excluir Lead"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        `;
+
+        const status = lead.leadStatus || 'Novo';
+        const statusClass = getStatusClass(status);
+        let cityState = lead.address;
+
+        let syncIcon = '';
+        if (state.isShowingSaved) {
+            if (lead.firestoreId) {
+                syncIcon = '<i class="fas fa-cloud" title="Sincronizado na Nuvem" style="color:var(--primary-color); margin-left:5px;"></i>';
+            } else if (state.appMode === 'local') {
+                syncIcon = '<i class="fas fa-hdd" title="Salvo Localmente" style="color:var(--secondary-color); margin-left:5px;"></i>';
+            } else {
+                syncIcon = '<i class="fas fa-save" title="Aguardando Sync" style="color:var(--warning-text); margin-left:5px;"></i>';
+            }
+        }
+        
+        row.innerHTML = `
+            <td>
+                <div class="lead-info-primary">
+                    <span class="lead-name">${lead.name} ${syncIcon}</span>
+                    <span class="status-badge ${statusClass}">${status}</span>
+                </div>
+            </td>
+            <td>
+                <div class="lead-info-secondary">
+                    <span class="lead-niche">${lead.niche}</span>
+                    <span class="lead-separator">•</span>
+                    <span>${cityState}</span>
+                </div>
+            </td>
+            <td>${lead.phone}</td>
+            <td>${actions}</td>
+        `;
+        leadsBody.appendChild(row);
+    });
+
+    renderPaginationControls(totalPages);
 }
 
-async function handleImportDailyXLSX(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!confirm("A importação irá adicionar os lançamentos da planilha aos existentes. Continuar?")) {
-        e.target.value = ''; return;
+function renderPaginationControls(totalPages) {
+    paginationControls.innerHTML = '';
+    if (totalPages <= 1) {
+        paginationControls.classList.add('hidden');
+        return;
     }
+    paginationControls.classList.remove('hidden');
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'page-btn';
+    prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    prevBtn.disabled = state.currentPage === 1;
+    prevBtn.onclick = () => changePage(state.currentPage - 1);
+    paginationControls.appendChild(prevBtn);
+
+    const pageInfo = document.createElement('span');
+    pageInfo.className = 'page-info';
+    pageInfo.innerText = `Página ${state.currentPage} de ${totalPages}`;
+    paginationControls.appendChild(pageInfo);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'page-btn';
+    nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    nextBtn.disabled = state.currentPage === totalPages;
+    nextBtn.onclick = () => changePage(state.currentPage + 1);
+    paginationControls.appendChild(nextBtn);
+}
+
+function changePage(newPage) {
+    state.currentPage = newPage;
+    applyFilters(); 
+}
+
+async function fetchSerperLeads(query, limit) {
+    const url = 'https://google.serper.dev/places';
+    const myHeaders = new Headers();
+    myHeaders.append("X-API-KEY", state.apiKey);
+    myHeaders.append("Content-Type", "application/json");
+
+    const raw = JSON.stringify({ "q": query, "gl": "br", "hl": "pt-br" });
 
     try {
-        const wb = await readXLSXFile(file);
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws); // Objects based on header
-
-        const month = parseInt(dailyMonthSelector.value);
-        if (!financialData[currentYear]) financialData[currentYear] = {};
-        if (!financialData[currentYear][month]) financialData[currentYear][month] = { dailyEntries: [] };
-
-        let addedCount = 0;
-        data.forEach(row => {
-            // Mapping assumptions based on Export headers
-            const date = row['Data'] || row['date'];
-            if (date) {
-                financialData[currentYear][month].dailyEntries.push({
-                    date: date,
-                    faturamento: parseFloat(row['Faturamento'] || 0),
-                    despesas: parseFloat(row['Despesas'] || 0),
-                    comissao: parseFloat(row['Comissão'] || row['Comissao'] || 0),
-                    outras: parseFloat(row['Outras'] || 0),
-                    vendas: parseInt(row['Vendas'] || 0)
-                });
-                addedCount++;
-            }
-        });
-
-        if (addedCount > 0) {
-            await saveDataToFirestore(currentUser.uid, financialData, 'financialData');
-            updateAllCalculations();
-            renderDailyEntries(currentYear, month);
-            alert(`${addedCount} lançamentos importados com sucesso!`);
+        const response = await fetch(url, { method: 'POST', headers: myHeaders, body: raw });
+        if (!response.ok) throw new Error("Falha na API Serper");
+        const result = await response.json();
+        
+        if (result.places) {
+            return result.places.slice(0, limit).map(place => ({
+                name: place.title,
+                niche: place.category || 'Nicho Geral',
+                address: place.address,
+                phone: place.phoneNumber || 'Não informado',
+                website: place.website || null,
+                rating: place.rating || null,
+                ratingCount: place.userRatingsTotal || 0,
+                leadStatus: 'Novo'
+            }));
         } else {
-            alert('Nenhum dado válido encontrado. Verifique os cabeçalhos (Data, Faturamento, Despesas...).');
+            return [];
         }
-
-    } catch (err) {
-        console.error(err);
-        alert('Erro na importação. Verifique o arquivo.');
+    } catch (error) {
+        console.error('Erro na requisição Serper:', error);
+        alert('Erro ao conectar com a API Serper.');
+        return [];
     }
-    e.target.value = '';
 }
 
-// -- Aba Entradas Mensais --
-function handleExportMonthlyXLSX() {
-    const yearData = financialData[currentYear] || {};
-    const headers = ['Mês', 'Faturamento', 'NumVendas', 'CustosVariaveis', 'CustosFixos', 'DespesasOp', 'Depreciacao', 'Outras', 'Investimentos', 'FinancEntradas', 'AmortDividas', 'AporteSocios', 'DistrLucros', 'Impostos'];
+async function fetchSerpAPILeads(query, limit) {
+    const baseUrl = 'https://serpapi.com/search.json';
+    const params = new URLSearchParams({
+        engine: 'google_local',
+        q: query,
+        hl: 'pt-br',
+        gl: 'br',
+        num: limit, 
+        api_key: state.apiKey
+    });
+
+    try {
+        const response = await fetch(`${baseUrl}?${params.toString()}`);
+        if (!response.ok) throw new Error("Falha na API SerpAPI");
+        const result = await response.json();
+        if (result.local_results) {
+            return result.local_results.map(place => ({
+                name: place.title,
+                niche: place.type || 'Nicho Geral',
+                address: place.address,
+                phone: place.phone || 'Não informado',
+                website: place.website || null,
+                rating: place.rating || null,
+                ratingCount: place.reviews,
+                leadStatus: 'Novo'
+            }));
+        } else {
+            return [];
+        }
+    } catch (error) {
+        console.error('Erro na requisição SerpAPI:', error);
+        alert('Erro ao conectar com a API SerpAPI. Verifique CORS/Proxy.');
+        return [];
+    }
+}
+
+function generateMockLeads(niche, city, uf, count) {
+    const leads = [];
+    for (let i = 0; i < count; i++) {
+        const fakeName = `${niche} Exemplar ${i + 1}`;
+        const fakePhone = `(34) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
+        const location = city ? `${city} - ${uf}` : `Cidade Exemplo - ${uf || 'BR'}`;
+        
+        leads.push({
+            name: fakeName,
+            niche: niche,
+            address: location,
+            phone: fakePhone,
+            website: `https://www.exemplo${i}.com.br`,
+            rating: (Math.random() * 2 + 3).toFixed(1),
+            ratingCount: Math.floor(Math.random() * 200),
+            leadStatus: 'Novo',
+            isMock: true,
+            id: 'mock_' + i + '_' + Date.now() 
+        });
+    }
+    return leads;
+}
+
+function removeAccents(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function getStatusClass(status) {
+    const slug = removeAccents(status.toLowerCase()).replace(/\s+/g, '-');
+    return `status-${slug}`;
+}
+
+function openMessageModal(leadIndex) {
+    const lead = state.leads[leadIndex];
+    const modal = document.getElementById('message-modal');
+    const textArea = document.getElementById('generated-message');
+    const btnWhats = document.getElementById('btn-send-whatsapp');
+    const selectTemplate = document.getElementById('modal-template-select');
+
+    selectTemplate.innerHTML = '';
+    state.templates.forEach(tpl => {
+        const option = document.createElement('option');
+        option.value = tpl.id;
+        option.innerText = tpl.name + (tpl.isDefault ? ' (Padrão)' : '');
+        if (tpl.isDefault) option.selected = true;
+        selectTemplate.appendChild(option);
+    });
     
-    const rows = MONTHS.map((m, i) => {
-        const d = yearData[i] || {};
+    const currentDashboardText = document.getElementById('message-template-input').value;
+    const customOption = document.createElement('option');
+    customOption.value = 'custom_dashboard';
+    customOption.innerText = '📝 Texto Editado na Tela Principal';
+    selectTemplate.appendChild(customOption);
+
+    const generateText = (templateContent) => {
+        const nichoVal = lead.niche || "";
+        const cidadeVal = lead.address ? lead.address.split(',')[0] : "sua cidade";
+        const estadoVal = ""; 
+
+        let message = templateContent
+            .replace(/{nicho}/g, nichoVal)
+            .replace(/{cidade}/g, cidadeVal)
+            .replace(/{estado}/g, estadoVal);
+
+        return message.replace(/\s+/g, ' ').trim();
+    };
+
+    selectTemplate.onchange = () => {
+        let content = "";
+        if (selectTemplate.value === 'custom_dashboard') {
+            content = currentDashboardText;
+        } else {
+            const selectedTpl = state.templates.find(t => t.id === selectTemplate.value);
+            content = selectedTpl ? selectedTpl.content : "";
+        }
+        textArea.value = generateText(content);
+        updateWhatsAppLink(textArea.value);
+    };
+
+    const updateWhatsAppLink = (msg) => {
+        const cleanPhone = lead.phone.replace(/\D/g, '');
+        if (cleanPhone) {
+            const phoneParam = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+            btnWhats.href = `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}`;
+            btnWhats.classList.remove('hidden');
+        } else {
+            btnWhats.href = "#";
+            btnWhats.classList.add('hidden');
+        }
+    };
+    
+    textArea.oninput = () => updateWhatsAppLink(textArea.value);
+    selectTemplate.onchange();
+    modal.classList.remove('hidden');
+}
+
+function exportToCSV() {
+    if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
+    exportDataToCSV(state.leads, `leads_${Date.now()}.csv`);
+}
+
+function exportToXLSX() {
+    if (state.leads.length === 0) { alert("Não há dados para exportar."); return; }
+    exportDataToXLSX(state.leads, `leads_${Date.now()}.xlsx`);
+}
+
+function exportDataToCSV(data, filename) {
+    const headers = ["Nome do Negócio", "Nicho", "Endereço", "Telefone", "Site", "Rating", "Status", "Notas"];
+    const rows = data.map(lead => {
         return [
-            m, 
-            d.faturamento || 0, d.numeroDeVendas || 0, d.custosVariaveis || 0, d.custosFixos || 0, 
-            d.despesasOperacionais || 0, d.depreciacao || 0, d.outrasReceitasDespesas || 0, 
-            d.investimentos || 0, d.financiamentosEntradas || 0, d.amortizacaoDividas || 0, 
-            d.aporteSocios || 0, d.distribuicaoLucros || 0, d.impostos || 0
+            `"${lead.name}"`, `"${lead.niche}"`, `"${lead.address}"`, `"${lead.phone}"`, `"${lead.website || ''}"`, `"${lead.rating || ''}"`, `"${lead.leadStatus || ''}"`, `"${lead.followUpNotes || ''}"`
         ];
     });
-
-    const wb = createSheetFromData(rows, headers, `Mensal_${currentYear}`);
-    XLSX.writeFile(wb, `Entradas_Mensais_${currentYear}.xlsx`);
+    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
+    rows.forEach(row => csvContent += row.join(",") + "\r\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
-async function handleImportMonthlyXLSX(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!confirm("A importação substituirá os dados manuais da tabela mensal para este ano. Continuar?")) {
-        e.target.value = ''; return;
-    }
-
-    try {
-        const wb = await readXLSXFile(file);
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws); 
-
-        if (!financialData[currentYear]) financialData[currentYear] = {};
-        
-        // Map Excel headers to JSON keys
-        const mapKeys = {
-            'Faturamento': 'faturamento', 'NumVendas': 'numeroDeVendas', 'CustosVariaveis': 'custosVariaveis',
-            'CustosFixos': 'custosFixos', 'DespesasOp': 'despesasOperacionais', 'Depreciacao': 'depreciacao',
-            'Outras': 'outrasReceitasDespesas', 'Investimentos': 'investimentos', 'FinancEntradas': 'financiamentosEntradas',
-            'AmortDividas': 'amortizacaoDividas', 'AporteSocios': 'aporteSocios', 'DistrLucros': 'distribuicaoLucros',
-            'Impostos': 'impostos'
-        };
-
-        data.forEach((row, idx) => {
-            if (idx < 12) { // 12 months
-                if (!financialData[currentYear][idx]) financialData[currentYear][idx] = { dailyEntries: [] };
-                Object.keys(mapKeys).forEach(header => {
-                    if (row[header] !== undefined) {
-                        financialData[currentYear][idx][mapKeys[header]] = parseFloat(row[header]) || 0;
-                    }
-                });
-            }
-        });
-
-        await saveDataToFirestore(currentUser.uid, financialData, 'financialData');
-        updateAllCalculations();
-        alert('Tabela mensal importada e salva!');
-
-    } catch (err) {
-        console.error(err);
-        alert('Erro ao importar. Certifique-se de usar o mesmo modelo da exportação.');
-    }
-    e.target.value = '';
+function exportDataToXLSX(data, filename) {
+    const dataForSheet = data.map(lead => ({
+        "Nome do Negócio": lead.name,
+        "Nicho": lead.niche,
+        "Endereço": lead.address,
+        "Telefone": lead.phone,
+        "Site": lead.website || "",
+        "Avaliação": lead.rating || "",
+        "Status": lead.leadStatus || "",
+        "Notas": lead.followUpNotes || ""
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+    XLSX.writeFile(workbook, filename);
 }
 
-// -- Exportação apenas (Indicadores/Evolução) --
-function handleExportAnnualXLSX() {
-    const tableData = [];
-    const yearData = financialData[currentYear] || {};
-    let annualTotals = {}; 
-    INPUT_FIELDS.forEach(field => annualTotals[field] = 0);
-    
-    for(let i=0; i<12; i++) { 
-        if(yearData[i]) INPUT_FIELDS.forEach(field => annualTotals[field] += yearData[i][field] || 0);
-    }
-    const indicators = calculateIndicators(annualTotals);
-    
-    Object.keys(indicators).forEach(k => {
-        tableData.push([k, indicators[k]]);
-    });
-    
-    const wb = createSheetFromData(tableData, ['Indicador', 'Valor Total'], 'Indicadores Anuais');
-    XLSX.writeFile(wb, `Indicadores_Anuais_${currentYear}.xlsx`);
-}
-
-function handleExportEvolutionXLSX() {
-    const yearData = financialData[currentYear] || {};
-    const rows = [];
-    for(let i=0; i<12; i++) {
-        const ind = calculateIndicators(yearData[i]);
-        rows.push([MONTHS[i], ind.faturamento, ind.custosTotais, ind.lucroLiquido, ind.fluxoCaixaLivre]);
-    }
-    const wb = createSheetFromData(rows, ['Mês', 'Faturamento', 'Custos Totais', 'Lucro Líquido', 'Fluxo Caixa Livre'], 'Evolução');
-    XLSX.writeFile(wb, `Evolucao_${currentYear}.xlsx`);
-}
-
-
-// === GERAÇÃO DE PDFS POR ABA (MANTIDO) ===
-
-function generateCompanyPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 95, 115);
-    doc.text(`Dados da Empresa e Diagnóstico - ${currentYear}`, 14, 20);
-    
-    const companyData = [
-        ["Razão Social", userSettings.corporateName || "-"],
-        ["CNPJ", userSettings.cnpj || "-"],
-        ["Responsável", userSettings.responsibleName || "-"],
-        ["E-mail", userSettings.contactEmail || "-"],
-        ["Telefone", userSettings.phone || "-"],
-        ["Setor", userSettings.sector || "-"],
-        ["Regime Tributário", userSettings.taxRegime || "-"],
-        ["Utiliza ERP", userSettings.hasErp || "Não"],
-        ["Instagram", userSettings.hasInstagram || "Não"],
-        ["Facebook", userSettings.hasFacebook || "Não"],
-        ["Site", userSettings.hasSite || "Não"],
-        ["Loja Virtual", userSettings.hasEcommerce || "Não"],
-        ["Tráfego Pago", userSettings.hasAds || "Não"],
-        ["Marketplaces", userSettings.marketplaceList || "-"]
-    ];
-
-    doc.autoTable({
-        startY: 30,
-        head: [['Campo', 'Informação']],
-        body: companyData,
-        theme: 'striped',
-        headStyles: { fillColor: [0, 95, 115] },
-        styles: { fontSize: 10 }
-    });
-
-    if (userSettings.observations) {
-        let currentY = doc.lastAutoTable.finalY + 15;
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.text("Observações Gerais:", 14, currentY);
-        doc.setFontSize(10);
-        const splitObs = doc.splitTextToSize(userSettings.observations, 180);
-        doc.text(splitObs, 14, currentY + 7);
-    }
-    doc.save(`Relatorio_Empresa_${currentYear}.pdf`);
-}
-
-function generateMonthlyInputsPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l'); 
-    doc.setFontSize(16);
-    doc.setTextColor(0, 95, 115);
-    doc.text(`Entradas Mensais Detalhadas - ${currentYear}`, 14, 20);
-
-    const monthlyData = [];
-    const yearData = financialData[currentYear] || {};
-    
-    MONTHS.forEach((month, index) => {
-        const data = yearData[index] || {};
-        const row = [
-            month,
-            formatCurrency(data.faturamento),
-            data.numeroDeVendas || 0,
-            formatCurrency(data.custosVariaveis),
-            formatCurrency(data.custosFixos),
-            formatCurrency(data.despesasOperacionais),
-            formatCurrency(data.outrasReceitasDespesas),
-            formatCurrency(data.investimentos),
-            formatCurrency(data.financiamentosEntradas),
-            formatCurrency(data.amortizacaoDividas),
-            formatCurrency(data.impostos)
-        ];
-        monthlyData.push(row);
-    });
-
-    doc.autoTable({
-        startY: 30,
-        head: [['Mês', 'Fat.', 'Vendas', 'C.Var.', 'C.Fix.', 'Desp.Op.', 'Outras', 'Invest.', 'Financ.', 'Amort.', 'Imp.']],
-        body: monthlyData,
-        theme: 'grid',
-        headStyles: { fillColor: [10, 147, 150], fontSize: 8 },
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 0: { fontStyle: 'bold' } }
-    });
-    doc.save(`Entradas_Mensais_${currentYear}.pdf`);
-}
-
-function generateAnnualIndicatorsPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 95, 115);
-    doc.text(`Indicadores Anuais - ${currentYear}`, 14, 20);
-
-    let annualTotals = {}; 
-    INPUT_FIELDS.forEach(field => annualTotals[field] = 0);
-    const yearData = financialData[currentYear] || {};
-    let monthsWithDataCount = 0;
-    for(let i=0; i<12; i++) { 
-        if(yearData[i]) {
-            INPUT_FIELDS.forEach(field => annualTotals[field] += yearData[i][field] || 0);
-            if((yearData[i].faturamento > 0) || (yearData[i].custosVariaveis > 0) || (yearData[i].custosFixos > 0)) monthsWithDataCount++;
-        }
-    }
-    const divisor = monthsWithDataCount > 0 ? monthsWithDataCount : 1;
-    const annualIndicators = calculateIndicators(annualTotals);
-
-    const summaryData = [
-        ["Faturamento Total", formatCurrency(annualIndicators.faturamento)],
-        ["Faturamento Médio Mensal", formatCurrency(annualIndicators.faturamento / divisor)],
-        ["Volume de Vendas Médio", (annualTotals.numeroDeVendas / divisor).toFixed(1)],
-        ["Lucro Líquido Total", formatCurrency(annualIndicators.lucroLiquido)],
-        ["Margem Líquida Média", formatPercent(annualIndicators.margemLiquida)],
-        ["Markup Médio", formatPercent(annualIndicators.markup)],
-        ["Fluxo de Caixa Livre Total", formatCurrency(annualIndicators.fluxoCaixaLivre)],
-        ["Ponto de Equilíbrio Médio", formatCurrency(annualIndicators.pontoEquilibrio / divisor)]
-    ];
-
-    doc.autoTable({
-        startY: 30,
-        body: summaryData,
-        theme: 'grid',
-        styles: { fontSize: 12, fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 80, halign: 'right' } }
-    });
-    doc.save(`Indicadores_Anuais_${currentYear}.pdf`);
-}
-
-function generateEvolutionPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 95, 115);
-    doc.text(`Evolução Gráfica do Negócio - ${currentYear}`, 14, 20);
-    
-    let currentY = 30;
-    const chart1 = document.getElementById('monthlyEvolutionChart');
-    if (chart1) {
-        const img1 = chart1.toDataURL('image/png');
-        doc.addImage(img1, 'PNG', 14, currentY + 10, 180, 90);
-        currentY += 100;
-    }
-
-    const chart2 = document.getElementById('cashFlowChart');
-    if (chart2) {
-        const img2 = chart2.toDataURL('image/png');
-        doc.addImage(img2, 'PNG', 14, currentY, 180, 90);
-    }
-    doc.save(`Evolucao_Grafica_${currentYear}.pdf`);
-}
-
-function generateGlossaryPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 95, 115);
-    doc.text("Glossário de Termos Financeiros", 14, 20);
-    
-    let currentY = 30;
-    doc.setFontSize(10);
-    doc.setTextColor(0);
-
-    Object.keys(GLOSSARY_DATA).sort().forEach(key => {
-        const item = GLOSSARY_DATA[key];
-        if (currentY > 270) { doc.addPage(); currentY = 20; }
-        
-        doc.setFont(undefined, 'bold');
-        doc.text(item.nome, 14, currentY);
-        currentY += 5;
-        
-        doc.setFont(undefined, 'normal');
-        const text = `Significado: ${item.significado}\nFórmula: ${item.formula}`;
-        const splitText = doc.splitTextToSize(text, 180);
-        doc.text(splitText, 14, currentY);
-        currentY += (splitText.length * 5) + 10;
-    });
-    doc.save("Glossario_Financeiro.pdf");
-}
-
-function generateConsultantDiagnosisPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(0, 95, 115);
-    doc.text(`Parecer do Consultor - ${currentYear}`, 14, 20);
-    
-    doc.setFontSize(11);
-    doc.setTextColor(0);
-    const diagnosisText = userSettings.consultantDiagnosis || "Nenhum diagnóstico registrado.";
-    const splitDiagnosis = doc.splitTextToSize(diagnosisText, pageWidth - 28);
-    doc.text(splitDiagnosis, 14, currentY);
-
-    doc.save(`Parecer_Consultor_${currentYear}.pdf`);
-}
-
-function generateFullReport() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let currentY = 20;
-
-    doc.setFontSize(18);
-    doc.setTextColor(0, 95, 115);
-    doc.text(`Relatório Financeiro Integrado - ${currentYear}`, 14, currentY);
-    doc.setFontSize(12);
-    doc.setTextColor(50);
-    doc.text(`Empresa: ${userSettings.corporateName || 'Não informada'}`, 14, currentY + 10);
-    doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, currentY + 17);
-    
-    currentY += 30;
-
-    doc.setFontSize(14);
-    doc.setTextColor(0, 95, 115);
-    doc.text("1. Dados da Empresa e Presença Digital", 14, currentY);
-    currentY += 10;
-
-    const companyData = [
-        ["Razão Social", userSettings.corporateName || "-"],
-        ["CNPJ", userSettings.cnpj || "-"],
-        ["Responsável", userSettings.responsibleName || "-"],
-        ["E-mail", userSettings.contactEmail || "-"],
-        ["Telefone", userSettings.phone || "-"],
-        ["Setor", userSettings.sector || "-"],
-        ["Regime Tributário", userSettings.taxRegime || "-"],
-        ["Utiliza ERP", userSettings.hasErp || "Não"],
-        ["Instagram", userSettings.hasInstagram || "Não"],
-        ["Facebook", userSettings.hasFacebook || "Não"],
-        ["Site", userSettings.hasSite || "Não"],
-        ["Loja Virtual", userSettings.hasEcommerce || "Não"],
-        ["Tráfego Pago", userSettings.hasAds || "Não"],
-        ["Marketplaces", userSettings.marketplaceList || "-"]
-    ];
-
-    doc.autoTable({
-        startY: currentY,
-        head: [['Campo', 'Informação']],
-        body: companyData,
-        theme: 'striped',
-        headStyles: { fillColor: [0, 95, 115] },
-        styles: { fontSize: 10 }
-    });
-
-    currentY = doc.lastAutoTable.finalY + 15;
-
-    if (userSettings.observations) {
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.text("Observações Gerais:", 14, currentY);
-        currentY += 7;
-        doc.setFontSize(10);
-        const splitObs = doc.splitTextToSize(userSettings.observations, pageWidth - 28);
-        doc.text(splitObs, 14, currentY);
-        currentY += (splitObs.length * 5) + 15;
-    }
-
-    if (currentY > 250) { doc.addPage(); currentY = 20; }
-    doc.setFontSize(14);
-    doc.setTextColor(0, 95, 115);
-    doc.text("2. Entradas Mensais Detalhadas", 14, currentY);
-    
-    const monthlyData = [];
-    const yearData = financialData[currentYear] || {};
-    
-    MONTHS.forEach((month, index) => {
-        const data = yearData[index] || {};
-        const row = [
-            month,
-            formatCurrency(data.faturamento),
-            data.numeroDeVendas || 0,
-            formatCurrency(data.custosVariaveis),
-            formatCurrency(data.custosFixos),
-            formatCurrency(data.despesasOperacionais),
-            formatCurrency(data.outrasReceitasDespesas),
-            formatCurrency(data.investimentos),
-            formatCurrency(data.financiamentosEntradas),
-            formatCurrency(data.amortizacaoDividas),
-            formatCurrency(data.impostos)
-        ];
-        monthlyData.push(row);
-    });
-
-    doc.autoTable({
-        startY: currentY + 10,
-        head: [['Mês', 'Fat.', 'Vendas', 'C.Var.', 'C.Fix.', 'Desp.Op.', 'Outras', 'Invest.', 'Financ.', 'Amort.', 'Imp.']],
-        body: monthlyData,
-        theme: 'grid',
-        headStyles: { fillColor: [10, 147, 150], fontSize: 8 },
-        styles: { fontSize: 7, cellPadding: 2 },
-        columnStyles: { 0: { fontStyle: 'bold' } }
-    });
-
-    doc.addPage();
-    currentY = 20;
-    doc.setFontSize(14);
-    doc.setTextColor(0, 95, 115);
-    doc.text("3. Indicadores Financeiros Mensais", 14, currentY);
-
-    const indicatorsData = [];
-    MONTHS.forEach((month, index) => {
-        const indicators = calculateIndicators(yearData[index]);
-        indicatorsData.push([
-            month,
-            formatCurrency(indicators.lucroLiquido),
-            formatPercent(indicators.margemLiquida),
-            formatPercent(indicators.markup),
-            formatCurrency(indicators.fluxoCaixaOperacional),
-            formatCurrency(indicators.fluxoCaixaInvestimentos),
-            formatCurrency(indicators.fluxoCaixaFinanciamentos),
-            formatCurrency(indicators.fluxoCaixaLivre)
-        ]);
-    });
-
-    doc.autoTable({
-        startY: currentY + 10,
-        head: [['Mês', 'Lucro Líq.', 'Margem %', 'Markup %', 'FCO', 'FCI', 'FCF', 'FCL']],
-        body: indicatorsData,
-        theme: 'grid',
-        headStyles: { fillColor: [42, 157, 143] },
-        styles: { fontSize: 8 }
-    });
-
-    currentY = doc.lastAutoTable.finalY + 20;
-    if (currentY > 250) { doc.addPage(); currentY = 20; }
-    
-    doc.setFontSize(14);
-    doc.setTextColor(0, 95, 115);
-    doc.text("4. Resumo de Indicadores Anuais", 14, currentY);
-    currentY += 10;
-
-    let annualTotals = {}; 
-    INPUT_FIELDS.forEach(field => annualTotals[field] = 0);
-    let monthsWithDataCount = 0;
-    for(let i=0; i<12; i++) { 
-        if(yearData[i]) {
-            INPUT_FIELDS.forEach(field => annualTotals[field] += yearData[i][field] || 0);
-            if((yearData[i].faturamento > 0) || (yearData[i].custosVariaveis > 0) || (yearData[i].custosFixos > 0)) monthsWithDataCount++;
-        }
-    }
-    const divisor = monthsWithDataCount > 0 ? monthsWithDataCount : 1;
-    const annualIndicators = calculateIndicators(annualTotals);
-
-    const summaryData = [
-        ["Faturamento Total", formatCurrency(annualIndicators.faturamento)],
-        ["Faturamento Médio Mensal", formatCurrency(annualIndicators.faturamento / divisor)],
-        ["Volume de Vendas Médio", (annualTotals.numeroDeVendas / divisor).toFixed(1)],
-        ["Lucro Líquido Total", formatCurrency(annualIndicators.lucroLiquido)],
-        ["Margem Líquida Média", formatPercent(annualIndicators.margemLiquida)],
-        ["Markup Médio", formatPercent(annualIndicators.markup)],
-        ["Fluxo de Caixa Livre Total", formatCurrency(annualIndicators.fluxoCaixaLivre)],
-        ["Ponto de Equilíbrio Médio", formatCurrency(annualIndicators.pontoEquilibrio / divisor)]
-    ];
-
-    doc.autoTable({
-        startY: currentY,
-        body: summaryData,
-        theme: 'plain',
-        styles: { fontSize: 11, fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 80, halign: 'right' } }
-    });
-
-    doc.addPage();
-    currentY = 20;
-    doc.setFontSize(14);
-    doc.setTextColor(0, 95, 115);
-    doc.text("5. Evolução Gráfica do Negócio", 14, currentY);
-    
-    const chart1 = document.getElementById('monthlyEvolutionChart');
-    if (chart1) {
-        const img1 = chart1.toDataURL('image/png');
-        doc.addImage(img1, 'PNG', 14, currentY + 10, 180, 90);
-        currentY += 110;
-    }
-
-    const chart2 = document.getElementById('cashFlowChart');
-    if (chart2) {
-        const img2 = chart2.toDataURL('image/png');
-        doc.addImage(img2, 'PNG', 14, currentY, 180, 90);
-    }
-
-    doc.addPage();
-    currentY = 20;
-    doc.setFontSize(14);
-    doc.setTextColor(0, 95, 115);
-    doc.text("6. Diagnóstico do Consultor", 14, currentY);
-    
-    currentY += 15;
-    doc.setFontSize(11);
-    doc.setTextColor(0);
-    
-    const diagnosisText = userSettings.consultantDiagnosis || "Nenhum diagnóstico registrado.";
-    const splitDiagnosis = doc.splitTextToSize(diagnosisText, pageWidth - 28);
-    doc.text(splitDiagnosis, 14, currentY);
-
-    doc.save(`Relatorio_Financeiro_Completo_${currentYear}.pdf`);
-}
-
-function generateDailyReport() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    let currentY = 20;
-
-    doc.setFontSize(18);
-    doc.setTextColor(46, 134, 222); 
-    doc.text(`Relatório de Movimentação Diária - ${currentYear}`, 14, currentY);
-    doc.setFontSize(12);
-    doc.setTextColor(50);
-    doc.text(`Empresa: ${userSettings.corporateName || 'Não informada'}`, 14, currentY + 10);
-    currentY += 20;
-
-    let hasDailyData = false;
-    const yearData = financialData[currentYear] || {};
-
-    MONTHS.forEach((month, index) => {
-        if (yearData[index] && yearData[index].dailyEntries && yearData[index].dailyEntries.length > 0) {
-            hasDailyData = true;
-            if (currentY > 250) { doc.addPage(); currentY = 20; }
-            doc.setFontSize(12);
-            doc.setTextColor(0);
-            doc.text(`Mês: ${month}`, 14, currentY);
-            currentY += 5;
-            const dailyRows = yearData[index].dailyEntries.map(entry => [
-                new Date(entry.date + 'T00:00:00-03:00').toLocaleDateString('pt-BR'),
-                formatCurrency(parseFloat(entry.faturamento)),
-                formatCurrency(parseFloat(entry.despesas)),
-                formatCurrency(parseFloat(entry.comissao)),
-                formatCurrency(parseFloat(entry.outras)),
-                entry.vendas
-            ]);
-            doc.autoTable({
-                startY: currentY,
-                head: [['Data', 'Faturamento', 'Despesas', 'Comissão', 'Outras', 'Vendas']],
-                body: dailyRows,
-                theme: 'striped',
-                headStyles: { fillColor: [46, 134, 222] },
-                styles: { fontSize: 8 },
-                margin: { left: 14 }
-            });
-            currentY = doc.lastAutoTable.finalY + 15;
-        }
-    });
-
-    if (!hasDailyData) {
-        doc.setFontSize(11);
-        doc.setTextColor(100);
-        doc.text("Não há lançamentos diários registrados para este ano.", 14, currentY);
-    }
-    doc.save(`Relatorio_Diario_${currentYear}.pdf`);
-}
-
-btnFullReport.addEventListener('click', generateFullReport);
-btnExportDaily.addEventListener('click', generateDailyReport);
-btnExportCompany.addEventListener('click', generateCompanyPDF);
-btnExportMonthlyInputs.addEventListener('click', generateMonthlyInputsPDF);
-btnExportAnnual.addEventListener('click', generateAnnualIndicatorsPDF);
-btnExportEvolution.addEventListener('click', generateEvolutionPDF);
-btnExportGlossary.addEventListener('click', generateGlossaryPDF);
-btnExportConsultant.addEventListener('click', generateConsultantDiagnosisPDF);
-
-
-function setupYearSelector() {
-    const current = new Date().getFullYear();
-    yearSelector.innerHTML = '';
-    for (let i = current + 5; i >= current - 5; i--) {
-        const option = document.createElement('option');
-        option.value = i; option.textContent = i; option.selected = (i === currentYear);
-        yearSelector.appendChild(option);
-    }
-}
-
-function setupDailyMonthSelector() {
-    dailyMonthSelector.innerHTML = '';
-    MONTHS.forEach((month, index) => {
-        const option = document.createElement('option');
-        option.value = index;
-        option.textContent = month;
-        option.selected = (index === new Date().getMonth());
-        dailyMonthSelector.appendChild(option);
-    });
-}
-
-function aggregateDailyData(year) {
-    if (!financialData[year]) return;
-
-    for (let i = 0; i < 12; i++) {
-        const monthData = financialData[year][i];
-        
-        if (!monthData) continue;
-
-        if (monthData.dailyEntries && monthData.dailyEntries.length > 0) {
-            const totals = monthData.dailyEntries.reduce((acc, entry) => {
-                acc.faturamento += parseFloat(entry.faturamento) || 0;
-                acc.despesasOperacionais += parseFloat(entry.despesas) || 0;
-                acc.numeroDeVendas += parseInt(entry.vendas) || 0;
-                acc.custosVariaveis += parseFloat(entry.comissao) || 0;
-                acc.outrasReceitasDespesas += parseFloat(entry.outras) || 0;
-                return acc;
-            }, { faturamento: 0, despesasOperacionais: 0, numeroDeVendas: 0, custosVariaveis: 0, outrasReceitasDespesas: 0 });
-            
-            monthData.faturamento = totals.faturamento;
-            monthData.despesasOperacionais = totals.despesasOperacionais;
-            monthData.numeroDeVendas = totals.numeroDeVendas;
-            monthData.custosVariaveis = totals.custosVariaveis;
-            monthData.outrasReceitasDespesas = totals.outrasReceitasDespesas;
-        } else {
-            monthData.faturamento = 0;
-            monthData.despesasOperacionais = 0;
-            monthData.numeroDeVendas = 0;
-            monthData.custosVariaveis = 0;
-            monthData.outrasReceitasDespesas = 0;
-        }
-    }
-}
-
-function showFieldDescription(fieldName) {
-    const description = FIELD_DESCRIPTIONS[fieldName];
-    if (description) {
-        monthlyFieldText.innerHTML = `<strong>${fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, ' $1').trim()}:</strong> ${description}`;
-        monthlyFieldInfoBox.style.display = 'flex';
-    }
-}
-
-function loadYearData(year) {
-    const tableBody = document.querySelector('#monthly-inputs tbody');
-    tableBody.innerHTML = '';
-    
-    if (!financialData[year]) financialData[year] = {};
-
-    const yearData = financialData[year];
-    const isManualEditAllowed = allowManualEditCheckbox.checked;
-
-    MONTHS.forEach((month, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>${month}</td>`;
-        
-        if (!yearData[index]) yearData[index] = { dailyEntries: [] };
-        const monthData = yearData[index];
-
-        INPUT_FIELDS.forEach(field => {
-            const td = document.createElement('td');
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.dataset.month = index;
-            input.dataset.field = field;
-            input.value = monthData[field] || '';
-            input.placeholder = "0.00";
-
-            const isAutoCalculatedField = ['faturamento', 'despesasOperacionais', 'numeroDeVendas', 'custosVariaveis', 'outrasReceitasDespesas'].includes(field);
-            input.readOnly = isAutoCalculatedField && !isManualEditAllowed;
-
-            input.addEventListener('focus', () => showFieldDescription(field));
-
-            td.appendChild(input);
-            row.appendChild(td);
-        });
-        tableBody.appendChild(row);
-    });
-}
-
-function calculateIndicators(data = {}) {
-    const inputs = {}; INPUT_FIELDS.forEach(field => inputs[field] = data[field] || 0);
-    const {faturamento, custosVariaveis, custosFixos, despesasOperacionais, outrasReceitasDespesas, numeroDeVendas, impostos, depreciacao, investimentos, financiamentosEntradas, amortizacaoDividas, aporteSocios, distribuicaoLucros} = inputs;
-    const lucroBruto = faturamento - custosVariaveis;
-    const lucroOperacional = lucroBruto - custosFixos - despesasOperacionais;
-    const lucroAntesImpostos = lucroOperacional + outrasReceitasDespesas;
-    const lucroLiquido = lucroAntesImpostos - impostos;
-    const margemLiquida = faturamento > 0 ? (lucroLiquido / faturamento) * 100 : 0;
-    const markup = custosVariaveis > 0 ? ((faturamento - custosVariaveis) / custosVariaveis) * 100 : 0;
-    
-    const custosFixosTotais = custosFixos + despesasOperacionais;
-    const indiceMargemContribuicao = faturamento > 0 ? 1 - (custosVariaveis / faturamento) : 0;
-    const pontoEquilibrio = indiceMargemContribuicao > 0 ? custosFixosTotais / indiceMargemContribuicao : 0;
-
-    const fluxoCaixaOperacional = lucroLiquido + depreciacao;
-    const fluxoCaixaInvestimentos = -investimentos;
-    const fluxoCaixaFinanciamentos = financiamentosEntradas - amortizacaoDividas + aporteSocios - distribuicaoLucros;
-    const fluxoCaixaLivre = fluxoCaixaOperacional + fluxoCaixaInvestimentos + fluxoCaixaFinanciamentos;
-    
-    return { 
-        lucroLiquido, margemLiquida, markup, pontoEquilibrio,
-        fluxoCaixaOperacional, fluxoCaixaInvestimentos, fluxoCaixaFinanciamentos, fluxoCaixaLivre, 
-        faturamento, custosTotais: custosFixos + custosVariaveis + despesasOperacionais,
-        custosVariaveis, numeroDeVendas
-    };
-}
-
-function generateBusinessAdvice(indicators, settings) {
-    const adviceList = [];
-    const { benchmarkMargem = 0, benchmarkCustos = 0, benchmarkMarkup = 0, businessType } = settings;
-    if (benchmarkMargem > 0 && indicators.margemLiquida < benchmarkMargem) {
-        let conselho = { titulo: "Margem Líquida Abaixo da Meta", texto: `Sua margem líquida (${formatPercent(indicators.margemLiquida)}) está abaixo da sua meta de ${formatPercent(benchmarkMargem)}. Isso significa que os custos e despesas estão consumindo uma fatia muito grande do seu faturamento.`};
-        if (businessType === 'varejo' || businessType === 'ecommerce') conselho.acao = "Crie um programa de fidelidade para aumentar a recorrência. Uma <strong>landing page</strong> para capturar emails e uma estratégia de email marketing podem ajudar a aumentar as vendas para a mesma base de clientes.";
-        else conselho.acao = "Revise sua precificação. Utilize suas <strong>redes sociais</strong> para comunicar o valor agregado do seu serviço, justificando um preço maior.";
-        adviceList.push(conselho);
-    }
-    if (benchmarkMarkup > 0 && indicators.markup < benchmarkMarkup) {
-        adviceList.push({ titulo: "Markup Abaixo da Meta", texto: `Seu markup médio (${formatPercent(indicators.markup)}) está abaixo do mínimo desejado de ${formatPercent(benchmarkMarkup)}. Isso impacta diretamente sua capacidade de gerar lucro bruto.`, acao: "Otimize sua precificação. Se vender online, utilize um <strong>e-commerce</strong> que permita testes A/B de preços. Considere também vender em <strong>marketplaces</strong> para alcançar um público maior." });
-    }
-    const custoVariavelPercent = indicators.faturamento > 0 ? (indicators.custosTotais / indicators.faturamento) * 100 : 0;
-    if (benchmarkCustos > 0 && custoVariavelPercent > benchmarkCustos) {
-         adviceList.push({ titulo: "Custos Totais Elevados", texto: `Seus custos totais representam ${formatPercent(custoVariavelPercent)} do faturamento, acima da sua meta de ${formatPercent(benchmarkCustos)}.`, acao: "Busque renegociar com seus fornecedores e revise suas despesas fixas. Considere um sistema de gestão (ERP) simples para controlar melhor as compras. A criação de um <strong>site institucional</strong> pode atrair novos fornecedores." });
-    }
-    if (adviceList.length === 0) {
-        adviceList.push({ titulo: "Parabéns, seus indicadores estão ótimos!", texto: "Todos os seus principais indicadores estão dentro das metas que você definiu. Continue monitorando para manter o bom desempenho.", acao: "O próximo passo pode ser a expansão. Use o tráfego pago nas <strong>redes sociais</strong> para testar novos públicos ou explore a venda em novos canais, como um <strong>e-commerce</strong> próprio." });
-    }
-    return adviceList;
-}
-
-function updateAllCalculations() { 
-    if (!allowManualEditCheckbox.checked) {
-        aggregateDailyData(currentYear);
-    }
-    loadYearData(currentYear);
-    renderMonthlyIndicators(); 
-    renderAnnualIndicators(); 
-}
-    
-function renderMonthlyIndicators() {
-    const tableBody = document.querySelector('#monthly-indicators-table tbody');
-    tableBody.innerHTML = '';
-    const yearData = financialData[currentYear] || {};
-    MONTHS.forEach((month, index) => {
-        const indicators = calculateIndicators(yearData[index]);
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>${month}</td><td class="${indicators.lucroLiquido >= 0 ? 'positive' : 'negative'}">${formatCurrency(indicators.lucroLiquido)}</td><td class="${indicators.margemLiquida >= 0 ? 'positive' : 'negative'}">${formatPercent(indicators.margemLiquida)}</td><td class="${indicators.markup >= 0 ? 'positive' : 'negative'}">${formatPercent(indicators.markup)}</td><td class="${indicators.fluxoCaixaOperacional >= 0 ? 'positive' : 'negative'}">${formatCurrency(indicators.fluxoCaixaOperacional)}</td><td class="${indicators.fluxoCaixaInvestimentos >= 0 ? 'positive' : 'negative'}">${formatCurrency(indicators.fluxoCaixaInvestimentos)}</td><td class="${indicators.fluxoCaixaFinanciamentos >= 0 ? 'positive' : 'negative'}">${formatCurrency(indicators.fluxoCaixaFinanciamentos)}</td><td class="${indicators.fluxoCaixaLivre >= 0 ? 'positive' : 'negative'}"><strong>${formatCurrency(indicators.fluxoCaixaLivre)}</strong></td>`;
-        tableBody.appendChild(row);
-    });
-}
-
-async function renderAnnualIndicators() {
-    const container = document.getElementById('annual-indicators-content');
-    container.innerHTML = '';
-    const yearData = financialData[currentYear] || {};
-    let annualTotals = {}; 
-    INPUT_FIELDS.forEach(field => annualTotals[field] = 0);
-    let monthsWithDataCount = 0;
-    for(let i=0; i<12; i++) { 
-        if(yearData[i]) {
-            INPUT_FIELDS.forEach(field => annualTotals[field] += yearData[i][field] || 0);
-            if((yearData[i].faturamento > 0) || (yearData[i].custosVariaveis > 0) || (yearData[i].custosFixos > 0)) monthsWithDataCount++;
-        }
-    }
-    const divisor = monthsWithDataCount > 0 ? monthsWithDataCount : 1;
-    const annualIndicators = calculateIndicators(annualTotals);
-
-    const displayIndicators = { ...annualIndicators };
-    displayIndicators.faturamentoMedio = (annualTotals.faturamento / divisor) || 0;
-    displayIndicators.volumeVendasMedio = (annualTotals.numeroDeVendas / divisor) || 0;
-    displayIndicators.cmv = annualTotals.custosVariaveis; 
-    displayIndicators.pontoEquilibrioMedio = (annualIndicators.pontoEquilibrio / divisor) || 0;
-
-    const categories = {
-        "Desempenho de Vendas": ['faturamentoMedio', 'volumeVendasMedio'],
-        "Rentabilidade e Lucro": ['lucroLiquido', 'margemLiquida', 'markup', 'cmv', 'pontoEquilibrioMedio'],
-        "Fluxo de Caixa": ['fluxoCaixaLivre', 'fluxoCaixaOperacional', 'fluxoCaixaInvestimentos', 'fluxoCaixaFinanciamentos']
-    };
-
-    for (const categoryName in categories) {
-        const categoryDiv = document.createElement('div');
-        categoryDiv.className = 'card-category';
-        categoryDiv.innerHTML = `<h2>${categoryName}</h2>`;
-        const gridDiv = document.createElement('div');
-        gridDiv.className = 'indicators-grid';
-        categories[categoryName].forEach(key => {
-            const glossaryKey = key === 'cmv' ? 'custosVariaveis' : (key === 'pontoEquilibrioMedio' ? 'pontoEquilibrio' : key);
-            const cardTitle = key === 'cmv' ? 'Custo da Mercadoria Vendida (CMV)' : (key === 'pontoEquilibrioMedio' ? 'Ponto de Equilíbrio Médio' : GLOSSARY_DATA[glossaryKey]?.nome);
-            const indicatorInfo = GLOSSARY_DATA[glossaryKey];
-            if (!indicatorInfo) return;
-            const value = displayIndicators[key];
-            let formattedValue;
-            if(key === 'volumeVendasMedio'){ formattedValue = (value || 0).toFixed(1).replace('.', ','); } 
-            else if (key.includes('margem') || key.includes('markup')) { formattedValue = formatPercent(value); } 
-            else { formattedValue = formatCurrency(value); }
-            gridDiv.innerHTML += `<div class="card"><h3>${cardTitle}</h3><div class="value ${value >= 0 ? 'positive' : 'negative'}">${formattedValue}</div><p class="explanation">${indicatorInfo.significado}</p></div>`;
-        });
-        categoryDiv.appendChild(gridDiv);
-        container.appendChild(categoryDiv);
-    }
-    
-    const adviceContainer = document.getElementById('advice-container');
-    if(userSettings && userSettings.businessType){
-        const adviceList = generateBusinessAdvice(annualIndicators, userSettings);
-        adviceContainer.innerHTML = '';
-        adviceList.forEach(advice => {
-            const adviceCard = document.createElement('div');
-            adviceCard.className = 'card';
-            adviceCard.innerHTML = `<h3>${advice.titulo}</h3><p>${advice.texto}</p><hr style="margin: 10px 0;"><p><strong>Ação Sugerida:</strong> ${advice.acao}</p>`;
-            adviceContainer.appendChild(adviceCard);
-        });
+function updateResultsBadge(isReal) {
+    if (isReal) {
+        dataSourceBadge.innerText = "(Dados Reais)";
+        dataSourceBadge.className = "badge-real";
     } else {
-        adviceContainer.innerHTML = `<p>Preencha suas metas na aba 'Configurações' para receber conselhos personalizados.</p>`;
+        dataSourceBadge.innerText = "(Dados Simulados)";
+        dataSourceBadge.className = "badge-fictitious";
     }
 }
-    
-let chartInstances = {};
-function renderAllCharts() {
-    const yearData = financialData[currentYear] || {};
-    const labels = MONTHS;
-    const chartData = { faturamento: [], custosTotais: [], lucroLiquido: [], fluxoCaixaLivre: [] };
-    for(let i=0; i<12; i++) {
-        const indicators = calculateIndicators(yearData[i]);
-        chartData.faturamento.push(indicators.faturamento);
-        chartData.custosTotais.push(indicators.custosTotais);
-        chartData.lucroLiquido.push(indicators.lucroLiquido);
-        chartData.fluxoCaixaLivre.push(indicators.fluxoCaixaLivre);
-    }
-    const chartConfigs = {
-        monthlyEvolutionChart: { type: 'line', data: { labels, datasets: [ { label: 'Faturamento', data: chartData.faturamento, borderColor: '#0a9396', fill: false, tension: 0.1 }, { label: 'Custos Totais', data: chartData.custosTotais, borderColor: '#e76f51', fill: false, tension: 0.1 }, { label: 'Lucro Líquido', data: chartData.lucroLiquido, borderColor: '#2a9d8f', fill: false, tension: 0.1 } ]}},
-        cashFlowChart: { type: 'bar', data: { labels, datasets: [ { label: 'Fluxo de Caixa Livre', data: chartData.fluxoCaixaLivre, backgroundColor: (ctx) => (ctx.raw >= 0 ? '#2a9d8f' : '#e76f51') } ]}}
+
+function setupEventListeners() {
+    document.getElementById('link-register').onclick = (e) => { e.preventDefault(); toggleAuthBox('register'); };
+    document.getElementById('link-login-reg').onclick = (e) => { e.preventDefault(); toggleAuthBox('login'); };
+    document.getElementById('link-forgot').onclick = (e) => { e.preventDefault(); toggleAuthBox('forgot'); };
+    document.getElementById('link-login-forgot').onclick = (e) => { e.preventDefault(); toggleAuthBox('login'); };
+
+    document.getElementById('login-form').onsubmit = (e) => {
+        e.preventDefault();
+        login(document.getElementById('login-email').value, document.getElementById('login-password').value, document.getElementById('login-name').value);
     };
-    for (const id in chartConfigs) {
-        if(chartInstances[id]) chartInstances[id].destroy();
-        const canvas = document.getElementById(id);
-        if(canvas) chartInstances[id] = new Chart(canvas.getContext('2d'), chartConfigs[id]);
-    }
-}
+    document.getElementById('register-form').onsubmit = (e) => {
+        e.preventDefault();
+        register(document.getElementById('reg-name').value, document.getElementById('reg-email').value, document.getElementById('reg-password').value);
+    };
+    document.getElementById('forgot-form').onsubmit = (e) => {
+        e.preventDefault();
+        resetPassword(document.getElementById('forgot-email').value);
+    };
+    document.getElementById('btn-logout').onclick = logout;
 
-// CORREÇÃO DE SEGURANÇA (XSS): Usando createElement em vez de innerHTML
-function renderDailyEntries(year, month) {
-    const tableBody = document.querySelector('#daily-entries-table tbody');
-    tableBody.innerHTML = ''; // Limpa a tabela
-    
-    if (!financialData[year] || !financialData[year][month] || !financialData[year][month].dailyEntries) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="7">Nenhum lançamento para este mês.</td>';
-        tableBody.appendChild(tr);
-        return;
+    document.getElementById('lead-search-form').onsubmit = searchLeads;
+
+    if(btnShowSavedLeads) {
+        btnShowSavedLeads.onclick = loadMyContacts;
     }
 
-    const entries = financialData[year][month].dailyEntries;
-    if (entries.length === 0) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="7">Nenhum lançamento para este mês.</td>';
-        tableBody.appendChild(tr);
-        return;
-    }
-    
-    entries.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    entries.forEach((entry, index) => {
-        const row = document.createElement('tr');
-        
-        // Cria cada célula de forma segura
-        const createCell = (text) => {
-            const td = document.createElement('td');
-            td.textContent = text;
-            return td;
-        };
-
-        const formattedDate = new Date(entry.date + 'T00:00:00-03:00').toLocaleDateString('pt-BR');
-
-        row.appendChild(createCell(formattedDate));
-        row.appendChild(createCell(formatCurrency(parseFloat(entry.faturamento))));
-        row.appendChild(createCell(formatCurrency(parseFloat(entry.despesas))));
-        row.appendChild(createCell(formatCurrency(parseFloat(entry.comissao))));
-        row.appendChild(createCell(formatCurrency(parseFloat(entry.outras))));
-        row.appendChild(createCell(entry.vendas));
-
-        // Botões de ação (HTML seguro pois é controlado por nós)
-        const actionsTd = document.createElement('td');
-        actionsTd.innerHTML = `<button class="action-btn edit-btn" onclick="handleEditDailyEntry(${year}, ${month}, ${index})">Editar</button><button class="action-btn delete-btn" onclick="handleDeleteDailyEntry(${year}, ${month}, ${index})">Excluir</button>`;
-        row.appendChild(actionsTd);
-
-        tableBody.appendChild(row);
+    messageTemplateInput.addEventListener('input', () => {
+        dbHelper.setSetting('current_draft_message', messageTemplateInput.value);
     });
-}
 
-function renderGlossary() {
-    const container = document.getElementById('glossary-container');
-    container.innerHTML = '';
-    Object.keys(GLOSSARY_DATA).sort((a,b) => GLOSSARY_DATA[a].nome.localeCompare(GLOSSARY_DATA[b].nome)).forEach(key => {
-        const item = GLOSSARY_DATA[key];
-        const div = document.createElement('div');
-        div.className = 'glossary-item';
-        div.innerHTML = `<div class="glossary-header">${item.nome}</div><div class="glossary-content"><div><p><strong>Fórmula:</strong> ${item.formula}</p><p><strong>Significado:</strong> ${item.significado}</p><p><strong>Exemplo:</strong> ${item.exemplo}</p><p><strong>Dica:</strong> ${item.dica}</p></div></div>`;
-        container.appendChild(div);
-    });
-    container.querySelectorAll('.glossary-header').forEach(header => {
-        header.addEventListener('click', () => header.parentElement.classList.toggle('active'));
-    });
-}
-    
-function exportMonthlyToPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.text(`Indicadores Mensais - ${currentYear}`, 14, 15);
-    doc.autoTable({ html: '#monthly-indicators-table', startY: 20, theme: 'grid', headStyles: { fillColor: [0, 95, 115] } });
-    doc.save(`Indicadores_${currentYear}.pdf`);
-}
-function exportMonthlyToExcel() {
-    const wb = XLSX.utils.table_to_book(document.getElementById('monthly-indicators-table'), {sheet: 'Indicadores Mensais'});
-    XLSX.writeFile(wb, `Indicadores_${currentYear}.xlsx`);
-}
-
-const formatCurrency = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const formatPercent = (v) => (v || 0).toFixed(2).replace('.', ',') + '%';
-
-
-// --- ATRIBUIÇÃO DE EVENTOS ---
-loginForm.addEventListener('submit', handleLogin);
-registerForm.addEventListener('submit', handleRegister);
-resetPasswordForm.addEventListener('submit', handlePasswordReset);
-forgotPasswordLink.addEventListener('click', () => toggleForms('reset'));
-toggleFormsLinks.forEach(link => {
-    link.addEventListener('click', (e) => toggleForms(e.target.dataset.form));
-});
-logoutBtn.addEventListener('click', () => auth.signOut());
-deleteAccountBtn.addEventListener('click', deleteAccountAndData);
-saveDataBtn.addEventListener('click', saveMonthlyData);
-saveSettingsBtn.addEventListener('click', saveBusinessSettings);
-recalculateAllBtn.addEventListener('click', updateAllCalculations);
-
-// Eventos de Backup
-btnBackupLocal.addEventListener('click', exportLocalBackup);
-btnRestoreLocal.addEventListener('click', () => inputRestoreFile.click());
-inputRestoreFile.addEventListener('change', importLocalBackup);
-
-// Evento da aba Diagnóstico
-diagnosisForm.addEventListener('submit', saveDiagnosisData);
-
-// Evento da Nova Aba Consultor
-saveConsultantDiagnosisBtn.addEventListener('click', saveConsultantDiagnosis);
-
-// Evento de Desbloqueio
-btnGenerateUnlockCode.addEventListener('click', handleUnlockTabs);
-
-// Eventos XLSX (Novos)
-btnExportCompanyXLSX.addEventListener('click', handleExportCompanyXLSX);
-btnImportCompanyXLSX.addEventListener('change', handleImportCompanyXLSX);
-btnExportDailyXLSX.addEventListener('click', handleExportDailyXLSX);
-btnImportDailyXLSX.addEventListener('change', handleImportDailyXLSX);
-btnExportMonthlyXLSX.addEventListener('click', handleExportMonthlyXLSX);
-btnImportMonthlyXLSX.addEventListener('change', handleImportMonthlyXLSX);
-document.getElementById('export-excel-monthly').addEventListener('click', exportMonthlyToExcel); // Existente
-
-mainNav.addEventListener('click', (e) => {
-    if (e.target.tagName === 'BUTTON') {
-        const tabId = e.target.dataset.tab;
-        document.querySelectorAll('.tab-link').forEach(btn => btn.classList.remove('active'));
-        e.target.classList.add('active');
-        tabContents.forEach(content => content.classList.toggle('active', content.id === tabId));
-        if (tabId === 'evolucao') renderAllCharts();
-        if (tabId === 'indicadores-anuais') renderAnnualIndicators();
-        if (tabId === 'entradas-diarias') {
-            const selectedMonth = parseInt(dailyMonthSelector.value);
-            renderDailyEntries(currentYear, selectedMonth);
+    document.getElementById('btn-config').onclick = () => {
+        if(state.providerId) {
+            document.getElementById('api-provider-select').value = state.providerId;
         }
+        document.getElementById('config-modal').classList.remove('hidden');
+        updateApiStatusUI();
+    };
+    
+    if(btnSaveDbDirect) btnSaveDbDirect.onclick = saveCurrentLeadsToDB;
+    
+    if(btnBackup) btnBackup.onclick = backupData;
+    if(btnRestoreTrigger) btnRestoreTrigger.onclick = () => restoreFileInput.click();
+    if(restoreFileInput) restoreFileInput.onchange = restoreData;
+    
+    const btnDbManager = document.getElementById('btn-db-manager');
+    if (btnDbManager) {
+        btnDbManager.onclick = openDatabaseModal;
     }
-});
 
-yearSelector.addEventListener('change', (e) => {
-    currentYear = parseInt(e.target.value);
-    updateAllCalculations();
-    const selectedMonth = parseInt(dailyMonthSelector.value);
-    renderDailyEntries(currentYear, selectedMonth);
-});
-
-allowManualEditCheckbox.addEventListener('change', () => {
-    updateAllCalculations();
-});
-
-recalculateAnnualBtn.addEventListener('click', renderAnnualIndicators);
-exportPdfMonthlyBtn.addEventListener('click', exportMonthlyToPDF);
-
-
-// *** FUNÇÕES E EVENTOS DA ABA DIÁRIA ***
-
-function handleEditDailyEntry(year, month, index) {
-    currentlyEditingIndex = { year, month, index };
-    const entry = financialData[year][month].dailyEntries[index];
+    document.getElementById('btn-download-delete-csv').onclick = () => downloadAndDelete('csv');
+    document.getElementById('btn-download-delete-xlsx').onclick = () => downloadAndDelete('xlsx');
     
-    document.getElementById('daily-date').value = entry.date;
-    document.getElementById('daily-faturamento').value = entry.faturamento;
-    document.getElementById('daily-despesas').value = entry.despesas;
-    document.getElementById('daily-comissao').value = entry.comissao || '';
-    document.getElementById('daily-outras').value = entry.outras || '';
-    document.getElementById('daily-vendas').value = entry.vendas;
+    document.getElementById('btn-save-details').onclick = saveLeadDetails;
+    document.getElementById('btn-cancel-details').onclick = () => leadDetailsModal.classList.add('hidden');
     
-    document.querySelector('#daily-entry-form button[type="submit"]').textContent = 'Atualizar Lançamento';
-    cancelEditBtn.style.display = 'block';
-    dailyEntryForm.scrollIntoView({ behavior: 'smooth' });
+    document.querySelector('.close-modal').onclick = () => document.getElementById('config-modal').classList.add('hidden');
+    document.querySelector('.close-modal-db').onclick = () => document.getElementById('database-modal').classList.add('hidden');
+    document.querySelector('.close-modal-details').onclick = () => document.getElementById('lead-details-modal').classList.add('hidden');
+    document.querySelector('.close-modal-msg').onclick = () => document.getElementById('message-modal').classList.add('hidden');
+
+    document.getElementById('save-api-key').onclick = validateAndSaveApiKey;
+    
+    document.getElementById('btn-admin-reset').onclick = resetAccess;
+    document.getElementById('btn-admin-add').onclick = addAdminLeads;
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    document.getElementById('btn-revalidate-trigger').onclick = () => {
+        document.getElementById('btn-config').click();
+    };
+    document.getElementById('btn-generate-challenge').onclick = generateChallenge;
+    document.getElementById('btn-verify-challenge').onclick = verifyChallenge;
+    document.getElementById('leads-quantity').addEventListener('input', updateWhatsappLink);
+
+    document.getElementById('btn-save-template').onclick = saveNewTemplate;
+    document.getElementById('btn-load-default-msg').onclick = loadDefaultMessage;
+
+    document.getElementById('copy-message').onclick = () => {
+        const text = document.getElementById('generated-message');
+        text.select();
+        document.execCommand('copy');
+        alert('Mensagem copiada para a área de transferência!');
+    };
+    document.getElementById('btn-export-csv').onclick = exportToCSV;
+    document.getElementById('btn-export-xlsx').onclick = exportToXLSX;
+
+    if(btnSyncData) {
+        btnSyncData.onclick = syncSystem;
+    }
+
+    const btnSaveStorageMode = document.getElementById('btn-save-storage-mode');
+    if (btnSaveStorageMode) {
+        btnSaveStorageMode.onclick = saveStorageMode;
+    }
 }
 
-async function handleDeleteDailyEntry(year, month, index) {
-    if (confirm('Tem certeza de que deseja excluir este lançamento?')) {
-        financialData[year][month].dailyEntries.splice(index, 1);
-        
-        await saveDataToFirestore(currentUser.uid, financialData, 'financialData');
-        updateAllCalculations();
-        renderDailyEntries(year, month);
-
-        dailyMessageEl.textContent = 'Lançamento excluído com sucesso!';
-        setTimeout(() => dailyMessageEl.textContent = '', 3000);
-    }
+function toggleAuthBox(type) {
+    loginBox.classList.add('hidden');
+    registerBox.classList.add('hidden');
+    forgotBox.classList.add('hidden');
+    if (type === 'login') loginBox.classList.remove('hidden');
+    if (type === 'register') registerBox.classList.remove('hidden');
+    if (type === 'forgot') forgotBox.classList.remove('hidden');
 }
-
-function resetDailyFormState() {
-    currentlyEditingIndex = null;
-    dailyEntryForm.reset();
-    document.querySelector('#daily-entry-form button[type="submit"]').textContent = 'Adicionar Lançamento';
-    cancelEditBtn.style.display = 'none';
-}
-
-cancelEditBtn.addEventListener('click', resetDailyFormState);
-
-dailyMonthSelector.addEventListener('change', (e) => {
-    const selectedMonth = parseInt(e.target.value);
-    renderDailyEntries(currentYear, selectedMonth);
-});
-
-dailyEntryForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const date = document.getElementById('daily-date').value;
-    const faturamento = document.getElementById('daily-faturamento').value;
-    const despesas = document.getElementById('daily-despesas').value;
-    const comissao = document.getElementById('daily-comissao').value;
-    const outras = document.getElementById('daily-outras').value;
-    const vendas = document.getElementById('daily-vendas').value;
-    const month = parseInt(dailyMonthSelector.value);
-    
-    let message = '';
-
-    const newEntry = { date, faturamento, despesas, comissao, outras, vendas };
-
-    if (currentlyEditingIndex !== null) {
-        const { year, month: editMonth, index } = currentlyEditingIndex;
-        financialData[year][editMonth].dailyEntries[index] = newEntry;
-        message = 'Lançamento atualizado com sucesso!';
-    } else {
-        if (!financialData[currentYear]) financialData[currentYear] = {};
-        if (!financialData[currentYear][month]) {
-            financialData[currentYear][month] = { dailyEntries: [] };
-        } else if (!financialData[currentYear][month].dailyEntries) {
-            financialData[currentYear][month].dailyEntries = [];
-        }
-        
-        financialData[currentYear][month].dailyEntries.push(newEntry);
-        message = 'Lançamento adicionado com sucesso!';
-    }
-    
-    await saveDataToFirestore(currentUser.uid, financialData, 'financialData');
-    updateAllCalculations();
-    renderDailyEntries(currentYear, month);
-    
-    resetDailyFormState();
-    dailyMessageEl.textContent = message;
-    setTimeout(() => dailyMessageEl.textContent = '', 3000);
-});
-
-// --- INICIALIZAÇÃO ---
-initialize();
