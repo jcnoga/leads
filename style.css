@@ -315,6 +315,11 @@ main {
     background-color: #fecaca;
 }
 
+.btn-import:hover {
+    color: var(--success);
+    border-color: var(--success);
+}
+
 #btn-export-xlsx:hover {
     color: var(--excel-color);
     border-color: var(--excel-color);
