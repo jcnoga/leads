@@ -1871,8 +1871,8 @@ async function cleanupNiches() {
         let updatedCount = 0;
 
         // Listas de palavras-chave para cada nicho
-        const petKeywords = ['pet', 'ração', 'animal', 'veterinári', 'banho e tosa', 'agropecuária'];
-        const salaoKeywords = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha'];
+        const petKeywords = ['pet', 'ração', 'animal', 'veterinário', 'banho e tosa', 'agropecuária'];
+        const salaoKeywords = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha', 'manicure', 'pedicure'];
 
 
         for (const lead of allLeads) {
