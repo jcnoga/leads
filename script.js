@@ -1854,7 +1854,7 @@ function updateResultsBadge(isReal) {
 
 // --- NOVA FUNÇÃO ---
 async function cleanupNiches() {
-    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar e preencher nichos vazios de 'Pet Shops', 'Salões de Beleza' e 'Padarias' com base no nome do estabelecimento. Deseja continuar?")) {
+    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar e preencher nichos vazios de 'Pet Shops', 'Salões de Beleza', 'Padarias', 'Nutricionistas', 'Fisioterapeutas', 'Médicos', 'Contadores' e 'Advogados' com base no nome do estabelecimento. Deseja continuar?")) {
         return;
     }
 
@@ -1867,13 +1867,23 @@ async function cleanupNiches() {
 
         let petCount = 0;
         let salaoCount = 0;
-        let padariaCount = 0; // Novo contador para padarias
+        let padariaCount = 0;
+        let nutricionistaCount = 0; // Novo contador
+        let fisioterapeutaCount = 0; // Novo contador
+        let medicoCount = 0; // Novo contador
+        let contadorCount = 0; // Novo contador
+        let advogadoCount = 0; // Novo contador
         let updatedCount = 0;
 
         // Listas de palavras-chave para cada nicho
-        const petKeywords     = ['pet', 'petshop', 'ração', 'animal', 'veterinário', 'banho e tosa', 'agropecuária', 'banho', 'tosa'];
-        const salaoKeywords   = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha', 'manicure', 'pedicure'];
-        const padariaKeywords = ['padaria', 'pão', 'panificadora', 'confeitaria', 'panif', 'pães', 'bakery']; // Novas palavras-chave para padaria
+        const petKeywords = ['pet', 'petshop', 'ração', 'animal', 'veterinári', 'banho e tosa', 'agropecuária', 'banho', 'tosa', 'dog', 'gato'];
+        const salaoKeywords = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha', 'manicure', 'pedicure'];
+        const padariaKeywords = ['padaria', 'pão', 'panificadora', 'confeitaria', 'panif', 'pães', 'bakery', 'doceria'];
+        const nutricionistaKeywords = ['nutricionista', 'nutrição', 'dieta', 'alimentação', 'saudável']; // Novas palavras-chave
+        const fisioterapeutaKeywords = ['fisioterapeuta', 'fisioterapia', 'reabilitação', 'pilates', 'físio']; // Novas palavras-chave
+        const medicoKeywords = ['médico', 'medico', 'clínica', 'clinica', 'consultório', 'consultorio', 'dr.', 'dra.', 'saúde', 'hospital', 'cardiologia', 'pediatria', 'dermatologia', 'oftalmologia', 'ortopedia']; // Novas palavras-chave
+        const contadorKeywords = ['contador', 'contabilidade', 'contábil', 'contabil', 'escritório contábil', 'assessoria contábil', 'finanças', 'imposto']; // Novas palavras-chave
+        const advogadoKeywords = ['advogado', 'advocacia', 'direito', 'escritório de advocacia', 'justiça', 'jurídico']; // Novas palavras-chave
 
 
         for (const lead of allLeads) {
@@ -1883,8 +1893,33 @@ async function cleanupNiches() {
 
             // 1. Verifica se o nicho está vazio ou nulo para preenchê-lo
             if (!currentNiche) {
-                // A ordem de verificação é importante para evitar classificações erradas.
-                if (salaoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                // A ordem de verificação é importante.
+                if (advogadoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Advogados';
+                    advogadoCount++;
+                    needsUpdate = true;
+                }
+                else if (contadorKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Contador';
+                    contadorCount++;
+                    needsUpdate = true;
+                }
+                else if (medicoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Médicos';
+                    medicoCount++;
+                    needsUpdate = true;
+                }
+                else if (fisioterapeutaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Fisioterapeuta';
+                    fisioterapeutaCount++;
+                    needsUpdate = true;
+                }
+                else if (nutricionistaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Nutricionista';
+                    nutricionistaCount++;
+                    needsUpdate = true;
+                }
+                else if (salaoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
                     lead.niche = 'Salão de Beleza';
                     salaoCount++;
                     needsUpdate = true;
@@ -1902,17 +1937,47 @@ async function cleanupNiches() {
             }
             // 2. Se o nicho já existe, verifica se está correto para padronizá-lo
             else {
-                // Usando 'else if' para evitar que um "Salão Pet" seja classificado em múltiplas categorias
-                if (petKeywords.some(keyword => lowerCaseName.includes(keyword))) {
-                    if (lead.niche !== 'Pet Shop') {
-                        lead.niche = 'Pet Shop';
-                        petCount++;
+                // Mantém a ordem para evitar classificações duplas se um nome se encaixar em mais de uma categoria.
+                if (advogadoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Advogados') {
+                        lead.niche = 'Advogados';
+                        advogadoCount++;
+                        needsUpdate = true;
+                    }
+                } else if (contadorKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Contador') {
+                        lead.niche = 'Contador';
+                        contadorCount++;
+                        needsUpdate = true;
+                    }
+                } else if (medicoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Médicos') {
+                        lead.niche = 'Médicos';
+                        medicoCount++;
+                        needsUpdate = true;
+                    }
+                } else if (fisioterapeutaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Fisioterapeuta') {
+                        lead.niche = 'Fisioterapeuta';
+                        fisioterapeutaCount++;
+                        needsUpdate = true;
+                    }
+                } else if (nutricionistaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Nutricionista') {
+                        lead.niche = 'Nutricionista';
+                        nutricionistaCount++;
                         needsUpdate = true;
                     }
                 } else if (salaoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
                     if (lead.niche !== 'Salão de Beleza') {
                         lead.niche = 'Salão de Beleza';
                         salaoCount++;
+                        needsUpdate = true;
+                    }
+                } else if (petKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Pet Shop') {
+                        lead.niche = 'Pet Shop';
+                        petCount++;
                         needsUpdate = true;
                     }
                 } else if (padariaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
@@ -1924,14 +1989,22 @@ async function cleanupNiches() {
                 }
             }
 
-
             if (needsUpdate) {
                 await dbHelper.add('leads', lead); // 'add' é um 'put', então vai atualizar
                 updatedCount++;
             }
         }
 
-        alert(`Otimização concluída!\n\n- ${salaoCount} registros definidos como "Salão de Beleza".\n- ${petCount} registros definidos como "Pet Shop".\n- ${padariaCount} registros definidos como "Padaria".\n\nTotal de leads modificados: ${updatedCount}.`);
+        alert(`Otimização concluída!\n\n` +
+            `- ${salaoCount} registros definidos como "Salão de Beleza".\n` +
+            `- ${petCount} registros definidos como "Pet Shop".\n` +
+            `- ${padariaCount} registros definidos como "Padaria".\n` +
+            `- ${nutricionistaCount} registros definidos como "Nutricionista".\n` +
+            `- ${fisioterapeutaCount} registros definidos como "Fisioterapeuta".\n` +
+            `- ${medicoCount} registros definidos como "Médicos".\n` +
+            `- ${contadorCount} registros definidos como "Contador".\n` +
+            `- ${advogadoCount} registros definidos como "Advogados".\n\n` +
+            `Total de leads modificados: ${updatedCount}.`);
 
         // Recarrega a lista se o usuário estiver vendo os contatos salvos
         if (state.isShowingSaved) {
@@ -1943,7 +2016,6 @@ async function cleanupNiches() {
         alert("Ocorreu um erro durante a otimização. Verifique o console para mais detalhes.");
     }
 }
-
 function setupEventListeners() {
     document.getElementById('link-register').onclick = (e) => { e.preventDefault(); toggleAuthBox('register'); };
     document.getElementById('link-login-reg').onclick = (e) => { e.preventDefault(); toggleAuthBox('login'); };
