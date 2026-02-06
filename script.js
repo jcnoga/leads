@@ -1,11 +1,11 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
-  authDomain: "leads-e5ae1.firebaseapp.com",
-  projectId: "leads-e5ae1",
-  storageBucket: "leads-e5ae1.firebasestorage.app",
-  messagingSenderId: "17213040146",
-  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
-  measurementId: "G-QSGNSDGJML"
+  apiKey: "AIzaSyAbIyNdGuLgWA-p51FHbLuKHW-_vWqgjqQ",
+  authDomain: "leadsx-8273d.firebaseapp.com",
+  projectId: "leadsx-8273d",
+  storageBucket: "leadsx-8273d.firebasestorage.app",
+  messagingSenderId: "331503005820",
+  appId: "1:331503005820:web:bf7332fdb600622bca19f9",
+  measurementId: "G-JW3NW3WHDP"
 };
 
 const API_KEYS_CONFIG = {
