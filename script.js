@@ -1853,9 +1853,8 @@ function updateResultsBadge(isReal) {
 }
 
 // --- NOVA FUNÇÃO ---
-// --- NOVA FUNÇÃO ---
 async function cleanupNiches() {
-    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar e preencher nichos vazios de 'Pet Shops' e 'Salões de Beleza' com base no nome do estabelecimento. Deseja continuar?")) {
+    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar e preencher nichos vazios de 'Pet Shops', 'Salões de Beleza' e 'Padarias' com base no nome do estabelecimento. Deseja continuar?")) {
         return;
     }
 
@@ -1868,11 +1867,13 @@ async function cleanupNiches() {
 
         let petCount = 0;
         let salaoCount = 0;
+        let padariaCount = 0; // Novo contador para padarias
         let updatedCount = 0;
 
         // Listas de palavras-chave para cada nicho
-        const petKeywords = ['pet', 'petshop', 'ração', 'animal', 'veterinário', 'banho e tosa', 'agropecuária', 'banho', 'tosa'];
-        const salaoKeywords = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha', 'manicure', 'pedicure'];
+        const petKeywords     = ['pet', 'petshop', 'ração', 'animal', 'veterinário', 'banho e tosa', 'agropecuária', 'banho', 'tosa'];
+        const salaoKeywords   = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha', 'manicure', 'pedicure'];
+        const padariaKeywords = ['padaria', 'pão', 'panificadora', 'confeitaria', 'panif', 'pães', 'bakery']; // Novas palavras-chave para padaria
 
 
         for (const lead of allLeads) {
@@ -1880,24 +1881,28 @@ async function cleanupNiches() {
             const lowerCaseName = lead.name.toLowerCase();
             const currentNiche = lead.niche ? lead.niche.trim() : "";
 
-            // 1. Verifica se o nicho está vazio ou nulo
+            // 1. Verifica se o nicho está vazio ou nulo para preenchê-lo
             if (!currentNiche) {
-                // Verifica palavras-chave de Salão de Beleza
+                // A ordem de verificação é importante para evitar classificações erradas.
                 if (salaoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
                     lead.niche = 'Salão de Beleza';
                     salaoCount++;
                     needsUpdate = true;
                 }
-                // Se não for salão, verifica palavras-chave de Pet Shop
                 else if (petKeywords.some(keyword => lowerCaseName.includes(keyword))) {
                     lead.niche = 'Pet Shop';
                     petCount++;
                     needsUpdate = true;
                 }
+                else if (padariaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Padaria';
+                    padariaCount++;
+                    needsUpdate = true;
+                }
             }
-            // 2. Se o nicho já existe, verifica se está correto (lógica anterior)
+            // 2. Se o nicho já existe, verifica se está correto para padronizá-lo
             else {
-                // Usando 'else if' para evitar que um "Salão Pet" seja classificado duas vezes
+                // Usando 'else if' para evitar que um "Salão Pet" seja classificado em múltiplas categorias
                 if (petKeywords.some(keyword => lowerCaseName.includes(keyword))) {
                     if (lead.niche !== 'Pet Shop') {
                         lead.niche = 'Pet Shop';
@@ -1910,6 +1915,12 @@ async function cleanupNiches() {
                         salaoCount++;
                         needsUpdate = true;
                     }
+                } else if (padariaKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Padaria') {
+                        lead.niche = 'Padaria';
+                        padariaCount++;
+                        needsUpdate = true;
+                    }
                 }
             }
 
@@ -1920,7 +1931,7 @@ async function cleanupNiches() {
             }
         }
 
-        alert(`Otimização concluída!\n\n- ${salaoCount} registros definidos como "Salão de Beleza".\n- ${petCount} registros definidos como "Pet Shop".\n\nTotal de leads modificados: ${updatedCount}.`);
+        alert(`Otimização concluída!\n\n- ${salaoCount} registros definidos como "Salão de Beleza".\n- ${petCount} registros definidos como "Pet Shop".\n- ${padariaCount} registros definidos como "Padaria".\n\nTotal de leads modificados: ${updatedCount}.`);
 
         // Recarrega a lista se o usuário estiver vendo os contatos salvos
         if (state.isShowingSaved) {
