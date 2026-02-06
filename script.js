@@ -1852,6 +1852,61 @@ function updateResultsBadge(isReal) {
     }
 }
 
+// --- NOVA FUNÇÃO ---
+async function cleanupNiches() {
+    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar os nichos de 'Pet Shops' e 'Salões de Beleza' com base no nome do estabelecimento. Deseja continuar?")) {
+        return;
+    }
+
+    try {
+        const allLeads = await dbHelper.getAll('leads');
+        if (allLeads.length === 0) {
+            alert("Nenhum lead encontrado no banco de dados local para otimizar.");
+            return;
+        }
+
+        let petCount = 0;
+        let salaoCount = 0;
+        let updatedCount = 0;
+
+        for (const lead of allLeads) {
+            let needsUpdate = false;
+            const lowerCaseName = lead.name.toLowerCase();
+
+            // Usando 'else if' para evitar que um "Salão Pet" seja classificado duas vezes
+            if (lowerCaseName.includes('pet')) {
+                if (lead.niche !== 'Pet Shop') {
+                    lead.niche = 'Pet Shop';
+                    petCount++;
+                    needsUpdate = true;
+                }
+            } else if (lowerCaseName.includes('salão')) {
+                if (lead.niche !== 'Salão de Beleza') {
+                    lead.niche = 'Salão de Beleza';
+                    salaoCount++;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate) {
+                await dbHelper.add('leads', lead); // 'add' é um 'put', então vai atualizar
+                updatedCount++;
+            }
+        }
+
+        alert(`Otimização concluída!\n\n- ${petCount} registros atualizados para "Pet Shop".\n- ${salaoCount} registros atualizados para "Salão de Beleza".\n\nTotal de leads modificados: ${updatedCount}.`);
+
+        // Recarrega a lista se o usuário estiver vendo os contatos salvos
+        if (state.isShowingSaved) {
+            loadMyContacts();
+        }
+
+    } catch (error) {
+        console.error("Erro ao otimizar nichos:", error);
+        alert("Ocorreu um erro durante a otimização. Verifique o console para mais detalhes.");
+    }
+}
+
 function setupEventListeners() {
     document.getElementById('link-register').onclick = (e) => { e.preventDefault(); toggleAuthBox('register'); };
     document.getElementById('link-login-reg').onclick = (e) => { e.preventDefault(); toggleAuthBox('login'); };
@@ -1960,6 +2015,12 @@ function setupEventListeners() {
     const btnSaveStorageMode = document.getElementById('btn-save-storage-mode');
     if (btnSaveStorageMode) {
         btnSaveStorageMode.onclick = saveStorageMode;
+    }
+
+    // LISTENER PARA O NOVO BOTÃO
+    const btnCleanupNiches = document.getElementById('btn-cleanup-niches');
+    if (btnCleanupNiches) {
+        btnCleanupNiches.onclick = cleanupNiches;
     }
 }
 
