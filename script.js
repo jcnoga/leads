@@ -1853,8 +1853,9 @@ function updateResultsBadge(isReal) {
 }
 
 // --- NOVA FUNÇÃO ---
+// --- NOVA FUNÇÃO ---
 async function cleanupNiches() {
-    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar os nichos de 'Pet Shops' e 'Salões de Beleza' com base no nome do estabelecimento. Deseja continuar?")) {
+    if (!confirm("Esta ação irá varrer seu banco de dados local para padronizar e preencher nichos vazios de 'Pet Shops' e 'Salões de Beleza' com base no nome do estabelecimento. Deseja continuar?")) {
         return;
     }
 
@@ -1869,24 +1870,49 @@ async function cleanupNiches() {
         let salaoCount = 0;
         let updatedCount = 0;
 
+        // Listas de palavras-chave para cada nicho
+        const petKeywords = ['pet', 'ração', 'animal', 'veterinári', 'banho e tosa', 'agropecuária'];
+        const salaoKeywords = ['salão', 'salao', 'studio', 'cabeleireiro', 'beleza', 'hair', 'estética', 'esmalteria', 'sobrancelha'];
+
+
         for (const lead of allLeads) {
             let needsUpdate = false;
             const lowerCaseName = lead.name.toLowerCase();
+            const currentNiche = lead.niche ? lead.niche.trim() : "";
 
-            // Usando 'else if' para evitar que um "Salão Pet" seja classificado duas vezes
-            if (lowerCaseName.includes('Pet')) {
-                if (lead.niche !== 'Pet Shop') {
-                    lead.niche = 'Pet Shop';
-                    petCount++;
-                    needsUpdate = true;
-                }
-            } else if (lowerCaseName.includes('Salão')) {
-                if (lead.niche !== 'Salão de Beleza') {
+            // 1. Verifica se o nicho está vazio ou nulo
+            if (!currentNiche) {
+                // Verifica palavras-chave de Salão de Beleza
+                if (salaoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
                     lead.niche = 'Salão de Beleza';
                     salaoCount++;
                     needsUpdate = true;
                 }
+                // Se não for salão, verifica palavras-chave de Pet Shop
+                else if (petKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    lead.niche = 'Pet Shop';
+                    petCount++;
+                    needsUpdate = true;
+                }
             }
+            // 2. Se o nicho já existe, verifica se está correto (lógica anterior)
+            else {
+                // Usando 'else if' para evitar que um "Salão Pet" seja classificado duas vezes
+                if (petKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Pet Shop') {
+                        lead.niche = 'Pet Shop';
+                        petCount++;
+                        needsUpdate = true;
+                    }
+                } else if (salaoKeywords.some(keyword => lowerCaseName.includes(keyword))) {
+                    if (lead.niche !== 'Salão de Beleza') {
+                        lead.niche = 'Salão de Beleza';
+                        salaoCount++;
+                        needsUpdate = true;
+                    }
+                }
+            }
+
 
             if (needsUpdate) {
                 await dbHelper.add('leads', lead); // 'add' é um 'put', então vai atualizar
@@ -1894,7 +1920,7 @@ async function cleanupNiches() {
             }
         }
 
-        alert(`Otimização concluída!\n\n- ${petCount} registros atualizados para "Pet Shop".\n- ${salaoCount} registros atualizados para "Salão de Beleza".\n\nTotal de leads modificados: ${updatedCount}.`);
+        alert(`Otimização concluída!\n\n- ${salaoCount} registros definidos como "Salão de Beleza".\n- ${petCount} registros definidos como "Pet Shop".\n\nTotal de leads modificados: ${updatedCount}.`);
 
         // Recarrega a lista se o usuário estiver vendo os contatos salvos
         if (state.isShowingSaved) {
