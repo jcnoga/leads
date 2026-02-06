@@ -290,6 +290,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateUIByMode();
 });
 
+
+// Adicionado ao final da função setupEventListeners()
+    const btnDeleteNoNiche = document.getElementById('btn-delete-no-niche');
+    if (btnDeleteNoNiche) {
+        btnDeleteNoNiche.onclick = deleteLeadsWithoutNiche;
+    }
+
+
+//...
+
+// Adicionado ao final do arquivo
+async function deleteLeadsWithoutNiche() {
+    if (!state.user) return alert("Faça login para realizar esta operação.");
+
+    // 1. Confirmação de Segurança
+    const confirmacao = confirm("Deseja realmente excluir todos os registros em que o NICHO não foi informado? Esta ação é irreversível.");
+    if (!confirmacao) return;
+
+    let deletedCount = 0;
+
+    try {
+        // --- LOGICA PARA MODO LOCAL OU HÍBRIDO (IndexedDB) ---
+        if (state.appMode === 'local' || state.appMode === 'hybrid') {
+            const allLeads = await dbHelper.getLeadsByUser(state.user.email);
+            // Filtra leads onde o nicho é nulo, vazio ou apenas espaços
+            const leadsToRemove = allLeads.filter(l => !l.niche || l.niche.trim() === "");
+
+            for (const lead of leadsToRemove) {
+                await dbHelper.delete('leads', lead.id);
+                deletedCount++;
+            }
+        }
+
+        // --- LOGICA PARA MODO CLOUD OU HÍBRIDO (Firestore) ---
+        if ((state.appMode === 'cloud' || state.appMode === 'hybrid') && navigator.onLine && auth.currentUser) {
+            const userRef = db.collection('users').doc(auth.currentUser.uid).collection('leads');
+            
+            // O Firestore não permite query "vazio ou nulo" facilmente em uma única chamada, 
+            // então buscamos e filtramos ou fazemos queries específicas.
+            const snapshot = await userRef.get();
+            const batch = db.batch();
+            let cloudDeleted = 0;
+
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (!data.niche || data.niche.trim() === "") {
+                    batch.delete(doc.ref);
+                    cloudDeleted++;
+                }
+            });
+
+            if (cloudDeleted > 0) {
+                await batch.commit();
+                // No modo cloud puro, usamos o contador da nuvem
+                if (state.appMode === 'cloud') deletedCount = cloudDeleted;
+            }
+        }
+
+        // 2. Feedback ao usuário
+        if (deletedCount > 0) {
+            alert(`Sucesso! ${deletedCount} registros sem nicho foram removidos.`);
+            
+            // Atualiza a tela se estiver visualizando os contatos
+            if (state.isShowingSaved) {
+                loadMyContacts();
+            }
+        } else {
+            alert("Nenhum registro sem nicho foi encontrado para exclusão.");
+        }
+
+    } catch (error) {
+        console.error("Erro ao excluir registros:", error);
+        alert("Ocorreu um erro ao processar a exclusão.");
+    }
+}
 function updateUIByMode() {
     const appModeDisplay = document.getElementById('app-mode-display');
     if (appModeDisplay) {
@@ -1970,4 +2045,70 @@ function toggleAuthBox(type) {
     if (type === 'login') loginBox.classList.remove('hidden');
     if (type === 'register') registerBox.classList.remove('hidden');
     if (type === 'forgot') forgotBox.classList.remove('hidden');
+}
+
+
+async function deleteLeadsWithoutNiche() {
+    if (!state.user) return alert("Faça login para realizar esta operação.");
+
+    // 1. Confirmação de Segurança
+    const confirmacao = confirm("Deseja realmente excluir todos os registros em que o NICHO não foi informado? Esta ação é irreversível.");
+    if (!confirmacao) return;
+
+    let deletedCount = 0;
+
+    try {
+        // --- LOGICA PARA MODO LOCAL OU HÍBRIDO (IndexedDB) ---
+        if (state.appMode === 'local' || state.appMode === 'hybrid') {
+            const allLeads = await dbHelper.getLeadsByUser(state.user.email);
+            // Filtra leads onde o nicho é nulo, vazio ou apenas espaços
+            const leadsToRemove = allLeads.filter(l => !l.niche || l.niche.trim() === "");
+
+            for (const lead of leadsToRemove) {
+                await dbHelper.delete('leads', lead.id);
+                deletedCount++;
+            }
+        }
+
+        // --- LOGICA PARA MODO CLOUD OU HÍBRIDO (Firestore) ---
+        if ((state.appMode === 'cloud' || state.appMode === 'hybrid') && navigator.onLine && auth.currentUser) {
+            const userRef = db.collection('users').doc(auth.currentUser.uid).collection('leads');
+            
+            // O Firestore não permite query "vazio ou nulo" facilmente em uma única chamada, 
+            // então buscamos e filtramos ou fazemos queries específicas.
+            const snapshot = await userRef.get();
+            const batch = db.batch();
+            let cloudDeleted = 0;
+
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (!data.niche || data.niche.trim() === "") {
+                    batch.delete(doc.ref);
+                    cloudDeleted++;
+                }
+            });
+
+            if (cloudDeleted > 0) {
+                await batch.commit();
+                // No modo cloud puro, usamos o contador da nuvem
+                if (state.appMode === 'cloud') deletedCount = cloudDeleted;
+            }
+        }
+
+        // 2. Feedback ao usuário
+        if (deletedCount > 0) {
+            alert(`Sucesso! ${deletedCount} registros sem nicho foram removidos.`);
+            
+            // Atualiza a tela se estiver visualizando os contatos
+            if (state.isShowingSaved) {
+                loadMyContacts();
+            }
+        } else {
+            alert("Nenhum registro sem nicho foi encontrado para exclusão.");
+        }
+
+    } catch (error) {
+        console.error("Erro ao excluir registros:", error);
+        alert("Ocorreu um erro ao processar a exclusão.");
+    }
 }
