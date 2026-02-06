@@ -1022,9 +1022,3 @@ footer a {
     font-weight: 600;
     color: var(--text-main);
 }
-/* No style.css, adicione ou verifique se já existe algo similar */
-.btn-admin-danger {
-    color: var(--error-text) !important;
-    border: 1px solid var(--error-text) !important;
-    transition: all 0.2s;
-}
