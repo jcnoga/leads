@@ -1874,13 +1874,13 @@ async function cleanupNiches() {
             const lowerCaseName = lead.name.toLowerCase();
 
             // Usando 'else if' para evitar que um "Salão Pet" seja classificado duas vezes
-            if (lowerCaseName.includes('pet')) {
+            if (lowerCaseName.includes('Pet')) {
                 if (lead.niche !== 'Pet Shop') {
                     lead.niche = 'Pet Shop';
                     petCount++;
                     needsUpdate = true;
                 }
-            } else if (lowerCaseName.includes('salão')) {
+            } else if (lowerCaseName.includes('Salão')) {
                 if (lead.niche !== 'Salão de Beleza') {
                     lead.niche = 'Salão de Beleza';
                     salaoCount++;
