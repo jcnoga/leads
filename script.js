@@ -1,18 +1,21 @@
-// Configuração do Firebase
+// Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
+
 const firebaseConfig = {
-    apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
-    authDomain: "leads-e5ae1.firebaseapp.com",
-    databaseURL: "https://leads-e5ae1-default-rtdb.firebaseio.com",
-    projectId: "leads-e5ae1",
-    storageBucket: "leads-e5ae1.firebasestorage.app",
-    messagingSenderId: "17213040146",
-    appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
-    measurementId: "G-QSGNSDGJML"
+  apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
+  authDomain: "leads-e5ae1.firebaseapp.com",
+  databaseURL: "https://leads-e5ae1-default-rtdb.firebaseio.com",
+  projectId: "leads-e5ae1",
+  storageBucket: "leads-e5ae1.firebasestorage.app",
+  messagingSenderId: "17213040146",
+  appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
+  measurementId: "G-QSGNSDGJML"
 };
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+// Restante do código (const ADMIN_EMAIL, etc.) continua igual...
 
 // Constantes
 const ADMIN_EMAIL = "admin@leadscraper.com";
@@ -47,7 +50,7 @@ const templatesList = document.getElementById('templates-list');
 const apiStatusBox = document.getElementById('api-status-box');
 const adminSection = document.getElementById('admin-section');
 
-// ==================== AUTENTICAÇÃO ====================
+// ==================== FUNÇÕES DE AUTENTICAÇÃO ====================
 async function handleLogin(email, password) {
     try {
         await auth.signInWithEmailAndPassword(email, password);
@@ -57,7 +60,10 @@ async function handleLogin(email, password) {
 }
 
 async function handleRegister(name, email, password) {
-    if (password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
+    if (password.length < 6) {
+        alert("A senha deve ter no mínimo 6 caracteres.");
+        return;
+    }
     try {
         const cred = await auth.createUserWithEmailAndPassword(email, password);
         await cred.user.updateProfile({ displayName: name });
@@ -69,16 +75,16 @@ async function handleRegister(name, email, password) {
             templates: [{ name: "Padrão", content: DEFAULT_TEMPLATE }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert("Conta criada! Você recebeu 50 créditos.");
+        alert("Conta criada com sucesso! Você recebeu 50 créditos grátis.");
     } catch (err) {
-        alert("Erro: " + err.message);
+        alert("Erro no cadastro: " + err.message);
     }
 }
 
 async function handleForgot(email) {
     try {
         await auth.sendPasswordResetEmail(email);
-        alert("E-mail de recuperação enviado.");
+        alert("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
     } catch (err) {
         alert("Erro: " + err.message);
     }
@@ -89,7 +95,7 @@ async function logout() {
     location.reload();
 }
 
-// ==================== PERFIL DO USUÁRIO ====================
+// ==================== CARREGAR PERFIL DO USUÁRIO ====================
 async function loadUserProfile(uid) {
     const docRef = db.collection('users').doc(uid);
     const docSnap = await docRef.get();
@@ -117,7 +123,7 @@ async function loadUserProfile(uid) {
     await loadMyLeads();
 }
 
-// ==================== LEADS ====================
+// ==================== GERENCIAMENTO DE LEADS (Firestore) ====================
 async function loadMyLeads() {
     if (!currentUser) return;
     const snapshot = await db.collection('users').doc(currentUser.uid).collection('leads').orderBy('createdAt', 'desc').get();
@@ -146,7 +152,8 @@ async function saveLeadsToFirestore(leads, niche) {
             followUpNotes: lead.followUpNotes || '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        batch.set(userLeadsRef.doc(), leadToSave);
+        const newDocRef = userLeadsRef.doc();
+        batch.set(newDocRef, leadToSave);
         saved++;
         if (saved % 450 === 0) await batch.commit();
     }
@@ -160,13 +167,13 @@ async function updateLead(leadId, updates) {
 }
 
 async function deleteLead(leadId) {
-    if (confirm("Excluir permanentemente?")) {
+    if (confirm("Excluir este lead permanentemente?")) {
         await db.collection('users').doc(currentUser.uid).collection('leads').doc(leadId).delete();
         await loadMyLeads();
     }
 }
 
-// ==================== CRÉDITOS ====================
+// ==================== CRÉDITOS E BUSCA ====================
 async function consumeCredits(amount) {
     if (currentUserProfile.credits >= amount) {
         const newCredits = currentUserProfile.credits - amount;
@@ -192,15 +199,14 @@ async function addCreditsToUser(email, qty, isAdminAction = true) {
     alert(`Adicionado ${qty} créditos a ${email}.`);
 }
 
-// Função corrigida para adicionar 10 leads ao próprio saldo (superusuário)
 async function addSelfCredits(amount) {
-    if (!currentUserProfile.isAdmin) return alert("Apenas superusuários podem usar esta função.");
+    if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem usar esta função.");
     await addCreditsToUser(currentUserProfile.email, amount, false);
 }
 
 async function resetSelfBalance() {
-    if (!currentUserProfile.isAdmin) return alert("Apenas superusuários podem zerar o próprio saldo.");
-    if (confirm("Zerar seu saldo de créditos?")) {
+    if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem zerar o próprio saldo.");
+    if (confirm("Deseja zerar seu próprio saldo de créditos?")) {
         await db.collection('users').doc(currentUser.uid).update({ credits: 0 });
         currentUserProfile.credits = 0;
         leadsBalanceDisplay.innerText = "0";
@@ -208,7 +214,7 @@ async function resetSelfBalance() {
     }
 }
 
-// ==================== BUSCA DE LEADS (API / MOCK) ====================
+// Busca real via Serper (exemplo)
 const API_KEYS = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
@@ -261,10 +267,10 @@ async function searchLeads(event) {
     const limit = parseInt(document.getElementById('limit').value);
     if (!niche) return alert("Preencha o nicho.");
     if (currentUserProfile.credits < limit) {
-        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits}. Solicite ao administrador.`);
+        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos. Solicite ao administrador.`);
         return;
     }
-    leadsBody.innerHTML = '<tr><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    leadsBody.innerHTML = '<td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
     displayingSaved = false;
     let leads = [];
@@ -276,7 +282,9 @@ async function searchLeads(event) {
             isReal = true;
             const consumed = await consumeCredits(leads.length);
             if (!consumed) throw new Error("Créditos insuficientes.");
-        } else throw new Error("Nenhum resultado real.");
+        } else {
+            throw new Error("Nenhum resultado real.");
+        }
     } catch (err) {
         console.warn(err);
         leads = generateMockLeads(niche, city, state, limit);
@@ -285,7 +293,7 @@ async function searchLeads(event) {
     }
     currentLeads = leads;
     applyFiltersAndRender();
-    apiStatusBox.innerHTML = isReal ? `✅ Dados reais. Consumidos ${leads.length} créditos. Saldo: ${currentUserProfile.credits}` : `ℹ️ Dados simulados (não consumiram créditos).`;
+    apiStatusBox.innerHTML = isReal ? `<i class="fas fa-check-circle"></i> Dados reais. Consumidos ${leads.length} créditos. Saldo: ${currentUserProfile.credits}` : `<i class="fas fa-info-circle"></i> Dados simulados (não consumiram créditos).`;
     apiStatusBox.classList.remove('hidden');
     setTimeout(() => apiStatusBox.classList.add('hidden'), 5000);
 }
@@ -316,7 +324,7 @@ function applyFiltersAndRender() {
     renderLeadsTable(paginated);
     renderPagination(totalPages);
     const niches = [...new Set(currentLeads.map(l => l.niche).filter(Boolean))];
-    filterNicheSelect.innerHTML = '<option value="">Todos os nichos</option>' + niches.map(n => `<option value="${n}">${n}</option>`).join('');
+    filterNicheSelect.innerHTML = '<option value="">Todos</option>' + niches.map(n => `<option value="${n}">${n}</option>`).join('');
 }
 
 function renderLeadsTable(leads) {
@@ -336,7 +344,7 @@ function renderLeadsTable(leads) {
             <td class="actions-cell">
                 <button class="btn-action" onclick="openMessageModal('${lead.id || ''}', '${escapeHtml(lead.name)}', '${escapeHtml(lead.phone)}', '${escapeHtml(lead.niche)}', '${escapeHtml(lead.address || '')}')"><i class="fab fa-whatsapp"></i></button>
                 ${displayingSaved ? `<button class="btn-action" onclick="openEditLeadModal('${lead.id}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteLead('${lead.id}')"><i class="fas fa-trash-alt"></i></button>` : ''}
+                <button class="btn-delete" onclick="deleteLead('${lead.id}')"><i class="fas fa-trash"></i></button>` : ''}
             </td>
         `;
         leadsBody.appendChild(row);
@@ -431,7 +439,7 @@ function renderTemplatesList() {
         li.className = 'template-item';
         li.innerHTML = `
             <div><strong>${escapeHtml(tpl.name)}</strong><br><small>${tpl.content.substring(0,40)}...</small></div>
-            <div>
+            <div class="template-actions">
                 <button onclick="copyTemplateContent(${idx})">Copiar</button>
                 <button onclick="deleteTemplate(${idx})">Excluir</button>
             </div>
@@ -462,7 +470,7 @@ function copyTemplateContent(idx) {
     alert("Modelo copiado!");
 }
 
-// ==================== ADMIN ====================
+// ==================== ADMIN (PROMOÇÃO) ====================
 async function promoteToAdmin() {
     if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem promover outros.");
     const email = document.getElementById('admin-promote-email').value.trim();
@@ -490,18 +498,17 @@ function saveApiPreference() {
     alert("Preferência salva.");
 }
 
-// ==================== EXPORTAÇÃO ====================
 function exportToCSV() {
     if (currentLeads.length === 0) return alert("Nenhum dado para exportar.");
-    const headers = ["Nome","Nicho","Endereço","Telefone","Site","Status","Notas"];
-    const rows = currentLeads.map(l => [`"${l.name}"`,`"${l.niche}"`,`"${l.address}"`,`"${l.phone}"`,`"${l.website||''}"`,`"${l.leadStatus}"`,`"${l.followUpNotes||''}"`]);
+    const headers = ["Nome", "Nicho", "Endereço", "Telefone", "Site", "Status", "Notas"];
+    const rows = currentLeads.map(l => [`"${l.name}"`, `"${l.niche}"`, `"${l.address}"`, `"${l.phone}"`, `"${l.website || ''}"`, `"${l.leadStatus}"`, `"${l.followUpNotes || ''}"`]);
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n" + rows.map(r => r.join(",")).join("\r\n");
     const a = document.createElement('a'); a.href = encodeURI(csvContent); a.download = `leads_${Date.now()}.csv`; a.click();
 }
 
 function exportToXLSX() {
     if (currentLeads.length === 0) return alert("Nenhum dado para exportar.");
-    const data = currentLeads.map(l => ({ "Nome": l.name, "Nicho": l.niche, "Endereço": l.address, "Telefone": l.phone, "Site": l.website||'', "Status": l.leadStatus, "Notas": l.followUpNotes||'' }));
+    const data = currentLeads.map(l => ({ "Nome": l.name, "Nicho": l.niche, "Endereço": l.address, "Telefone": l.phone, "Site": l.website || '', "Status": l.leadStatus, "Notas": l.followUpNotes || '' }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leads");
@@ -510,18 +517,36 @@ function exportToXLSX() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-    // Login/register
+	// Localize o botão de abrir modal e modifique:
+document.getElementById('btn-config').addEventListener('click', () => {
+    // Atualiza a exibição da seção admin antes de abrir
+    if (currentUserProfile && currentUserProfile.isAdmin) {
+        document.getElementById('admin-section').style.display = 'block';
+    } else {
+        document.getElementById('admin-section').style.display = 'none';
+    }
+    document.getElementById('config-modal').classList.remove('hidden');
+});
+
+
+    // Autenticação - capturando elementos dentro do evento
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        handleLogin(document.getElementById('login-email').value, document.getElementById('login-password').value);
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        handleLogin(email, password);
     });
     document.getElementById('register-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        handleRegister(document.getElementById('reg-name').value, document.getElementById('reg-email').value, document.getElementById('reg-password').value);
+        const name = document.getElementById('reg-name').value;
+        const email = document.getElementById('reg-email').value;
+        const password = document.getElementById('reg-password').value;
+        handleRegister(name, email, password);
     });
     document.getElementById('forgot-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        handleForgot(document.getElementById('forgot-email').value);
+        const email = document.getElementById('forgot-email').value;
+        handleForgot(email);
     });
     document.getElementById('btn-logout').addEventListener('click', logout);
     document.getElementById('link-register').onclick = () => toggleAuth('register');
@@ -541,7 +566,7 @@ function setupEventListeners() {
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
-    // Modal config
+    // Modal configuração
     document.getElementById('btn-config').addEventListener('click', () => document.getElementById('config-modal').classList.remove('hidden'));
     document.querySelector('.close-modal').addEventListener('click', () => document.getElementById('config-modal').classList.add('hidden'));
     document.getElementById('save-api-key').addEventListener('click', saveApiPreference);
@@ -551,7 +576,7 @@ function setupEventListeners() {
         document.getElementById('new-template-content').value = '';
     });
 
-    // Admin - botões corrigidos
+    // Admin
     document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
@@ -591,7 +616,7 @@ auth.onAuthStateChanged(async (user) => {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         await loadUserProfile(user.uid);
-        setupEventListeners();
+        setupEventListeners(); // evita duplicação? já foi chamado antes? melhor garantir
     } else {
         currentUser = null;
         authSection.classList.remove('hidden');
@@ -600,3 +625,6 @@ auth.onAuthStateChanged(async (user) => {
         setupEventListeners();
     }
 });
+
+// Para garantir que os event listeners sejam configurados mesmo antes do auth mudar
+setupEventListeners();
