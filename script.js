@@ -517,6 +517,18 @@ function exportToXLSX() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
+	// Localize o botão de abrir modal e modifique:
+document.getElementById('btn-config').addEventListener('click', () => {
+    // Atualiza a exibição da seção admin antes de abrir
+    if (currentUserProfile && currentUserProfile.isAdmin) {
+        document.getElementById('admin-section').style.display = 'block';
+    } else {
+        document.getElementById('admin-section').style.display = 'none';
+    }
+    document.getElementById('config-modal').classList.remove('hidden');
+});
+
+
     // Autenticação - capturando elementos dentro do evento
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
