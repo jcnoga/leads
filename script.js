@@ -219,8 +219,8 @@ async function resetSelfBalance() {
 
 // ========== BUSCA API ==========
 const API_KEYS = {
-    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
-    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
+    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",  // Serapi
+ // Serper.dev  KEY_2: "d97256e83e8533e1c41d314bd147dfd72dde024a"
 };
 
 async function fetchSerperLeads(query, limit) {
