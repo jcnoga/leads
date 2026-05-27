@@ -1,5 +1,5 @@
 // Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
-super: jcnvap@gmail.com
+//super: jcnvap@gmail.com
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
