@@ -283,9 +283,8 @@ body {
 }
 .close { font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); }
 .close:hover { color: var(--accent); }
-.full-width { width: 100%; }
 
-/* Config & admin cards */
+/* Admin & config cards */
 .config-card {
     background: var(--bg-page);
     border-radius: var(--radius-md);
@@ -306,7 +305,7 @@ body {
 }
 .helper-text { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem; }
 
-/* Templates */
+/* Templates list */
 .templates-list { list-style: none; margin-top: 1rem; }
 .template-item {
     background: var(--bg-card);
