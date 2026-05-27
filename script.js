@@ -1,5 +1,5 @@
 // Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
-//super: jcnvap@gmail.com
+
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -14,6 +14,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+// Restante do código (const ADMIN_EMAIL, etc.) continua igual...
 
 // Constantes
 const ADMIN_EMAIL = "admin@leadscraper.com";
