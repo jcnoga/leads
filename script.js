@@ -1,4 +1,4 @@
-// Configuração do Firebase
+// Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -47,7 +47,7 @@ const templatesList = document.getElementById('templates-list');
 const apiStatusBox = document.getElementById('api-status-box');
 const adminSection = document.getElementById('admin-section');
 
-// ==================== FUNÇÕES DE AUTENTICAÇÃO ====================
+// ========== AUTENTICAÇÃO ==========
 async function handleLogin(email, password) {
     try {
         await auth.signInWithEmailAndPassword(email, password);
@@ -72,7 +72,7 @@ async function handleRegister(name, email, password) {
             templates: [{ name: "Padrão", content: DEFAULT_TEMPLATE }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert("Conta criada com sucesso! Você recebeu 50 créditos grátis.");
+        alert("Conta criada! Você recebeu 50 créditos.");
     } catch (err) {
         alert("Erro no cadastro: " + err.message);
     }
@@ -81,7 +81,7 @@ async function handleRegister(name, email, password) {
 async function handleForgot(email) {
     try {
         await auth.sendPasswordResetEmail(email);
-        alert("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
+        alert("E-mail de recuperação enviado.");
     } catch (err) {
         alert("Erro: " + err.message);
     }
@@ -92,7 +92,7 @@ async function logout() {
     location.reload();
 }
 
-// ==================== CARREGAR PERFIL DO USUÁRIO ====================
+// ========== PERFIL ==========
 async function loadUserProfile(uid) {
     const docRef = db.collection('users').doc(uid);
     const docSnap = await docRef.get();
@@ -120,7 +120,7 @@ async function loadUserProfile(uid) {
     await loadMyLeads();
 }
 
-// ==================== GERENCIAMENTO DE LEADS ====================
+// ========== LEADS ==========
 async function loadMyLeads() {
     if (!currentUser) return;
     const snapshot = await db.collection('users').doc(currentUser.uid).collection('leads').orderBy('createdAt', 'desc').get();
@@ -135,7 +135,6 @@ async function saveLeadsToFirestore(leads, niche) {
     if (!currentUser) return;
     const batch = db.batch();
     const userLeadsRef = db.collection('users').doc(currentUser.uid).collection('leads');
-    let saved = 0;
     for (const lead of leads) {
         const leadToSave = {
             name: lead.name,
@@ -149,13 +148,9 @@ async function saveLeadsToFirestore(leads, niche) {
             followUpNotes: lead.followUpNotes || '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        const newDocRef = userLeadsRef.doc();
-        batch.set(newDocRef, leadToSave);
-        saved++;
-        if (saved % 450 === 0) await batch.commit();
+        batch.set(userLeadsRef.doc(), leadToSave);
     }
-    if (saved % 450 !== 0) await batch.commit();
-    return saved;
+    await batch.commit();
 }
 
 async function updateLead(leadId, updates) {
@@ -164,13 +159,13 @@ async function updateLead(leadId, updates) {
 }
 
 async function deleteLead(leadId) {
-    if (confirm("Excluir este lead permanentemente?")) {
+    if (confirm("Excluir permanentemente?")) {
         await db.collection('users').doc(currentUser.uid).collection('leads').doc(leadId).delete();
         await loadMyLeads();
     }
 }
 
-// ==================== CRÉDITOS ====================
+// ========== CRÉDITOS ==========
 async function consumeCredits(amount) {
     if (currentUserProfile.credits >= amount) {
         const newCredits = currentUserProfile.credits - amount;
@@ -196,25 +191,25 @@ async function addCreditsToUser(email, qty, isAdminAction = true) {
     alert(`Adicionado ${qty} créditos a ${email}.`);
 }
 
-// Função CORRIGIDA para adicionar 10 leads ao próprio saldo
 async function addSelfCredits(amount) {
-    if (!currentUserProfile?.isAdmin) return alert("Apenas superusuários.");
+    if (!currentUserProfile.isAdmin) return alert("Apenas superusuários podem usar esta função.");
     try {
         const userRef = db.collection('users').doc(currentUser.uid);
-        const newCredits = (currentUserProfile.credits || 0) + amount;
-        await userRef.set({ credits: newCredits }, { merge: true });
+        const currentCredits = currentUserProfile.credits || 0;
+        const newCredits = currentCredits + amount;
+        await userRef.update({ credits: newCredits });
         currentUserProfile.credits = newCredits;
         leadsBalanceDisplay.innerText = newCredits;
-        alert(`✅ +${amount} créditos! Saldo: ${newCredits}`);
+        alert(`✅ ${amount} créditos adicionados! Novo saldo: ${newCredits}`);
     } catch (err) {
         console.error(err);
-        alert("Erro de permissão. Verifique as regras do Firestore.");
+        alert("Erro ao adicionar créditos.");
     }
 }
 
 async function resetSelfBalance() {
-    if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem zerar o próprio saldo.");
-    if (confirm("Deseja zerar seu próprio saldo de créditos?")) {
+    if (!currentUserProfile.isAdmin) return alert("Apenas superusuários podem zerar o próprio saldo.");
+    if (confirm("Zerar seu saldo?")) {
         await db.collection('users').doc(currentUser.uid).update({ credits: 0 });
         currentUserProfile.credits = 0;
         leadsBalanceDisplay.innerText = "0";
@@ -222,11 +217,10 @@ async function resetSelfBalance() {
     }
 }
 
-// ==================== BUSCA DE LEADS ====================
-# serapi e serper.dev
+// ========== BUSCA API ==========
 const API_KEYS = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
-    KEY_2: "Sd97256e83e8533e1c41d314bd147dfd72dde024a"
+    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
 };
 
 async function fetchSerperLeads(query, limit) {
@@ -273,10 +267,10 @@ async function searchLeads(event) {
     const niche = document.getElementById('niche').value.trim();
     const city = document.getElementById('city').value.trim();
     const state = document.getElementById('state').value;
-    const limit = parseInt(document.getElementById('limit').value);
+    let limit = parseInt(document.getElementById('limit').value);
     if (!niche) return alert("Preencha o nicho.");
     if (currentUserProfile.credits < limit) {
-        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos. Solicite ao administrador.`);
+        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos.`);
         return;
     }
     leadsBody.innerHTML = '<tr><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
@@ -291,9 +285,7 @@ async function searchLeads(event) {
             isReal = true;
             const consumed = await consumeCredits(leads.length);
             if (!consumed) throw new Error("Créditos insuficientes.");
-        } else {
-            throw new Error("Nenhum resultado real.");
-        }
+        } else throw new Error("Nenhum resultado real.");
     } catch (err) {
         console.warn(err);
         leads = generateMockLeads(niche, city, state, limit);
@@ -302,7 +294,7 @@ async function searchLeads(event) {
     }
     currentLeads = leads;
     applyFiltersAndRender();
-    apiStatusBox.innerHTML = isReal ? `<i class="fas fa-check-circle"></i> Dados reais. Consumidos ${leads.length} créditos. Saldo: ${currentUserProfile.credits}` : `<i class="fas fa-info-circle"></i> Dados simulados (não consumiram créditos).`;
+    apiStatusBox.innerHTML = isReal ? `✅ Dados reais. Consumidos ${leads.length} créditos. Saldo: ${currentUserProfile.credits}` : `ℹ️ Dados simulados (não consumiram créditos).`;
     apiStatusBox.classList.remove('hidden');
     setTimeout(() => apiStatusBox.classList.add('hidden'), 5000);
 }
@@ -317,7 +309,7 @@ async function saveCurrentLeads() {
     await loadMyLeads();
 }
 
-// ==================== FILTROS E RENDERIZAÇÃO ====================
+// ========== FILTROS E RENDERIZAÇÃO ==========
 function applyFiltersAndRender() {
     let filtered = [...currentLeads];
     if (filterText) {
@@ -389,7 +381,7 @@ function getStatusClass(status) {
 
 function escapeHtml(str) { return str?.replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])) || ''; }
 
-// ==================== MENSAGEM E WHATSAPP ====================
+// ========== MENSAGEM E WHATSAPP ==========
 function openMessageModal(leadId, name, phone, niche, address) {
     const modal = document.getElementById('message-modal');
     const select = document.getElementById('modal-template-select');
@@ -419,7 +411,7 @@ function openMessageModal(leadId, name, phone, niche, address) {
     modal.classList.remove('hidden');
 }
 
-// ==================== EDIÇÃO DE LEAD ====================
+// ========== EDIÇÃO DE LEAD ==========
 function openEditLeadModal(leadId) {
     const lead = currentLeads.find(l => l.id === leadId);
     if (!lead) return;
@@ -440,7 +432,7 @@ async function saveLeadDetails() {
     document.getElementById('lead-details-modal').classList.add('hidden');
 }
 
-// ==================== TEMPLATES ====================
+// ========== TEMPLATES ==========
 function renderTemplatesList() {
     templatesList.innerHTML = '';
     currentUserProfile.templates.forEach((tpl, idx) => {
@@ -479,7 +471,7 @@ function copyTemplateContent(idx) {
     alert("Modelo copiado!");
 }
 
-// ==================== ADMIN (PROMOÇÃO) ====================
+// ========== ADMIN ==========
 async function promoteToAdmin() {
     if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem promover outros.");
     const email = document.getElementById('admin-promote-email').value.trim();
@@ -500,13 +492,7 @@ async function promoteToAdmin() {
     document.getElementById('admin-promote-email').value = '';
 }
 
-// ==================== CONFIGURAÇÕES ====================
-function saveApiPreference() {
-    const provider = document.getElementById('api-provider-select').value;
-    localStorage.setItem('selected_api_provider', provider);
-    alert("Preferência salva.");
-}
-
+// ========== EXPORTAÇÃO ==========
 function exportToCSV() {
     if (currentLeads.length === 0) return alert("Nenhum dado para exportar.");
     const headers = ["Nome", "Nicho", "Endereço", "Telefone", "Site", "Status", "Notas"];
@@ -524,9 +510,15 @@ function exportToXLSX() {
     XLSX.writeFile(wb, `leads_${Date.now()}.xlsx`);
 }
 
-// ==================== EVENT LISTENERS ====================
+// ========== CONFIGURAÇÕES ==========
+function saveApiPreference() {
+    const provider = document.getElementById('api-provider-select').value;
+    localStorage.setItem('selected_api_provider', provider);
+    alert("Preferência salva.");
+}
+
+// ========== EVENT LISTENERS ==========
 function setupEventListeners() {
-    // Autenticação
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
         handleLogin(document.getElementById('login-email').value, document.getElementById('login-password').value);
@@ -545,24 +537,21 @@ function setupEventListeners() {
     document.getElementById('link-forgot').onclick = () => toggleAuth('forgot');
     document.getElementById('link-login-forgot').onclick = () => toggleAuth('login');
 
-    // Busca e leads
     document.getElementById('lead-search-form').addEventListener('submit', searchLeads);
     document.getElementById('btn-save-leads').addEventListener('click', saveCurrentLeads);
     document.getElementById('btn-refresh-leads').addEventListener('click', loadMyLeads);
     document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
     document.getElementById('btn-export-xlsx').addEventListener('click', exportToXLSX);
 
-    // Filtros
     filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage=1; applyFiltersAndRender(); });
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
-    // Modal configuração (com atualização da seção admin)
     document.getElementById('btn-config').addEventListener('click', () => {
         if (currentUserProfile && currentUserProfile.isAdmin) {
-            document.getElementById('admin-section').style.display = 'block';
+            adminSection.style.display = 'block';
         } else {
-            document.getElementById('admin-section').style.display = 'none';
+            adminSection.style.display = 'none';
         }
         document.getElementById('config-modal').classList.remove('hidden');
     });
@@ -574,14 +563,7 @@ function setupEventListeners() {
         document.getElementById('new-template-content').value = '';
     });
 
-    // ADMIN - botão +10 leads (garantindo que funcione)
-    const btnAddSelf = document.getElementById('btn-admin-add-self-leads');
-    if (btnAddSelf) {
-        // Remove listeners antigos para evitar duplicação
-        const newBtn = btnAddSelf.cloneNode(true);
-        btnAddSelf.parentNode.replaceChild(newBtn, btnAddSelf);
-        newBtn.addEventListener('click', () => addSelfCredits(10));
-    }
+    document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
         const email = document.getElementById('admin-user-email').value.trim();
@@ -591,7 +573,6 @@ function setupEventListeners() {
     });
     document.getElementById('btn-promote-to-admin').addEventListener('click', promoteToAdmin);
 
-    // Modal detalhes
     document.getElementById('btn-save-details').addEventListener('click', saveLeadDetails);
     document.getElementById('btn-cancel-details').addEventListener('click', () => document.getElementById('lead-details-modal').classList.add('hidden'));
     document.querySelector('.close-modal-details').addEventListener('click', () => document.getElementById('lead-details-modal').classList.add('hidden'));
@@ -613,7 +594,7 @@ function toggleAuth(type) {
     else if (type === 'forgot') forgotBox.classList.remove('hidden');
 }
 
-// ==================== INICIALIZAÇÃO ====================
+// ========== INICIALIZAÇÃO ==========
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         currentUser = user;
