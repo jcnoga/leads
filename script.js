@@ -198,25 +198,17 @@ async function addCreditsToUser(email, qty, isAdminAction = true) {
 
 // Função CORRIGIDA para adicionar 10 leads ao próprio saldo
 async function addSelfCredits(amount) {
-    if (!currentUserProfile) {
-        alert("Perfil não carregado. Recarregue a página.");
-        return;
-    }
-    if (!currentUserProfile.isAdmin) {
-        alert("Apenas superusuários podem usar esta função.");
-        return;
-    }
+    if (!currentUserProfile?.isAdmin) return alert("Apenas superusuários.");
     try {
         const userRef = db.collection('users').doc(currentUser.uid);
         const newCredits = (currentUserProfile.credits || 0) + amount;
-        await userRef.update({ credits: newCredits });
+        await userRef.set({ credits: newCredits }, { merge: true });
         currentUserProfile.credits = newCredits;
         leadsBalanceDisplay.innerText = newCredits;
-        alert(`✅ ${amount} créditos adicionados! Novo saldo: ${newCredits}`);
-        if (displayingSaved) await loadMyLeads();
+        alert(`✅ +${amount} créditos! Saldo: ${newCredits}`);
     } catch (err) {
-        console.error("Erro ao adicionar créditos:", err);
-        alert("Erro ao adicionar créditos. Verifique o console.");
+        console.error(err);
+        alert("Erro de permissão. Verifique as regras do Firestore.");
     }
 }
 
