@@ -1,3 +1,4 @@
+// Senha (state.challengeNumber + 13) * 9 + 1954 + leadsQty;
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
