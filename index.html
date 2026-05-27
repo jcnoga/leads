@@ -2,141 +2,129 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>LeadScraper Pro | Geração de Leads Inteligente</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadScraper Pro | Seguro com Firebase</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
-    <!-- TELA DE AUTENTICAÇÃO -->
-    <div id="auth-section" class="auth-wrapper">
-        <div class="auth-card">
-            <div class="auth-logo">
-                <i class="fas fa-chart-line"></i>
-                <h1>LeadScraper <span>Pro</span></h1>
-                <p>Geração de leads com inteligência</p>
-            </div>
-            <div id="login-box" class="auth-panel">
+    <!-- TELA DE LOGIN -->
+    <section id="auth-section">
+        <div class="auth-container">
+            <div class="auth-box" id="login-box">
+                <h2>LeadScraper Pro</h2>
+                <p>Seguro, na nuvem, sem armazenamento local</p>
                 <form id="login-form">
                     <input type="email" id="login-email" placeholder="E-mail" required>
                     <input type="password" id="login-password" placeholder="Senha" required>
-                    <button type="submit" class="btn btn-primary full-width">Entrar</button>
+                    <button type="submit" class="btn-primary">Entrar</button>
                 </form>
                 <div class="auth-links">
-                    <a href="#" id="link-register">Criar conta</a>
-                    <span>|</span>
-                    <a href="#" id="link-forgot">Esqueci a senha</a>
+                    <a href="#" id="link-register">Criar conta</a> | 
+                    <a href="#" id="link-forgot">Esqueci minha senha</a>
                 </div>
             </div>
-            <div id="register-box" class="auth-panel hidden">
+
+            <div class="auth-box hidden" id="register-box">
+                <h2>Criar Conta</h2>
                 <form id="register-form">
                     <input type="text" id="reg-name" placeholder="Nome completo" required>
                     <input type="email" id="reg-email" placeholder="E-mail" required>
                     <input type="password" id="reg-password" placeholder="Senha (mínimo 6 caracteres)" required>
-                    <button type="submit" class="btn btn-primary full-width">Cadastrar</button>
+                    <button type="submit" class="btn-primary">Cadastrar</button>
                 </form>
                 <div class="auth-links">
-                    <a href="#" id="link-login-reg">Voltar para login</a>
+                    <a href="#" id="link-login-reg">Voltar para Login</a>
                 </div>
             </div>
-            <div id="forgot-box" class="auth-panel hidden">
+
+            <div class="auth-box hidden" id="forgot-box">
+                <h2>Recuperar Senha</h2>
                 <form id="forgot-form">
-                    <input type="email" id="forgot-email" placeholder="Seu e-mail" required>
-                    <button type="submit" class="btn btn-primary full-width">Enviar e-mail de recuperação</button>
+                    <input type="email" id="forgot-email" placeholder="E-mail cadastrado" required>
+                    <button type="submit" class="btn-primary">Enviar e-mail</button>
                 </form>
                 <div class="auth-links">
                     <a href="#" id="link-login-forgot">Voltar</a>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- PAINEL PRINCIPAL -->
-    <div id="app-section" class="app-container hidden">
-        <header class="app-header">
+    <section id="app-section" class="hidden">
+        <header>
             <div class="header-content">
-                <div class="logo">
-                    <i class="fas fa-search-location"></i>
-                    <span>LeadScraper <span class="accent">Pro</span></span>
+                <div class="user-info">
+                    <span>Olá, <strong id="user-name-display"></strong> (saldo: <span id="leads-balance-display">0</span> leads)</span>
                 </div>
-                <div class="user-area">
-                    <div class="user-greeting">
-                        <i class="fas fa-user-circle"></i>
-                        <span>Olá, <strong id="user-name-display"></strong></span>
-                        <span class="credits" id="leads-balance-display">0</span>
-                    </div>
-                    <button id="btn-refresh-leads" class="icon-btn" title="Meus leads"><i class="fas fa-database"></i></button>
-                    <button id="btn-config" class="icon-btn" title="Configurações"><i class="fas fa-cog"></i></button>
-                    <button id="btn-logout" class="icon-btn logout-btn" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
+                <div class="header-actions">
+                    <button id="btn-refresh-leads" class="btn-outline"><i class="fas fa-sync-alt"></i> Meus Leads</button>
+                    <button id="btn-config" class="btn-outline"><i class="fas fa-cog"></i> Configurações</button>
+                    <button id="btn-logout" class="btn-outline">Sair</button>
                 </div>
             </div>
         </header>
 
-        <main class="main-content">
-            <!-- PAINEL DE BUSCA -->
-            <div class="card search-card">
-                <h2><i class="fas fa-filter"></i> Filtro de Prospecção</h2>
+        <main>
+            <!-- Painel de Busca -->
+            <div class="search-panel">
+                <h1>Pesquisar Leads (ICP)</h1>
                 <form id="lead-search-form">
-                    <div class="form-row">
+                    <div class="form-grid">
                         <div class="form-group">
-                            <label><i class="fas fa-tag"></i> Nicho / Profissão *</label>
-                            <input type="text" id="niche" placeholder="Ex: Restaurantes, Advogados, Pet Shop" required>
+                            <label>Nicho / Profissão</label>
+                            <input type="text" id="niche" placeholder="Ex: Restaurantes, Advogados..." required>
                         </div>
                         <div class="form-group">
-                            <label><i class="fas fa-city"></i> Cidade</label>
+                            <label>Cidade</label>
                             <input type="text" id="city" placeholder="Ex: São Paulo">
                         </div>
                         <div class="form-group">
-                            <label><i class="fas fa-map-marker-alt"></i> Estado</label>
+                            <label>Estado (UF)</label>
                             <select id="state">
                                 <option value="">Todos</option>
                                 <option value="SP">São Paulo</option>
                                 <option value="RJ">Rio de Janeiro</option>
                                 <option value="MG">Minas Gerais</option>
-                                <option value="RS">Rio Grande do Sul</option>
-                                <option value="BA">Bahia</option>
+                                <!-- adicione os demais se desejar -->
                             </select>
                         </div>
                         <div class="form-group">
-                            <label><i class="fas fa-hashtag"></i> Quantidade (máx 120)</label>
-                            <input type="number" id="limit" value="50" min="1" max="120">
+                            <label>Quantidade (máx 100)</label>
+                            <input type="number" id="limit" value="50" min="1" max="100">
                         </div>
                     </div>
-                    <div class="form-group full-width">
-                        <label><i class="fas fa-comment-dots"></i> Mensagem de Abordagem</label>
-                        <textarea id="message-template-input" rows="3" placeholder="Sua mensagem personalizada..."></textarea>
+                    <div class="form-group">
+                        <label>Mensagem de Abordagem (editável)</label>
+                        <textarea id="message-template-input" rows="4"></textarea>
                     </div>
-                    <div class="search-actions">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Buscar Leads</button>
-                        <button type="button" id="btn-save-leads" class="btn btn-secondary"><i class="fas fa-save"></i> Salvar Leads</button>
-                    </div>
+                    <button type="submit" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
+                    <button type="button" id="btn-save-leads" class="btn-success full-width" style="margin-top:10px;"><i class="fas fa-save"></i> Salvar Leads no Banco</button>
                 </form>
-                <div id="api-status-box" class="info-message hidden"></div>
+                <div id="api-status-box" class="info-box hidden"></div>
             </div>
 
-            <!-- ÁREA DE RESULTADOS -->
-            <div id="results-panel" class="card results-card hidden">
+            <!-- Resultados -->
+            <div id="results-panel" class="results-panel hidden">
                 <div class="results-header">
-                    <h2><i class="fas fa-list-ul"></i> Resultados <span id="result-count">0</span></h2>
+                    <h2>Resultados: <span id="result-count">0</span></h2>
                     <div class="export-buttons">
-                        <button id="btn-export-csv" class="btn-icon" title="CSV"><i class="fas fa-file-csv"></i></button>
-                        <button id="btn-export-xlsx" class="btn-icon" title="Excel"><i class="fas fa-file-excel"></i></button>
+                        <button id="btn-export-csv" class="btn-outline btn-sm">CSV</button>
+                        <button id="btn-export-xlsx" class="btn-outline btn-sm">Excel</button>
                     </div>
                 </div>
-                <div class="filters-bar">
+                <div class="filters-container">
                     <div class="filter-group">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="filter-text" placeholder="Buscar por nome, endereço...">
+                        <label>Buscar texto</label>
+                        <input type="text" id="filter-text" placeholder="Nome, endereço...">
                     </div>
                     <div class="filter-group">
-                        <i class="fas fa-tasks"></i>
+                        <label>Status</label>
                         <select id="filter-status">
-                            <option value="">Status (todos)</option>
+                            <option value="">Todos</option>
                             <option value="Novo">Novo</option>
                             <option value="Contatado">Contatado</option>
                             <option value="Interessado">Interessado</option>
@@ -147,116 +135,93 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <i class="fas fa-tag"></i>
+                        <label>Nicho</label>
                         <select id="filter-niche"></select>
                     </div>
                 </div>
-                <div class="table-wrapper">
-                    <table class="leads-table">
+                <div class="table-responsive">
+                    <table id="leads-table">
                         <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr></thead>
                         <tbody id="leads-body"></tbody>
                     </table>
                 </div>
-                <div id="pagination-controls" class="pagination hidden"></div>
+                <div id="pagination-controls" class="pagination-container hidden"></div>
             </div>
         </main>
 
-        <!-- MODAL DE CONFIGURAÇÕES (sem API) -->
+        <!-- Modal de Configuração -->
         <div id="config-modal" class="modal hidden">
-            <div class="modal-content modal-large">
-                <div class="modal-header">
-                    <h3><i class="fas fa-cogs"></i> Configurações</h3>
-                    <span class="close close-modal">&times;</span>
+            <div class="modal-content large-modal">
+                <span class="close-modal">&times;</span>
+                <h3>Configurações</h3>
+                <div class="config-section">
+                    <h4>Chave de API (Serper/SerpAPI)</h4>
+                    <p>Escolha a chave que deseja usar para buscar dados reais.</p>
+                    <select id="api-provider-select">
+                        <option value="KEY_1">Chave Serper (principal)</option>
+                        <option value="KEY_2">Chave SerpAPI (secundária)</option>
+                    </select>
+                    <button id="save-api-key" class="btn-primary btn-sm mt-2">Salvar preferência</button>
+                    <div id="api-validation-msg" class="validation-msg"></div>
                 </div>
-                <div class="modal-body">
-                    <!-- Modelos de Mensagem -->
-                    <div class="config-card">
-                        <h4><i class="fas fa-comment"></i> Modelos de Mensagem</h4>
-                        <div class="template-editor">
-                            <input type="text" id="new-template-name" placeholder="Nome do modelo" class="full-width">
-                            <textarea id="new-template-content" rows="2" placeholder="Texto com {nicho} e {cidade}" class="full-width"></textarea>
-                            <button id="btn-save-template" class="btn-small">Adicionar</button>
-                        </div>
-                        <ul id="templates-list" class="templates-list"></ul>
+                <div class="config-section">
+                    <h4>Modelos de Mensagem</h4>
+                    <div class="new-template-form">
+                        <input type="text" id="new-template-name" placeholder="Nome do modelo">
+                        <textarea id="new-template-content" rows="3" placeholder="Texto com variáveis {nicho}, {cidade}..."></textarea>
+                        <button id="btn-save-template" class="btn-secondary">Adicionar</button>
                     </div>
-
-                    <!-- Administração (Superusuário) -->
-                    <div id="admin-section" class="config-card admin-card" style="display:none;">
-                        <h4><i class="fas fa-crown"></i> Administração</h4>
-                        <div class="admin-actions">
-                            <button id="btn-admin-add-self-leads" class="btn btn-success">+10 leads (meu saldo)</button>
-                            <button id="btn-admin-reset-self-balance" class="btn btn-outline">Zerar meu saldo</button>
-                        </div>
-                        <div class="admin-form">
-                            <label>Adicionar créditos a outro usuário:</label>
-                            <div class="flex-row">
-                                <input type="email" id="admin-user-email" placeholder="E-mail do usuário">
-                                <input type="number" id="admin-credits-qty" placeholder="Quantidade">
-                                <button id="btn-admin-add-credits" class="btn-small">Adicionar</button>
-                            </div>
-                        </div>
-                        <div class="admin-form">
-                            <label>Promover usuário a administrador:</label>
-                            <div class="flex-row">
-                                <input type="email" id="admin-promote-email" placeholder="E-mail do usuário">
-                                <button id="btn-promote-to-admin" class="btn-small">Tornar Admin</button>
-                            </div>
-                            <div id="admin-promote-msg" class="helper-text"></div>
-                        </div>
+                    <ul id="templates-list" class="templates-list"></ul>
+                </div>
+                <div class="config-section" id="admin-section" style="display:none;">
+                    <h4>Administração (apenas admin)</h4>
+                    <p>Adicionar créditos a um usuário:</p>
+                    <div style="display:flex; gap:10px;">
+                        <input type="email" id="admin-user-email" placeholder="E-mail do usuário">
+                        <input type="number" id="admin-credits-qty" placeholder="Quantidade" style="width:100px;">
+                        <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
                     </div>
+                    <button id="btn-admin-reset-balance" class="btn-outline mt-2">Zerar meu próprio saldo (apenas admin)</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL DE EDIÇÃO DE LEAD -->
+        <!-- Modal para detalhes/edição do lead -->
         <div id="lead-details-modal" class="modal hidden">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h3><i class="fas fa-edit"></i> Editar Lead</h3>
-                    <span class="close close-modal-details">&times;</span>
+                <span class="close-modal-details">&times;</span>
+                <h3>Editar Lead</h3>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="detail-status"></select>
                 </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="detail-status" class="full-width"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Notas de follow-up</label>
-                        <textarea id="detail-notes" rows="4" class="full-width"></textarea>
-                    </div>
+                <div class="form-group">
+                    <label>Notas</label>
+                    <textarea id="detail-notes" rows="4"></textarea>
                 </div>
-                <div class="modal-footer">
-                    <button id="btn-save-details" class="btn btn-primary">Salvar</button>
-                    <button id="btn-cancel-details" class="btn btn-outline">Cancelar</button>
+                <div class="modal-actions">
+                    <button id="btn-save-details" class="btn-primary">Salvar</button>
+                    <button id="btn-cancel-details" class="btn-outline">Cancelar</button>
                 </div>
             </div>
         </div>
 
-        <!-- MODAL DE MENSAGEM WHATSAPP -->
+        <!-- Modal de mensagem para WhatsApp -->
         <div id="message-modal" class="modal hidden">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h3><i class="fab fa-whatsapp"></i> Abordagem</h3>
-                    <span class="close close-modal-msg">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Modelo de mensagem:</label>
-                        <select id="modal-template-select" class="full-width"></select>
-                    </div>
-                    <textarea id="generated-message" rows="6" class="full-width" readonly></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button id="copy-message" class="btn-secondary">Copiar texto</button>
-                    <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp">Enviar WhatsApp</a>
-                </div>
+                <span class="close-modal-msg">&times;</span>
+                <h3>Gerar abordagem</h3>
+                <select id="modal-template-select" class="modal-template-selector"></select>
+                <textarea id="generated-message" rows="6" readonly></textarea>
+                <button id="copy-message" class="btn-secondary">Copiar</button>
+                <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp-action">Enviar WhatsApp</a>
             </div>
         </div>
 
-        <footer class="app-footer">
-            <p>© 2025 LeadScraper Pro – Dados protegidos com Firebase</p>
+        <footer>
+            <p>&copy; 2025 LeadScraper Pro – Seguro com Firebase</p>
         </footer>
-    </div>
+    </section>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
