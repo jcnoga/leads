@@ -1,5 +1,5 @@
 // Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
-// Superusurio jcnvap@gmail.com senha 123456
+super: jcnvap@gmail.com
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -15,21 +15,15 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Chaves de API (armazenadas no frontend por simplicidade, mas o ideal seria via Cloud Function)
-const API_KEYS = {
-    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",  // Serper (exemplo)
-    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
-};
-
 // Constantes
-const ADMIN_EMAIL = "jcnvap@gmail.com";  // Altere para o e-mail do superadmin desejado
+const ADMIN_EMAIL = "admin@leadscraper.com";
 const DEFAULT_TEMPLATE = "Olá, tudo bem? 👋\nNotei que você atua como {nicho} em {cidade} e identifiquei potencial para mais clientes. Posso ajudar?";
 
 // Estado global
 let currentUser = null;
-let currentUserProfile = null;   // { name, email, credits, isAdmin, templates }
-let currentLeads = [];            // leads em exibição (salvos ou resultado de busca)
-let displayingSaved = true;       // true: exibindo leads salvos; false: resultado de busca recente
+let currentUserProfile = null;
+let currentLeads = [];
+let displayingSaved = true;
 let currentPage = 1;
 let itemsPerPage = 10;
 let filterText = "", filterStatus = "", filterNiche = "";
@@ -64,6 +58,10 @@ async function handleLogin(email, password) {
 }
 
 async function handleRegister(name, email, password) {
+    if (password.length < 6) {
+        alert("A senha deve ter no mínimo 6 caracteres.");
+        return;
+    }
     try {
         const cred = await auth.createUserWithEmailAndPassword(email, password);
         await cred.user.updateProfile({ displayName: name });
@@ -214,7 +212,12 @@ async function resetSelfBalance() {
     }
 }
 
-// Busca real via Serper
+// Busca real via Serper (exemplo)
+const API_KEYS = {
+    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
+    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
+};
+
 async function fetchSerperLeads(query, limit) {
     const apiKey = API_KEYS.KEY_1;
     const response = await fetch('https://google.serper.dev/places', {
@@ -265,7 +268,7 @@ async function searchLeads(event) {
         alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos. Solicite ao administrador.`);
         return;
     }
-    leadsBody.innerHTML = '<tr><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    leadsBody.innerHTML = '<td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
     displayingSaved = false;
     let leads = [];
@@ -303,7 +306,7 @@ async function saveCurrentLeads() {
     await loadMyLeads();
 }
 
-// ==================== FILTROS, PAGINAÇÃO E RENDERIZAÇÃO ====================
+// ==================== FILTROS E RENDERIZAÇÃO ====================
 function applyFiltersAndRender() {
     let filtered = [...currentLeads];
     if (filterText) {
@@ -405,7 +408,7 @@ function openMessageModal(leadId, name, phone, niche, address) {
     modal.classList.remove('hidden');
 }
 
-// ==================== EDIÇÃO DE LEAD (somente para salvos) ====================
+// ==================== EDIÇÃO DE LEAD ====================
 function openEditLeadModal(leadId) {
     const lead = currentLeads.find(l => l.id === leadId);
     if (!lead) return;
@@ -465,7 +468,7 @@ function copyTemplateContent(idx) {
     alert("Modelo copiado!");
 }
 
-// ==================== ADMIN (PROMOÇÃO, CRÉDITOS) ====================
+// ==================== ADMIN (PROMOÇÃO) ====================
 async function promoteToAdmin() {
     if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem promover outros.");
     const email = document.getElementById('admin-promote-email').value.trim();
@@ -486,14 +489,13 @@ async function promoteToAdmin() {
     document.getElementById('admin-promote-email').value = '';
 }
 
-// ==================== CONFIGURAÇÕES (API KEYS) ====================
+// ==================== CONFIGURAÇÕES ====================
 function saveApiPreference() {
     const provider = document.getElementById('api-provider-select').value;
     localStorage.setItem('selected_api_provider', provider);
     alert("Preferência salva.");
 }
 
-// ==================== EXPORTAÇÃO CSV/XLSX ====================
 function exportToCSV() {
     if (currentLeads.length === 0) return alert("Nenhum dado para exportar.");
     const headers = ["Nome", "Nicho", "Endereço", "Telefone", "Site", "Status", "Notas"];
@@ -513,10 +515,25 @@ function exportToXLSX() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-    // Autenticação
-    document.getElementById('login-form').addEventListener('submit', e => { e.preventDefault(); handleLogin(loginEmail.value, loginPassword.value); });
-    document.getElementById('register-form').addEventListener('submit', e => { e.preventDefault(); handleRegister(regName.value, regEmail.value, regPassword.value); });
-    document.getElementById('forgot-form').addEventListener('submit', e => { e.preventDefault(); handleForgot(forgotEmail.value); });
+    // Autenticação - capturando elementos dentro do evento
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        handleLogin(email, password);
+    });
+    document.getElementById('register-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('reg-name').value;
+        const email = document.getElementById('reg-email').value;
+        const password = document.getElementById('reg-password').value;
+        handleRegister(name, email, password);
+    });
+    document.getElementById('forgot-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('forgot-email').value;
+        handleForgot(email);
+    });
     document.getElementById('btn-logout').addEventListener('click', logout);
     document.getElementById('link-register').onclick = () => toggleAuth('register');
     document.getElementById('link-login-reg').onclick = () => toggleAuth('login');
@@ -535,7 +552,7 @@ function setupEventListeners() {
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
-    // Modal de configuração
+    // Modal configuração
     document.getElementById('btn-config').addEventListener('click', () => document.getElementById('config-modal').classList.remove('hidden'));
     document.querySelector('.close-modal').addEventListener('click', () => document.getElementById('config-modal').classList.add('hidden'));
     document.getElementById('save-api-key').addEventListener('click', saveApiPreference);
@@ -545,7 +562,7 @@ function setupEventListeners() {
         document.getElementById('new-template-content').value = '';
     });
 
-    // Admin (apenas para superusuário)
+    // Admin
     document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
@@ -585,7 +602,7 @@ auth.onAuthStateChanged(async (user) => {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         await loadUserProfile(user.uid);
-        setupEventListeners();
+        setupEventListeners(); // evita duplicação? já foi chamado antes? melhor garantir
     } else {
         currentUser = null;
         authSection.classList.remove('hidden');
@@ -594,3 +611,6 @@ auth.onAuthStateChanged(async (user) => {
         setupEventListeners();
     }
 });
+
+// Para garantir que os event listeners sejam configurados mesmo antes do auth mudar
+setupEventListeners();
