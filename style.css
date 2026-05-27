@@ -95,5 +95,4 @@ th { background: #f1f5f9; }
 .pagination-container { display: flex; justify-content: center; gap: 10px; margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--border); }
 .page-btn { background: var(--surface); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; cursor: pointer; }
 .hidden { display: none !important; }
-.btn-link { background: none; border: none; color: var(--error-text); text-decoration: underline; cursor: pointer; }
 .validation-msg { margin-top: 5px; font-size: 0.85rem; color: var(--error-text); }

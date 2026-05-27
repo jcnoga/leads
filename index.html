@@ -10,12 +10,12 @@
 </head>
 <body>
 
-    <!-- TELA DE LOGIN -->
+    <!-- TELA DE AUTENTICAÇÃO -->
     <section id="auth-section">
         <div class="auth-container">
             <div class="auth-box" id="login-box">
                 <h2>LeadScraper Pro</h2>
-                <p>Seguro, na nuvem, sem armazenamento local</p>
+                <p>Seguro, na nuvem</p>
                 <form id="login-form">
                     <input type="email" id="login-email" placeholder="E-mail" required>
                     <input type="password" id="login-password" placeholder="Senha" required>
@@ -89,7 +89,6 @@
                                 <option value="SP">São Paulo</option>
                                 <option value="RJ">Rio de Janeiro</option>
                                 <option value="MG">Minas Gerais</option>
-                                <!-- adicione os demais se desejar -->
                             </select>
                         </div>
                         <div class="form-group">
@@ -154,9 +153,10 @@
             <div class="modal-content large-modal">
                 <span class="close-modal">&times;</span>
                 <h3>Configurações</h3>
+                
+                <!-- Seção de API -->
                 <div class="config-section">
                     <h4>Chave de API (Serper/SerpAPI)</h4>
-                    <p>Escolha a chave que deseja usar para buscar dados reais.</p>
                     <select id="api-provider-select">
                         <option value="KEY_1">Chave Serper (principal)</option>
                         <option value="KEY_2">Chave SerpAPI (secundária)</option>
@@ -164,6 +164,8 @@
                     <button id="save-api-key" class="btn-primary btn-sm mt-2">Salvar preferência</button>
                     <div id="api-validation-msg" class="validation-msg"></div>
                 </div>
+
+                <!-- Seção de Modelos de Mensagem -->
                 <div class="config-section">
                     <h4>Modelos de Mensagem</h4>
                     <div class="new-template-form">
@@ -173,20 +175,38 @@
                     </div>
                     <ul id="templates-list" class="templates-list"></ul>
                 </div>
-                <div class="config-section" id="admin-section" style="display:none;">
-                    <h4>Administração (apenas admin)</h4>
-                    <p>Adicionar créditos a um usuário:</p>
-                    <div style="display:flex; gap:10px;">
-                        <input type="email" id="admin-user-email" placeholder="E-mail do usuário">
-                        <input type="number" id="admin-credits-qty" placeholder="Quantidade" style="width:100px;">
-                        <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
+
+                <!-- Seção de Administração (visível apenas para superusuário) -->
+                <div id="admin-section" class="config-section" style="display:none;">
+                    <h4>Administração (Superusuário)</h4>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button id="btn-admin-add-self-leads" class="btn-success">+10 leads (meu saldo)</button>
+                        <button id="btn-admin-reset-self-balance" class="btn-outline">Zerar meu saldo</button>
                     </div>
-                    <button id="btn-admin-reset-balance" class="btn-outline mt-2">Zerar meu próprio saldo (apenas admin)</button>
+
+                    <div style="border-top: 1px solid var(--border); margin: 10px 0; padding-top: 10px;">
+                        <p><strong>Adicionar créditos a outro usuário:</strong></p>
+                        <div style="display:flex; gap:10px;">
+                            <input type="email" id="admin-user-email" placeholder="E-mail do usuário" style="flex:1;">
+                            <input type="number" id="admin-credits-qty" placeholder="Quantidade" style="width:100px;">
+                            <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px solid var(--border); margin: 10px 0; padding-top: 10px;">
+                        <p><strong>Promover usuário a superadministrador:</strong></p>
+                        <div style="display:flex; gap:10px;">
+                            <input type="email" id="admin-promote-email" placeholder="E-mail do usuário" style="flex:1;">
+                            <button id="btn-promote-to-admin" class="btn-primary">Tornar Admin</button>
+                        </div>
+                        <div id="admin-promote-msg" class="validation-msg"></div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Modal para detalhes/edição do lead -->
+        <!-- Modal de edição de lead -->
         <div id="lead-details-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-details">&times;</span>
@@ -206,7 +226,7 @@
             </div>
         </div>
 
-        <!-- Modal de mensagem para WhatsApp -->
+        <!-- Modal de mensagem WhatsApp -->
         <div id="message-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-msg">&times;</span>
@@ -219,7 +239,7 @@
         </div>
 
         <footer>
-            <p>&copy; 2025 LeadScraper Pro – Seguro com Firebase</p>
+            <p>&copy; 2025 LeadScraper Pro – Dados seguros na nuvem</p>
         </footer>
     </section>
 
