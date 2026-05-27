@@ -1,5 +1,4 @@
-// Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
-
+// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -14,8 +13,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-
-// Restante do código (const ADMIN_EMAIL, etc.) continua igual...
 
 // Constantes
 const ADMIN_EMAIL = "admin@leadscraper.com";
@@ -123,7 +120,7 @@ async function loadUserProfile(uid) {
     await loadMyLeads();
 }
 
-// ==================== GERENCIAMENTO DE LEADS (Firestore) ====================
+// ==================== GERENCIAMENTO DE LEADS ====================
 async function loadMyLeads() {
     if (!currentUser) return;
     const snapshot = await db.collection('users').doc(currentUser.uid).collection('leads').orderBy('createdAt', 'desc').get();
@@ -173,7 +170,7 @@ async function deleteLead(leadId) {
     }
 }
 
-// ==================== CRÉDITOS E BUSCA ====================
+// ==================== CRÉDITOS ====================
 async function consumeCredits(amount) {
     if (currentUserProfile.credits >= amount) {
         const newCredits = currentUserProfile.credits - amount;
@@ -199,9 +196,28 @@ async function addCreditsToUser(email, qty, isAdminAction = true) {
     alert(`Adicionado ${qty} créditos a ${email}.`);
 }
 
+// Função CORRIGIDA para adicionar 10 leads ao próprio saldo
 async function addSelfCredits(amount) {
-    if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem usar esta função.");
-    await addCreditsToUser(currentUserProfile.email, amount, false);
+    if (!currentUserProfile) {
+        alert("Perfil não carregado. Recarregue a página.");
+        return;
+    }
+    if (!currentUserProfile.isAdmin) {
+        alert("Apenas superusuários podem usar esta função.");
+        return;
+    }
+    try {
+        const userRef = db.collection('users').doc(currentUser.uid);
+        const newCredits = (currentUserProfile.credits || 0) + amount;
+        await userRef.update({ credits: newCredits });
+        currentUserProfile.credits = newCredits;
+        leadsBalanceDisplay.innerText = newCredits;
+        alert(`✅ ${amount} créditos adicionados! Novo saldo: ${newCredits}`);
+        if (displayingSaved) await loadMyLeads();
+    } catch (err) {
+        console.error("Erro ao adicionar créditos:", err);
+        alert("Erro ao adicionar créditos. Verifique o console.");
+    }
 }
 
 async function resetSelfBalance() {
@@ -214,7 +230,7 @@ async function resetSelfBalance() {
     }
 }
 
-// Busca real via Serper (exemplo)
+// ==================== BUSCA DE LEADS ====================
 const API_KEYS = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
@@ -270,7 +286,7 @@ async function searchLeads(event) {
         alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos. Solicite ao administrador.`);
         return;
     }
-    leadsBody.innerHTML = '<td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    leadsBody.innerHTML = '<tr><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
     displayingSaved = false;
     let leads = [];
@@ -517,36 +533,18 @@ function exportToXLSX() {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-	// Localize o botão de abrir modal e modifique:
-document.getElementById('btn-config').addEventListener('click', () => {
-    // Atualiza a exibição da seção admin antes de abrir
-    if (currentUserProfile && currentUserProfile.isAdmin) {
-        document.getElementById('admin-section').style.display = 'block';
-    } else {
-        document.getElementById('admin-section').style.display = 'none';
-    }
-    document.getElementById('config-modal').classList.remove('hidden');
-});
-
-
-    // Autenticação - capturando elementos dentro do evento
+    // Autenticação
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        handleLogin(email, password);
+        handleLogin(document.getElementById('login-email').value, document.getElementById('login-password').value);
     });
     document.getElementById('register-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const name = document.getElementById('reg-name').value;
-        const email = document.getElementById('reg-email').value;
-        const password = document.getElementById('reg-password').value;
-        handleRegister(name, email, password);
+        handleRegister(document.getElementById('reg-name').value, document.getElementById('reg-email').value, document.getElementById('reg-password').value);
     });
     document.getElementById('forgot-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const email = document.getElementById('forgot-email').value;
-        handleForgot(email);
+        handleForgot(document.getElementById('forgot-email').value);
     });
     document.getElementById('btn-logout').addEventListener('click', logout);
     document.getElementById('link-register').onclick = () => toggleAuth('register');
@@ -566,8 +564,15 @@ document.getElementById('btn-config').addEventListener('click', () => {
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
-    // Modal configuração
-    document.getElementById('btn-config').addEventListener('click', () => document.getElementById('config-modal').classList.remove('hidden'));
+    // Modal configuração (com atualização da seção admin)
+    document.getElementById('btn-config').addEventListener('click', () => {
+        if (currentUserProfile && currentUserProfile.isAdmin) {
+            document.getElementById('admin-section').style.display = 'block';
+        } else {
+            document.getElementById('admin-section').style.display = 'none';
+        }
+        document.getElementById('config-modal').classList.remove('hidden');
+    });
     document.querySelector('.close-modal').addEventListener('click', () => document.getElementById('config-modal').classList.add('hidden'));
     document.getElementById('save-api-key').addEventListener('click', saveApiPreference);
     document.getElementById('btn-save-template').addEventListener('click', () => {
@@ -576,8 +581,14 @@ document.getElementById('btn-config').addEventListener('click', () => {
         document.getElementById('new-template-content').value = '';
     });
 
-    // Admin
-    document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
+    // ADMIN - botão +10 leads (garantindo que funcione)
+    const btnAddSelf = document.getElementById('btn-admin-add-self-leads');
+    if (btnAddSelf) {
+        // Remove listeners antigos para evitar duplicação
+        const newBtn = btnAddSelf.cloneNode(true);
+        btnAddSelf.parentNode.replaceChild(newBtn, btnAddSelf);
+        newBtn.addEventListener('click', () => addSelfCredits(10));
+    }
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
         const email = document.getElementById('admin-user-email').value.trim();
@@ -616,7 +627,7 @@ auth.onAuthStateChanged(async (user) => {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         await loadUserProfile(user.uid);
-        setupEventListeners(); // evita duplicação? já foi chamado antes? melhor garantir
+        setupEventListeners();
     } else {
         currentUser = null;
         authSection.classList.remove('hidden');
@@ -625,6 +636,3 @@ auth.onAuthStateChanged(async (user) => {
         setupEventListeners();
     }
 });
-
-// Para garantir que os event listeners sejam configurados mesmo antes do auth mudar
-setupEventListeners();
