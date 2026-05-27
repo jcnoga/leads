@@ -3,31 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de Leads Profissional - IndexedDB</title>
+    <title>LeadScraper Pro | Seguro com Firebase</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Ícones -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- FIREBASE SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-    <!-- Biblioteca para Exportar Excel (SheetJS) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
-    <!-- SISTEMA DE LOGIN -->
+    <!-- TELA DE LOGIN -->
     <section id="auth-section">
         <div class="auth-container">
             <div class="auth-box" id="login-box">
-                <h2>Acesso ao Sistema</h2>
-                <p>Gerador de Leads Profissional</p>
+                <h2>LeadScraper Pro</h2>
+                <p>Seguro, na nuvem, sem armazenamento local</p>
                 <form id="login-form">
-                    <input type="text" id="login-name" placeholder="Seu Nome (Opcional)" >
-                    <input type="email" id="login-email" placeholder="Seu e-mail" required>
-                    <input type="password" id="login-password" placeholder="Sua senha" required>
+                    <input type="email" id="login-email" placeholder="E-mail" required>
+                    <input type="password" id="login-password" placeholder="Senha" required>
                     <button type="submit" class="btn-primary">Entrar</button>
                 </form>
                 <div class="auth-links">
@@ -39,12 +30,9 @@
             <div class="auth-box hidden" id="register-box">
                 <h2>Criar Conta</h2>
                 <form id="register-form">
-                    <!-- O modo será definido nas configurações, padrão híbrido -->
-                    <input type="hidden" id="register-mode-select" value="hybrid">
-
-                    <input type="text" id="reg-name" placeholder="Seu Nome Completo" required>
-                    <input type="email" id="reg-email" placeholder="Seu e-mail" required>
-                    <input type="password" id="reg-password" placeholder="Crie uma senha" required>
+                    <input type="text" id="reg-name" placeholder="Nome completo" required>
+                    <input type="email" id="reg-email" placeholder="E-mail" required>
+                    <input type="password" id="reg-password" placeholder="Senha (mínimo 6 caracteres)" required>
                     <button type="submit" class="btn-primary">Cadastrar</button>
                 </form>
                 <div class="auth-links">
@@ -54,153 +42,87 @@
 
             <div class="auth-box hidden" id="forgot-box">
                 <h2>Recuperar Senha</h2>
-                <p>Informe seu e-mail para receber as instruções.</p>
                 <form id="forgot-form">
                     <input type="email" id="forgot-email" placeholder="E-mail cadastrado" required>
-                    <button type="submit" class="btn-primary">Recuperar</button>
+                    <button type="submit" class="btn-primary">Enviar e-mail</button>
                 </form>
                 <div class="auth-links">
-                    <a href="#" id="link-login-forgot">Voltar para Login</a>
+                    <a href="#" id="link-login-forgot">Voltar</a>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- APLICAÇÃO PRINCIPAL -->
+    <!-- PAINEL PRINCIPAL -->
     <section id="app-section" class="hidden">
         <header>
             <div class="header-content">
                 <div class="user-info">
-                    <span>Olá, <strong id="user-name-display">Visitante</strong> <small id="app-mode-display"></small></span>
+                    <span>Olá, <strong id="user-name-display"></strong> (saldo: <span id="leads-balance-display">0</span> leads)</span>
                 </div>
                 <div class="header-actions">
-                    <button id="btn-sync-data" class="btn-outline" title="Sincronizar dados locais com a nuvem">
-                        <i class="fas fa-sync-alt"></i> Sync Nuvem
-                    </button>
-
-                    <button id="btn-show-saved-leads" class="btn-primary-outline">
-                        <i class="fas fa-address-book"></i> Meus Contatos
-                    </button>
-
-                    <button id="btn-admin-add" class="btn-outline btn-admin-success hidden">
-                        <i class="fas fa-plus-circle"></i> +10 Leads
-                    </button>
-                    <button id="btn-admin-reset" class="btn-outline btn-admin-danger hidden">
-                        <i class="fas fa-trash"></i> Zerar Saldo
-                    </button>
-                    
-                    <button id="btn-config" class="btn-secondary"><i class="fas fa-cog"></i> Configurações</button>
+                    <button id="btn-refresh-leads" class="btn-outline"><i class="fas fa-sync-alt"></i> Meus Leads</button>
+                    <button id="btn-config" class="btn-outline"><i class="fas fa-cog"></i> Configurações</button>
                     <button id="btn-logout" class="btn-outline">Sair</button>
                 </div>
             </div>
         </header>
 
         <main>
+            <!-- Painel de Busca -->
             <div class="search-panel">
-                <h1>Filtro de Leads (ICP)</h1>
-                <p>Localize potenciais clientes e gere oportunidades reais.</p>
-                
+                <h1>Pesquisar Leads (ICP)</h1>
                 <form id="lead-search-form">
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="niche">Nicho / Profissão</label>
+                            <label>Nicho / Profissão</label>
                             <input type="text" id="niche" placeholder="Ex: Restaurantes, Advogados..." required>
                         </div>
                         <div class="form-group">
-                            <label for="city">Cidade</label>
+                            <label>Cidade</label>
                             <input type="text" id="city" placeholder="Ex: São Paulo">
                         </div>
                         <div class="form-group">
-                            <label for="state">Estado (UF)</label>
+                            <label>Estado (UF)</label>
                             <select id="state">
                                 <option value="">Todos</option>
-                                <option value="AC">Acre</option>
-                                <option value="AL">Alagoas</option>
-                                <option value="AP">Amapá</option>
-                                <option value="AM">Amazonas</option>
-                                <option value="BA">Bahia</option>
-                                <option value="CE">Ceará</option>
-                                <option value="DF">Distrito Federal</option>
-                                <option value="ES">Espírito Santo</option>
-                                <option value="GO">Goiás</option>
-                                <option value="MA">Maranhão</option>
-                                <option value="MT">Mato Grosso</option>
-                                <option value="MS">Mato Grosso do Sul</option>
-                                <option value="MG">Minas Gerais</option>
-                                <option value="PA">Pará</option>
-                                <option value="PB">Paraíba</option>
-                                <option value="PR">Paraná</option>
-                                <option value="PE">Pernambuco</option>
-                                <option value="PI">Piauí</option>
-                                <option value="RJ">Rio de Janeiro</option>
-                                <option value="RN">Rio Grande do Norte</option>
-                                <option value="RS">Rio Grande do Sul</option>
-                                <option value="RO">Rondônia</option>
-                                <option value="RR">Roraima</option>
-                                <option value="SC">Santa Catarina</option>
                                 <option value="SP">São Paulo</option>
-                                <option value="SE">Sergipe</option>
-                                <option value="TO">Tocantins</option>
+                                <option value="RJ">Rio de Janeiro</option>
+                                <option value="MG">Minas Gerais</option>
+                                <!-- adicione os demais se desejar -->
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="limit">Quantidade (Máx 100)</label>
-                            <input type="number" id="limit" value="100" min="1" max="100">
+                            <label>Quantidade (máx 100)</label>
+                            <input type="number" id="limit" value="50" min="1" max="100">
                         </div>
                     </div>
-
-                    <div class="form-group template-group">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                            <label for="message-template-input">Mensagem de Abordagem (Editável)</label>
-                            <small class="input-hint" style="margin:0;">Variáveis: {nicho}, {cidade}, {estado}</small>
-                        </div>
-                        <textarea id="message-template-input" rows="8"></textarea>
-                        <div class="template-controls-mini">
-                            <button type="button" id="btn-load-default-msg" class="btn-action">Restaurar Texto Padrão</button>
-                        </div>
+                    <div class="form-group">
+                        <label>Mensagem de Abordagem (editável)</label>
+                        <textarea id="message-template-input" rows="4"></textarea>
                     </div>
-
-                    <button type="submit" id="btn-search-leads" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
-                    
-                    <button type="button" id="btn-save-db-direct" class="btn-success full-width" style="margin-top: 10px;">
-                        <i class="fas fa-save"></i> Salvar Leads
-                    </button>
+                    <button type="submit" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
+                    <button type="button" id="btn-save-leads" class="btn-success full-width" style="margin-top:10px;"><i class="fas fa-save"></i> Salvar Leads no Banco</button>
                 </form>
-                
-                <div id="api-status-warning" class="warning-box hidden">
-                    <i class="fas fa-exclamation-triangle"></i> 
-                    <span id="api-warning-text">Chave API não configurada. Exibindo <strong>leads fictícios</strong>.</span>
-                </div>
-                
-                <div id="api-status-success" class="success-box hidden">
-                    <i class="fas fa-database"></i> 
-                    <span style="flex:1;">API Ativa (<span id="api-provider-badge">Serper</span>). <strong>Saldo de Leads: <span id="leads-balance-display">0</span></strong></span>
-                </div>
-
-                <div id="api-status-expired" class="error-box hidden">
-                    <i class="fas fa-ban"></i> 
-                    <span>Saldo de Leads Esgotado (0). Modo Simulação Ativo. <button id="btn-revalidate-trigger" class="btn-link">Recarregar</button></span>
-                </div>
+                <div id="api-status-box" class="info-box hidden"></div>
             </div>
 
-            <div class="results-panel hidden" id="results-panel">
+            <!-- Resultados -->
+            <div id="results-panel" class="results-panel hidden">
                 <div class="results-header">
-                    <h2 id="results-title">Resultados <span id="data-source-badge" class="badge-fictitious">(Simulados)</span>: <span id="result-count">0</span></h2>
+                    <h2>Resultados: <span id="result-count">0</span></h2>
                     <div class="export-buttons">
-                        <button id="btn-import-xlsx" class="btn-outline btn-sm btn-import"><i class="fas fa-file-upload"></i> Importar Excel</button>
-                        <input type="file" id="import-file-input" class="hidden" accept=".xlsx">
-                        <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> Baixar CSV</button>
-                        <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Baixar Excel</button>
+                        <button id="btn-export-csv" class="btn-outline btn-sm">CSV</button>
+                        <button id="btn-export-xlsx" class="btn-outline btn-sm">Excel</button>
                     </div>
                 </div>
-
                 <div class="filters-container">
                     <div class="filter-group">
-                        <label for="filter-text">Buscar (Nome/Geral)</label>
-                        <input type="text" id="filter-text" placeholder="Digite para filtrar...">
+                        <label>Buscar texto</label>
+                        <input type="text" id="filter-text" placeholder="Nome, endereço...">
                     </div>
                     <div class="filter-group">
-                        <label for="filter-status">Status</label>
+                        <label>Status</label>
                         <select id="filter-status">
                             <option value="">Todos</option>
                             <option value="Novo">Novo</option>
@@ -213,28 +135,16 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label for="filter-niche">Nicho</label>
-                        <select id="filter-niche">
-                            <option value="">Todos</option>
-                        </select>
+                        <label>Nicho</label>
+                        <select id="filter-niche"></select>
                     </div>
                 </div>
-                
                 <div class="table-responsive">
                     <table id="leads-table">
-                        <thead>
-                            <tr>
-                                <th>Empresa / Status</th>
-                                <th>Detalhes (Nicho, Local)</th>
-                                <th>Contato</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leads-body">
-                        </tbody>
+                        <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr></thead>
+                        <tbody id="leads-body"></tbody>
                     </table>
                 </div>
-
                 <div id="pagination-controls" class="pagination-container hidden"></div>
             </div>
         </main>
@@ -243,247 +153,79 @@
         <div id="config-modal" class="modal hidden">
             <div class="modal-content large-modal">
                 <span class="close-modal">&times;</span>
-                <h3>Configurações do Sistema</h3>
-                
-                <div class="config-tabs">
-                    <button class="tab-btn active" data-tab="tab-api">API & Leads</button>
-                    <button class="tab-btn" data-tab="tab-templates">Cadastrar Textos</button>
-                    <button class="tab-btn" data-tab="tab-data">Dados & Backup</button>
-                </div>
-
-                <!-- TAB API -->
-                <div id="tab-api" class="tab-content active">
-                    <div class="config-section">
-                        <h4>Configuração da API de Busca</h4>
-                        <p>Selecione qual chave de API deseja utilizar para buscar dados reais.</p>
-                        
-                        <div class="form-group">
-                            <label for="api-provider-select">Selecione a Chave:</label>
-                            <select id="api-provider-select" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
-                                <option value="">-- Selecionar --</option>
-                                <option value="KEY_1">Chave 1</option> 
-                                <option value="KEY_2">Chave 2</option>
-                            </select>
-                        </div>
-                        
-                        <button id="save-api-key" class="btn-primary" style="margin-top: 10px;">Salvar Preferência</button>
-                        <p id="api-validation-msg" class="validation-msg"></p>
-                    </div>
-
-                    <div id="revalidation-area" class="config-section hidden revalidation-box">
-                        <h4>💎 Recarga de Leads (Senha/Contra-Senha)</h4>
-                        <p>Para adicionar leads ao seu saldo, siga os passos:</p>
-                        
-                        <div class="recharge-steps">
-                            <div class="step-box">
-                                <label>1. Código Gerado:</label>
-                                <div class="challenge-row">
-                                    <strong id="challenge-number" class="highlight-number">---</strong>
-                                    <button id="btn-generate-challenge" class="btn-secondary btn-sm">Gerar</button>
-                                </div>
-                            </div>
-                            <div class="step-box">
-                                <label>2. Quero adquirir (Qtd):</label>
-                                <input type="number" id="leads-quantity" placeholder="Ex: 500" min="1">
-                            </div>
-                            <div class="step-box full">
-                                <label>3. Solicitar Contra-senha:</label>
-                                <a href="#" id="btn-whatsapp-request" target="_blank" class="btn-whatsapp">
-                                    <i class="fab fa-whatsapp"></i> Enviar Código e Pedido via WhatsApp
-                                </a>
-                            </div>
-                            <div class="step-box full">
-                                <label>4. Inserir Contra-senha:</label>
-                                <div class="response-box">
-                                    <input type="text" id="challenge-response" placeholder="Ex: 12345-500">
-                                    <button id="btn-verify-challenge" class="btn-primary">Ativar Leads</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB TEMPLATES -->
-                <div id="tab-templates" class="tab-content">
-                    <div class="config-section">
-                        <h4>Gerenciar Modelos de Mensagem</h4>
-                        <div class="new-template-form">
-                            <input type="text" id="new-template-name" placeholder="Nome do Modelo (ex: Abordagem Formal)">
-                            <textarea id="new-template-content" rows="6" placeholder="Texto da mensagem com variáveis {nicho}, {cidade}..."></textarea>
-                            <button id="btn-save-template" class="btn-secondary">Adicionar Modelo</button>
-                        </div>
-                        <div class="templates-list-container">
-                            <h5>Modelos Salvos</h5>
-                            <ul id="templates-list" class="templates-list"></ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB DADOS & BACKUP -->
-                <div id="tab-data" class="tab-content">
-                    <div class="config-section">
-                        <h4>Modo de Armazenamento</h4>
-                        <p>Defina como os dados serão salvos no aplicativo.</p>
-                        <select id="app-storage-mode" class="mode-select" style="width: 100%;">
-                            <option value="local">Local (Apenas Dispositivo/Offline)</option>
-                            <option value="cloud">Nuvem (Apenas Firebase/Online)</option>
-                            <option value="hybrid">Híbrido (Local + Sincronização)</option>
-                        </select>
-                        <button id="btn-save-storage-mode" class="btn-primary btn-sm" style="margin-top: 10px;">Salvar Modo</button>
-                        <p class="input-hint" style="margin-top: 5px;">* Alterações podem exigir recarregamento da página.</p>
-                    </div>
-
-                    <div class="config-section">
-                        <h4>Gestão de Dados Locais (IndexedDB)</h4>
-                        <p>Gerencie seus dados salvos no navegador.</p>
-                        
-                        <div class="backup-actions">
-                            <button id="btn-backup" class="btn-backup">
-                                <i class="fas fa-download"></i> Fazer Backup (Download)
-                            </button>
-                            
-                            <button id="btn-restore-trigger" class="btn-restore">
-                                <i class="fas fa-upload"></i> Restaurar Dados
-                            </button>
-                            <input type="file" id="restore-file-input" accept=".json" class="hidden">
-                        </div>
-                        
-                        <button id="btn-cleanup-niches" class="btn-secondary" style="width:100%; margin-top: 15px;">
-                            <i class="fas fa-magic"></i> Otimizar Nichos do Banco Local
-                        </button>
-
-                        <p class="input-hint" style="margin-top: 10px;">
-                            * O Backup gera um arquivo .json com seus leads, saldo e templates.<br>
-                            * A Restauração irá substituir os dados locais atuais.<br>
-                            * A otimização corrige nichos de 'Pet Shop' e 'Salão de Beleza' automaticamente.
-                        </p>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- MODAL: Gerenciar Banco de Dados -->
-        <div id="database-modal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close-modal-db">&times;</span>
-                <h3>📦 Gerenciar Banco de Dados</h3>
-                <p>Selecione um nicho para baixar e remover do banco de dados.</p>
-                
-                <div class="db-filter-box">
-                    <label for="db-niche-select">Filtrar por Nicho salvo:</label>
-                    <select id="db-niche-select">
-                        <option value="">Carregando nichos...</option>
+                <h3>Configurações</h3>
+                <div class="config-section">
+                    <h4>Chave de API (Serper/SerpAPI)</h4>
+                    <p>Escolha a chave que deseja usar para buscar dados reais.</p>
+                    <select id="api-provider-select">
+                        <option value="KEY_1">Chave Serper (principal)</option>
+                        <option value="KEY_2">Chave SerpAPI (secundária)</option>
                     </select>
+                    <button id="save-api-key" class="btn-primary btn-sm mt-2">Salvar preferência</button>
+                    <div id="api-validation-msg" class="validation-msg"></div>
                 </div>
-
-                <div class="db-actions">
-                    <button id="btn-download-delete-csv" class="btn-action-db btn-csv">
-                        <i class="fas fa-file-csv"></i> Baixar CSV e Limpar
-                    </button>
-                    <button id="btn-download-delete-xlsx" class="btn-action-db btn-excel">
-                        <i class="fas fa-file-excel"></i> Baixar Excel e Limpar
-                    </button>
+                <div class="config-section">
+                    <h4>Modelos de Mensagem</h4>
+                    <div class="new-template-form">
+                        <input type="text" id="new-template-name" placeholder="Nome do modelo">
+                        <textarea id="new-template-content" rows="3" placeholder="Texto com variáveis {nicho}, {cidade}..."></textarea>
+                        <button id="btn-save-template" class="btn-secondary">Adicionar</button>
+                    </div>
+                    <ul id="templates-list" class="templates-list"></ul>
                 </div>
-                
-                <div id="db-status-msg" class="validation-msg" style="margin-top:10px;"></div>
+                <div class="config-section" id="admin-section" style="display:none;">
+                    <h4>Administração (apenas admin)</h4>
+                    <p>Adicionar créditos a um usuário:</p>
+                    <div style="display:flex; gap:10px;">
+                        <input type="email" id="admin-user-email" placeholder="E-mail do usuário">
+                        <input type="number" id="admin-credits-qty" placeholder="Quantidade" style="width:100px;">
+                        <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
+                    </div>
+                    <button id="btn-admin-reset-balance" class="btn-outline mt-2">Zerar meu próprio saldo (apenas admin)</button>
+                </div>
             </div>
         </div>
 
-        <!-- MODAL: Detalhes e Gerenciamento do Lead -->
+        <!-- Modal para detalhes/edição do lead -->
         <div id="lead-details-modal" class="modal hidden">
-            <div class="modal-content large-modal">
+            <div class="modal-content">
                 <span class="close-modal-details">&times;</span>
-                <h3><i class="fas fa-user-edit"></i> Gerenciar Lead</h3>
-                
-                <div class="lead-details-grid">
-                    <div class="detail-header">
-                        <h2 id="detail-name">Nome do Negócio</h2>
-                        <span id="detail-niche-badge" class="badge-niche">Nicho</span>
-                    </div>
-
-                    <div class="detail-section">
-                        <h4>📞 Contato</h4>
-                        <div class="detail-row">
-                            <strong>Telefone / WhatsApp:</strong>
-                            <span id="detail-phone">...</span>
-                        </div>
-                        <div class="detail-row">
-                            <strong>Website:</strong>
-                            <a href="#" id="detail-website" target="_blank">...</a>
-                        </div>
-                    </div>
-
-                    <div class="detail-section">
-                        <h4>📌 Observações</h4>
-                        <div class="detail-row-grid">
-                            <div>⭐ Avaliação: <span id="detail-rating">...</span></div>
-                            <div>📝 Total de avaliações: <span id="detail-rating-count">...</span></div>
-                            <div>📍 Atividade: <span id="detail-activity">...</span></div>
-                        </div>
-                        <div class="detail-address-box">
-                            <strong>🏢 Endereço:</strong>
-                            <p id="detail-address">...</p>
-                        </div>
-                    </div>
-
-                    <div class="detail-section highlight-section">
-                        <h4>🗂️ Gerenciar Lead</h4>
-                        <div class="form-group">
-                            <label for="detail-status">Status do Lead:</label>
-                            <select id="detail-status">
-                                <option value="Novo">Novo</option>
-                                <option value="Contatado">Contatado</option>
-                                <option value="Interessado">Interessado</option>
-                                <option value="Negociação">Negociação</option>
-                                <option value="Convertido">Convertido</option>
-                                <option value="Não interessado">Não interessado</option>
-                                <option value="Telefone sem WhatsApp">Telefone sem WhatsApp</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="detail-notes">Notas de Follow-up:</label>
-                            <textarea id="detail-notes" rows="4" placeholder="Adicione observações sobre o contato, próximos passos..."></textarea>
-                        </div>
-                    </div>
+                <h3>Editar Lead</h3>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="detail-status"></select>
                 </div>
-
+                <div class="form-group">
+                    <label>Notas</label>
+                    <textarea id="detail-notes" rows="4"></textarea>
+                </div>
                 <div class="modal-actions">
+                    <button id="btn-save-details" class="btn-primary">Salvar</button>
                     <button id="btn-cancel-details" class="btn-outline">Cancelar</button>
-                    <button id="btn-save-details" class="btn-primary">Salvar Alterações</button>
                 </div>
             </div>
         </div>
 
-        <!-- Modal de Abordagem -->
+        <!-- Modal de mensagem para WhatsApp -->
         <div id="message-modal" class="modal hidden">
             <div class="modal-content">
                 <span class="close-modal-msg">&times;</span>
-                <h3>Gerador de Abordagem</h3>
-                
-                <div style="margin-bottom: 5px;">
-                    <label for="modal-template-select" style="font-size:0.9rem; color:var(--text-muted);">Selecionar Modelo:</label>
-                    <select id="modal-template-select" class="modal-template-selector"></select>
-                </div>
-
-                <div class="message-box">
-                    <textarea id="generated-message" rows="8"></textarea>
-                </div>
-
-                <button id="copy-message" class="btn-secondary">
-                    <i class="far fa-copy"></i> Copiar Mensagem
-                </button>
-                
-                <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp-action">Enviar no WhatsApp</a>
+                <h3>Gerar abordagem</h3>
+                <select id="modal-template-select" class="modal-template-selector"></select>
+                <textarea id="generated-message" rows="6" readonly></textarea>
+                <button id="copy-message" class="btn-secondary">Copiar</button>
+                <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp-action">Enviar WhatsApp</a>
             </div>
         </div>
 
         <footer>
-            <p>&copy; 2025 Gerador de Leads Profissional. Todos os direitos reservados.</p>
-            <a href="https://www.websitelog.com.br" target="_blank">www.websitelog.com.br</a>
+            <p>&copy; 2025 LeadScraper Pro – Seguro com Firebase</p>
         </footer>
     </section>
 
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
