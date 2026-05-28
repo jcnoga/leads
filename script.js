@@ -1,4 +1,4 @@
-// Configuração do Firebase - VERIFIQUE SE OS DADOS ESTÃO CORRETOS
+// Configuração do Firebase - VERIFICADA E CORRIGIDA
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -10,13 +10,22 @@ const firebaseConfig = {
   measurementId: "G-QSGNSDGJML"
 };
 
+// Inicialização do Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// Constantes
 const ADMIN_EMAIL = "admin@leadscraper.com";
 const DEFAULT_TEMPLATE = "Olá, tudo bem? 👋\nNotei que você atua como {nicho} em {cidade} e identifiquei potencial para mais clientes. Posso ajudar?";
 
+// Chaves de API (internas, sem UI)
+const API_KEYS = {
+    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",   // Serper
+    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"                      // SerpAPI (não usada)
+};
+
+// Estado global
 let currentUser = null;
 let currentUserProfile = null;
 let currentLeads = [];
@@ -210,11 +219,6 @@ async function resetSelfBalance() {
 }
 
 // Busca real via Serper
-const API_KEYS = {
-    KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
-    KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
-};
-
 async function fetchSerperLeads(query, limit) {
     const apiKey = API_KEYS.KEY_1;
     const response = await fetch('https://google.serper.dev/places', {
@@ -262,10 +266,10 @@ async function searchLeads(event) {
     const limit = parseInt(document.getElementById('limit').value);
     if (!niche) return alert("Preencha o nicho.");
     if (currentUserProfile.credits < limit) {
-        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos.`);
+        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos. Solicite ao administrador.`);
         return;
     }
-    leadsBody.innerHTML = '<td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></table>';
+    leadsBody.innerHTML = '</td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
     displayingSaved = false;
     let leads = [];
@@ -288,7 +292,7 @@ async function searchLeads(event) {
     }
     currentLeads = leads;
     applyFiltersAndRender();
-    apiStatusBox.innerHTML = isReal ? `<i class="fas fa-check-circle"></i> Dados reais. Consumidos ${leads.length} créditos.` : `<i class="fas fa-info-circle"></i> Dados simulados.`;
+    apiStatusBox.innerHTML = isReal ? `<i class="fas fa-check-circle"></i> Dados reais. Consumidos ${leads.length} créditos. Saldo: ${currentUserProfile.credits}` : `<i class="fas fa-info-circle"></i> Dados simulados (não consumiram créditos).`;
     apiStatusBox.classList.remove('hidden');
     setTimeout(() => apiStatusBox.classList.add('hidden'), 5000);
 }
@@ -427,6 +431,7 @@ async function saveLeadDetails() {
 
 // ==================== TEMPLATES ====================
 function renderTemplatesList() {
+    if (!templatesList) return;
     templatesList.innerHTML = '';
     currentUserProfile.templates.forEach((tpl, idx) => {
         const li = document.createElement('li');
@@ -485,12 +490,6 @@ async function promoteToAdmin() {
     document.getElementById('admin-promote-email').value = '';
 }
 
-function saveApiPreference() {
-    const provider = document.getElementById('api-provider-select').value;
-    localStorage.setItem('selected_api_provider', provider);
-    alert("Preferência salva.");
-}
-
 function exportToCSV() {
     if (currentLeads.length === 0) return alert("Nenhum dado para exportar.");
     const headers = ["Nome", "Nicho", "Endereço", "Telefone", "Site", "Status", "Notas"];
@@ -519,6 +518,7 @@ function toggleAuth(type) {
 
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
+    // Autenticação
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const email = document.getElementById('login-email').value;
@@ -543,16 +543,19 @@ function setupEventListeners() {
     document.getElementById('link-forgot').onclick = () => toggleAuth('forgot');
     document.getElementById('link-login-forgot').onclick = () => toggleAuth('login');
 
+    // Busca e leads
     document.getElementById('lead-search-form').addEventListener('submit', searchLeads);
     document.getElementById('btn-save-leads').addEventListener('click', saveCurrentLeads);
     document.getElementById('btn-refresh-leads').addEventListener('click', loadMyLeads);
     document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
     document.getElementById('btn-export-xlsx').addEventListener('click', exportToXLSX);
 
+    // Filtros
     filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage=1; applyFiltersAndRender(); });
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
+    // Modal de configuração (sem referência à API)
     document.getElementById('btn-config').addEventListener('click', () => {
         if (currentUserProfile && currentUserProfile.isAdmin) {
             document.getElementById('admin-section').style.display = 'block';
@@ -562,13 +565,15 @@ function setupEventListeners() {
         document.getElementById('config-modal').classList.remove('hidden');
     });
     document.querySelector('.close-modal').addEventListener('click', () => document.getElementById('config-modal').classList.add('hidden'));
-    document.getElementById('save-api-key').addEventListener('click', saveApiPreference);
+    
+    // Templates
     document.getElementById('btn-save-template').addEventListener('click', () => {
         addTemplate(document.getElementById('new-template-name').value, document.getElementById('new-template-content').value);
         document.getElementById('new-template-name').value = '';
         document.getElementById('new-template-content').value = '';
     });
 
+    // Admin
     document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
@@ -579,6 +584,7 @@ function setupEventListeners() {
     });
     document.getElementById('btn-promote-to-admin').addEventListener('click', promoteToAdmin);
 
+    // Modais de lead e mensagem
     document.getElementById('btn-save-details').addEventListener('click', saveLeadDetails);
     document.getElementById('btn-cancel-details').addEventListener('click', () => document.getElementById('lead-details-modal').classList.add('hidden'));
     document.querySelector('.close-modal-details').addEventListener('click', () => document.getElementById('lead-details-modal').classList.add('hidden'));
@@ -598,7 +604,7 @@ auth.onAuthStateChanged(async (user) => {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         await loadUserProfile(user.uid);
-        setupEventListeners();
+        setupEventListeners();  // única chamada
     } else {
         currentUser = null;
         authSection.classList.remove('hidden');

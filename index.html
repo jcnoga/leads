@@ -140,7 +140,9 @@
                 </div>
                 <div class="table-responsive">
                     <table id="leads-table">
-                        <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr></thead>
+                        <thead>
+                            <tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr>
+                        </thead>
                         <tbody id="leads-body"></tbody>
                     </table>
                 </div>
@@ -148,56 +150,48 @@
             </div>
         </main>
 
-        <!-- Modal de Configuração -->
+        <!-- Modal de Configuração (sem chave de API) -->
         <div id="config-modal" class="modal hidden">
             <div class="modal-content large-modal">
                 <span class="close-modal">&times;</span>
-                <h3>Configurações</h3>
+                <h3><i class="fas fa-sliders-h"></i> Configurações</h3>
                 
-                <!-- Seção de API -->
-                <div class="config-section">
-                    <h4>Chave de API (Serper/SerpAPI)</h4>
-                    <select id="api-provider-select">
-                        <option value="KEY_1">Chave Serper (principal)</option>
-                        <option value="KEY_2">Chave SerpAPI (secundária)</option>
-                    </select>
-                    <button id="save-api-key" class="btn-primary btn-sm mt-2">Salvar preferência</button>
-                    <div id="api-validation-msg" class="validation-msg"></div>
-                </div>
-
                 <!-- Seção de Modelos de Mensagem -->
                 <div class="config-section">
-                    <h4>Modelos de Mensagem</h4>
+                    <h4><i class="fas fa-comment-dots"></i> Modelos de Mensagem</h4>
                     <div class="new-template-form">
-                        <input type="text" id="new-template-name" placeholder="Nome do modelo">
-                        <textarea id="new-template-content" rows="3" placeholder="Texto com variáveis {nicho}, {cidade}..."></textarea>
-                        <button id="btn-save-template" class="btn-secondary">Adicionar</button>
+                        <input type="text" id="new-template-name" placeholder="Nome do modelo (ex: Formal, Amigável)" class="template-name-input">
+                        <textarea id="new-template-content" rows="3" placeholder="Conteúdo do modelo. Use variáveis: {nicho}, {cidade}"></textarea>
+                        <button id="btn-save-template" class="btn-secondary"><i class="fas fa-plus"></i> Adicionar</button>
                     </div>
                     <ul id="templates-list" class="templates-list"></ul>
                 </div>
 
                 <!-- Seção de Administração (visível apenas para superusuário) -->
                 <div id="admin-section" class="config-section" style="display:none;">
-                    <h4>Administração (Superusuário)</h4>
+                    <h4><i class="fas fa-shield-alt"></i> Administração (Superusuário)</h4>
                     
-                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <button id="btn-admin-add-self-leads" class="btn-success">+10 leads (meu saldo)</button>
-                        <button id="btn-admin-reset-self-balance" class="btn-outline">Zerar meu saldo</button>
+                    <div class="admin-card">
+                        <p><strong>Meu saldo</strong></p>
+                        <div class="button-group">
+                            <button id="btn-admin-add-self-leads" class="btn-success"><i class="fas fa-plus-circle"></i> +10 leads (meu saldo)</button>
+                            <button id="btn-admin-reset-self-balance" class="btn-outline"><i class="fas fa-trash-alt"></i> Zerar meu saldo</button>
+                        </div>
                     </div>
 
-                    <div style="border-top: 1px solid var(--border); margin: 10px 0; padding-top: 10px;">
-                        <p><strong>Adicionar créditos a outro usuário:</strong></p>
-                        <div style="display:flex; gap:10px;">
-                            <input type="email" id="admin-user-email" placeholder="E-mail do usuário" style="flex:1;">
-                            <input type="number" id="admin-credits-qty" placeholder="Quantidade" style="width:100px;">
+                    <div class="admin-card">
+                        <p><strong>Adicionar créditos a outro usuário</strong></p>
+                        <div class="flex-row">
+                            <input type="email" id="admin-user-email" placeholder="E-mail do usuário">
+                            <input type="number" id="admin-credits-qty" placeholder="Quantidade">
                             <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
                         </div>
                     </div>
 
-                    <div style="border-top: 1px solid var(--border); margin: 10px 0; padding-top: 10px;">
-                        <p><strong>Promover usuário a superadministrador:</strong></p>
-                        <div style="display:flex; gap:10px;">
-                            <input type="email" id="admin-promote-email" placeholder="E-mail do usuário" style="flex:1;">
+                    <div class="admin-card">
+                        <p><strong>Promover usuário a superadministrador</strong></p>
+                        <div class="flex-row">
+                            <input type="email" id="admin-promote-email" placeholder="E-mail do usuário">
                             <button id="btn-promote-to-admin" class="btn-primary">Tornar Admin</button>
                         </div>
                         <div id="admin-promote-msg" class="validation-msg"></div>
