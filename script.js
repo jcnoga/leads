@@ -27,7 +27,7 @@ let currentUserProfile = null;
 let currentLeads = [];
 let displayingSaved = true;
 let currentPage = 1;
-let itemsPerPage = 10;
+let itemsPerPage = 100;
 let filterText = "", filterStatus = "", filterNiche = "", filterNeighborhood = "";
 let editingLeadId = null;
 
