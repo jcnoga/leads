@@ -1,6 +1,4 @@
-// Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
-
-// Configuração do Firebase - verifique se os dados estão corretos
+// Configuração do Firebase - VERIFIQUE SE OS DADOS ESTÃO CORRETOS
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -16,13 +14,9 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Restante do código (const ADMIN_EMAIL, etc.) continua igual...
-
-// Constantes
 const ADMIN_EMAIL = "admin@leadscraper.com";
 const DEFAULT_TEMPLATE = "Olá, tudo bem? 👋\nNotei que você atua como {nicho} em {cidade} e identifiquei potencial para mais clientes. Posso ajudar?";
 
-// Estado global
 let currentUser = null;
 let currentUserProfile = null;
 let currentLeads = [];
@@ -51,7 +45,7 @@ const templatesList = document.getElementById('templates-list');
 const apiStatusBox = document.getElementById('api-status-box');
 const adminSection = document.getElementById('admin-section');
 
-// ==================== FUNÇÕES DE AUTENTICAÇÃO ====================
+// ==================== AUTENTICAÇÃO ====================
 async function handleLogin(email, password) {
     try {
         await auth.signInWithEmailAndPassword(email, password);
@@ -96,7 +90,7 @@ async function logout() {
     location.reload();
 }
 
-// ==================== CARREGAR PERFIL DO USUÁRIO ====================
+// ==================== PERFIL DO USUÁRIO ====================
 async function loadUserProfile(uid) {
     const docRef = db.collection('users').doc(uid);
     const docSnap = await docRef.get();
@@ -124,7 +118,7 @@ async function loadUserProfile(uid) {
     await loadMyLeads();
 }
 
-// ==================== GERENCIAMENTO DE LEADS (Firestore) ====================
+// ==================== LEADS (FIRESTORE) ====================
 async function loadMyLeads() {
     if (!currentUser) return;
     const snapshot = await db.collection('users').doc(currentUser.uid).collection('leads').orderBy('createdAt', 'desc').get();
@@ -215,7 +209,7 @@ async function resetSelfBalance() {
     }
 }
 
-// Busca real via Serper (exemplo)
+// Busca real via Serper
 const API_KEYS = {
     KEY_1: "d97256e83e8533e1c41d314bd147dfd72dde024a",
     KEY_2: "SUA_CHAVE_SERPAPI_AQUI"
@@ -268,10 +262,10 @@ async function searchLeads(event) {
     const limit = parseInt(document.getElementById('limit').value);
     if (!niche) return alert("Preencha o nicho.");
     if (currentUserProfile.credits < limit) {
-        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos. Solicite ao administrador.`);
+        alert(`Créditos insuficientes. Você tem ${currentUserProfile.credits} créditos.`);
         return;
     }
-    leadsBody.innerHTML = '<td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    leadsBody.innerHTML = '<td><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></table>';
     resultsPanel.classList.remove('hidden');
     displayingSaved = false;
     let leads = [];
@@ -294,7 +288,7 @@ async function searchLeads(event) {
     }
     currentLeads = leads;
     applyFiltersAndRender();
-    apiStatusBox.innerHTML = isReal ? `<i class="fas fa-check-circle"></i> Dados reais. Consumidos ${leads.length} créditos. Saldo: ${currentUserProfile.credits}` : `<i class="fas fa-info-circle"></i> Dados simulados (não consumiram créditos).`;
+    apiStatusBox.innerHTML = isReal ? `<i class="fas fa-check-circle"></i> Dados reais. Consumidos ${leads.length} créditos.` : `<i class="fas fa-info-circle"></i> Dados simulados.`;
     apiStatusBox.classList.remove('hidden');
     setTimeout(() => apiStatusBox.classList.add('hidden'), 5000);
 }
@@ -411,7 +405,6 @@ function openMessageModal(leadId, name, phone, niche, address) {
     modal.classList.remove('hidden');
 }
 
-// ==================== EDIÇÃO DE LEAD ====================
 function openEditLeadModal(leadId) {
     const lead = currentLeads.find(l => l.id === leadId);
     if (!lead) return;
@@ -471,7 +464,7 @@ function copyTemplateContent(idx) {
     alert("Modelo copiado!");
 }
 
-// ==================== ADMIN (PROMOÇÃO) ====================
+// ==================== ADMIN ====================
 async function promoteToAdmin() {
     if (!currentUserProfile.isAdmin) return alert("Apenas administradores podem promover outros.");
     const email = document.getElementById('admin-promote-email').value.trim();
@@ -492,7 +485,6 @@ async function promoteToAdmin() {
     document.getElementById('admin-promote-email').value = '';
 }
 
-// ==================== CONFIGURAÇÕES ====================
 function saveApiPreference() {
     const provider = document.getElementById('api-provider-select').value;
     localStorage.setItem('selected_api_provider', provider);
@@ -516,21 +508,17 @@ function exportToXLSX() {
     XLSX.writeFile(wb, `leads_${Date.now()}.xlsx`);
 }
 
+function toggleAuth(type) {
+    loginBox.classList.add('hidden');
+    registerBox.classList.add('hidden');
+    forgotBox.classList.add('hidden');
+    if (type === 'login') loginBox.classList.remove('hidden');
+    else if (type === 'register') registerBox.classList.remove('hidden');
+    else if (type === 'forgot') forgotBox.classList.remove('hidden');
+}
+
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-	// Localize o botão de abrir modal e modifique:
-document.getElementById('btn-config').addEventListener('click', () => {
-    // Atualiza a exibição da seção admin antes de abrir
-    if (currentUserProfile && currentUserProfile.isAdmin) {
-        document.getElementById('admin-section').style.display = 'block';
-    } else {
-        document.getElementById('admin-section').style.display = 'none';
-    }
-    document.getElementById('config-modal').classList.remove('hidden');
-});
-
-
-    // Autenticação - capturando elementos dentro do evento
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const email = document.getElementById('login-email').value;
@@ -555,20 +543,24 @@ document.getElementById('btn-config').addEventListener('click', () => {
     document.getElementById('link-forgot').onclick = () => toggleAuth('forgot');
     document.getElementById('link-login-forgot').onclick = () => toggleAuth('login');
 
-    // Busca e leads
     document.getElementById('lead-search-form').addEventListener('submit', searchLeads);
     document.getElementById('btn-save-leads').addEventListener('click', saveCurrentLeads);
     document.getElementById('btn-refresh-leads').addEventListener('click', loadMyLeads);
     document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
     document.getElementById('btn-export-xlsx').addEventListener('click', exportToXLSX);
 
-    // Filtros
     filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage=1; applyFiltersAndRender(); });
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
-    // Modal configuração
-    document.getElementById('btn-config').addEventListener('click', () => document.getElementById('config-modal').classList.remove('hidden'));
+    document.getElementById('btn-config').addEventListener('click', () => {
+        if (currentUserProfile && currentUserProfile.isAdmin) {
+            document.getElementById('admin-section').style.display = 'block';
+        } else {
+            document.getElementById('admin-section').style.display = 'none';
+        }
+        document.getElementById('config-modal').classList.remove('hidden');
+    });
     document.querySelector('.close-modal').addEventListener('click', () => document.getElementById('config-modal').classList.add('hidden'));
     document.getElementById('save-api-key').addEventListener('click', saveApiPreference);
     document.getElementById('btn-save-template').addEventListener('click', () => {
@@ -577,7 +569,6 @@ document.getElementById('btn-config').addEventListener('click', () => {
         document.getElementById('new-template-content').value = '';
     });
 
-    // Admin
     document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
@@ -588,7 +579,6 @@ document.getElementById('btn-config').addEventListener('click', () => {
     });
     document.getElementById('btn-promote-to-admin').addEventListener('click', promoteToAdmin);
 
-    // Modal detalhes
     document.getElementById('btn-save-details').addEventListener('click', saveLeadDetails);
     document.getElementById('btn-cancel-details').addEventListener('click', () => document.getElementById('lead-details-modal').classList.add('hidden'));
     document.querySelector('.close-modal-details').addEventListener('click', () => document.getElementById('lead-details-modal').classList.add('hidden'));
@@ -601,15 +591,6 @@ document.getElementById('btn-config').addEventListener('click', () => {
     });
 }
 
-function toggleAuth(type) {
-    loginBox.classList.add('hidden');
-    registerBox.classList.add('hidden');
-    forgotBox.classList.add('hidden');
-    if (type === 'login') loginBox.classList.remove('hidden');
-    else if (type === 'register') registerBox.classList.remove('hidden');
-    else if (type === 'forgot') forgotBox.classList.remove('hidden');
-}
-
 // ==================== INICIALIZAÇÃO ====================
 auth.onAuthStateChanged(async (user) => {
     if (user) {
@@ -617,7 +598,7 @@ auth.onAuthStateChanged(async (user) => {
         authSection.classList.add('hidden');
         appSection.classList.remove('hidden');
         await loadUserProfile(user.uid);
-        setupEventListeners(); // evita duplicação? já foi chamado antes? melhor garantir
+        setupEventListeners();
     } else {
         currentUser = null;
         authSection.classList.remove('hidden');
@@ -626,6 +607,3 @@ auth.onAuthStateChanged(async (user) => {
         setupEventListeners();
     }
 });
-
-// Para garantir que os event listeners sejam configurados mesmo antes do auth mudar
-setupEventListeners();
