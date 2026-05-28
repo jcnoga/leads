@@ -493,7 +493,10 @@ function openEditLeadModal(leadId, isMock = false) {
         return;
     }
     const lead = currentLeads.find(l => l.id === leadId);
-    if (!lead) return;
+    if (!lead) {
+        alert("Este lead ainda não foi salvo. Realize a busca e clique em 'Salvar Leads no Banco' para poder editá-lo.");
+        return;
+    }
     editingLeadId = leadId;
     const modal = document.getElementById('lead-details-modal');
     const statusSelect = document.getElementById('detail-status');
