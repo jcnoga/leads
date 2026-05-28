@@ -28,7 +28,7 @@ let currentLeads = [];
 let displayingSaved = true;
 let currentPage = 1;
 let itemsPerPage = 10;
-let filterText = "", filterStatus = "", filterNiche = "";
+let filterText = "", filterStatus = "", filterNiche = "", filterNeighborhood = "";
 let editingLeadId = null;
 
 const authSection = document.getElementById('auth-section');
@@ -42,9 +42,9 @@ const resultsPanel = document.getElementById('results-panel');
 const leadsBody = document.getElementById('leads-body');
 const resultCountSpan = document.getElementById('result-count');
 const filterTextInput = document.getElementById('filter-text');
+const filterNeighborhoodInput = document.getElementById('filter-neighborhood');
 const filterStatusSelect = document.getElementById('filter-status');
 const filterNicheSelect = document.getElementById('filter-niche');
-const messageTemplateInput = document.getElementById('message-template-input');
 const templatesList = document.getElementById('templates-list');
 const apiStatusBox = document.getElementById('api-status-box');
 const adminSection = document.getElementById('admin-section');
@@ -253,12 +253,12 @@ function generateMockLeads(niche, city, state, limit) {
     return leads;
 }
 
-// NOVA FUNÇÃO searchLeads COM SUPORTE A DEMONSTRAÇÃO SEM CRÉDITOS
 async function searchLeads(event) {
     event.preventDefault();
     const niche = document.getElementById('niche').value.trim();
     const city = document.getElementById('city').value.trim();
     const state = document.getElementById('state').value;
+    const neighborhood = document.getElementById('neighborhood').value.trim();
     let limit = parseInt(document.getElementById('limit').value);
     if (!niche) return alert("Preencha o nicho.");
 
@@ -299,7 +299,11 @@ async function searchLeads(event) {
     let leads = [];
     let isReal = false;
     try {
-        const query = `${niche} em ${city} ${state}`.trim();
+        // Monta a query incluindo bairro
+        let query = niche;
+        if (neighborhood) query += ` no bairro ${neighborhood}`;
+        if (city) query += ` em ${city}`;
+        if (state) query += ` ${state}`;
         leads = await fetchSerperLeads(query, limit);
         if (leads.length > 0) {
             isReal = true;
@@ -337,6 +341,10 @@ function applyFiltersAndRender() {
     if (filterText) {
         const lower = filterText.toLowerCase();
         filtered = filtered.filter(l => l.name?.toLowerCase().includes(lower) || l.address?.toLowerCase().includes(lower));
+    }
+    if (filterNeighborhood) {
+        const lower = filterNeighborhood.toLowerCase();
+        filtered = filtered.filter(l => l.address?.toLowerCase().includes(lower));
     }
     if (filterStatus) filtered = filtered.filter(l => l.leadStatus === filterStatus);
     if (filterNiche) filtered = filtered.filter(l => l.niche === filterNiche);
@@ -403,7 +411,6 @@ function getStatusClass(status) {
 
 function escapeHtml(str) { return str?.replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])) || ''; }
 
-// ==================== MENSAGEM E WHATSAPP ====================
 function openMessageModal(leadId, name, phone, niche, address) {
     const modal = document.getElementById('message-modal');
     const select = document.getElementById('modal-template-select');
@@ -577,6 +584,7 @@ function setupEventListeners() {
     document.getElementById('btn-export-xlsx').addEventListener('click', exportToXLSX);
 
     filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage=1; applyFiltersAndRender(); });
+    filterNeighborhoodInput.addEventListener('input', () => { filterNeighborhood = filterNeighborhoodInput.value; currentPage=1; applyFiltersAndRender(); });
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
     filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
 
