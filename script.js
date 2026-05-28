@@ -235,13 +235,15 @@ async function fetchSerperLeads(query, limit) {
     }));
 }
 
-function generateMockLeads(niche, city, state, limit) {
+// Função melhorada para gerar leads fictícios COM BAIRRO
+function generateMockLeads(niche, city, state, limit, neighborhood = '') {
     const leads = [];
+    const bairro = neighborhood || 'Centro';
     for (let i = 0; i < limit; i++) {
         leads.push({
             name: `${niche} Exemplo ${i+1}`,
             niche: niche,
-            address: `${city || 'Cidade Exemplo'} - ${state || 'BR'}`,
+            address: `${bairro}, ${city || 'Cidade Exemplo'} - ${state || 'BR'}`,
             phone: `(34) 9${Math.floor(Math.random()*9000)+1000}-${Math.floor(Math.random()*9000)+1000}`,
             website: `https://www.exemplo${i}.com.br`,
             rating: (Math.random()*2+3).toFixed(1),
@@ -266,7 +268,7 @@ async function searchLeads(event) {
     if (currentUserProfile.credits <= 0) {
         const mockLimit = Math.min(limit, 10);
         alert(`⚠️ Você não tem créditos. Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
-        const leads = generateMockLeads(niche, city, state, mockLimit);
+        const leads = generateMockLeads(niche, city, state, mockLimit, neighborhood);
         currentLeads = leads;
         displayingSaved = false;
         applyFiltersAndRender();
@@ -281,7 +283,7 @@ async function searchLeads(event) {
     if (currentUserProfile.credits < limit) {
         const mockLimit = Math.min(limit, 10);
         alert(`Créditos insuficientes (você tem ${currentUserProfile.credits}). Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
-        const leads = generateMockLeads(niche, city, state, mockLimit);
+        const leads = generateMockLeads(niche, city, state, mockLimit, neighborhood);
         currentLeads = leads;
         displayingSaved = false;
         applyFiltersAndRender();
@@ -314,7 +316,7 @@ async function searchLeads(event) {
         }
     } catch (err) {
         console.warn(err);
-        leads = generateMockLeads(niche, city, state, limit);
+        leads = generateMockLeads(niche, city, state, limit, neighborhood);
         isReal = false;
         alert("Modo simulação ativado (créditos não foram descontados).");
     }
@@ -335,25 +337,70 @@ async function saveCurrentLeads() {
     await loadMyLeads();
 }
 
-// ==================== FILTROS E RENDERIZAÇÃO ====================
+// ==================== FILTROS E RENDERIZAÇÃO (CORRIGIDO) ====================
+// Função auxiliar para normalizar texto (remove acentos e caixa)
+function normalizeString(str) {
+    if (!str) return '';
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 function applyFiltersAndRender() {
     let filtered = [...currentLeads];
+    
+    // Filtro de texto (nome ou endereço)
     if (filterText) {
-        const lower = filterText.toLowerCase();
-        filtered = filtered.filter(l => l.name?.toLowerCase().includes(lower) || l.address?.toLowerCase().includes(lower));
+        const normalizedFilter = normalizeString(filterText);
+        filtered = filtered.filter(l => 
+            normalizeString(l.name).includes(normalizedFilter) || 
+            normalizeString(l.address).includes(normalizedFilter)
+        );
     }
+    
+    // Filtro de bairro (agora mais robusto)
     if (filterNeighborhood) {
-        const lower = filterNeighborhood.toLowerCase();
-        filtered = filtered.filter(l => l.address?.toLowerCase().includes(lower));
+        const normalizedBairro = normalizeString(filterNeighborhood);
+        filtered = filtered.filter(l => {
+            const address = l.address || '';
+            return normalizeString(address).includes(normalizedBairro);
+        });
+        console.log(`Filtro bairro "${filterNeighborhood}" -> restaram ${filtered.length} leads`);
     }
-    if (filterStatus) filtered = filtered.filter(l => l.leadStatus === filterStatus);
-    if (filterNiche) filtered = filtered.filter(l => l.niche === filterNiche);
+    
+    // Filtro de status
+    if (filterStatus) {
+        filtered = filtered.filter(l => l.leadStatus === filterStatus);
+    }
+    
+    // Filtro de nicho
+    if (filterNiche) {
+        filtered = filtered.filter(l => l.niche === filterNiche);
+    }
+    
     resultCountSpan.innerText = filtered.length;
+    
+    // Se não houver resultados e o filtro de bairro estiver ativo, exibe aviso amigável
+    if (filtered.length === 0 && filterNeighborhood) {
+        const msgDiv = document.getElementById('no-results-warning') || (() => {
+            const div = document.createElement('div');
+            div.id = 'no-results-warning';
+            div.style.cssText = 'background:#fff3cd; color:#856404; padding:10px; border-radius:6px; margin-bottom:15px; text-align:center;';
+            resultsPanel.insertBefore(div, resultsPanel.firstChild);
+            return div;
+        })();
+        msgDiv.innerHTML = `⚠️ Nenhum lead encontrado para o bairro "${filterNeighborhood}". Verifique se o endereço dos leads contém este bairro.`;
+        msgDiv.classList.remove('hidden');
+    } else {
+        const msgDiv = document.getElementById('no-results-warning');
+        if (msgDiv) msgDiv.classList.add('hidden');
+    }
+    
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
     const start = (currentPage-1)*itemsPerPage;
     const paginated = filtered.slice(start, start+itemsPerPage);
     renderLeadsTable(paginated);
     renderPagination(totalPages);
+    
+    // Atualiza opções de filtro de nicho
     const niches = [...new Set(currentLeads.map(l => l.niche).filter(Boolean))];
     filterNicheSelect.innerHTML = '<option value="">Todos</option>' + niches.map(n => `<option value="${n}">${n}</option>`).join('');
 }
@@ -583,10 +630,11 @@ function setupEventListeners() {
     document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
     document.getElementById('btn-export-xlsx').addEventListener('click', exportToXLSX);
 
-    filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage=1; applyFiltersAndRender(); });
-    filterNeighborhoodInput.addEventListener('input', () => { filterNeighborhood = filterNeighborhoodInput.value; currentPage=1; applyFiltersAndRender(); });
-    filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage=1; applyFiltersAndRender(); });
-    filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage=1; applyFiltersAndRender(); });
+    // Filtros com normalização
+    filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage = 1; applyFiltersAndRender(); });
+    filterNeighborhoodInput.addEventListener('input', () => { filterNeighborhood = filterNeighborhoodInput.value; currentPage = 1; applyFiltersAndRender(); });
+    filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage = 1; applyFiltersAndRender(); });
+    filterNicheSelect.addEventListener('change', () => { filterNiche = filterNicheSelect.value; currentPage = 1; applyFiltersAndRender(); });
 
     document.getElementById('btn-config').addEventListener('click', () => {
         if (currentUserProfile && currentUserProfile.isAdmin) {
