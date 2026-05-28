@@ -366,8 +366,8 @@ function renderLeadsTable(leads) {
             <td>${escapeHtml(lead.phone)}<br><a href="${lead.website || '#'}" target="_blank">${lead.website ? 'Site' : '-'}</a></td>
             <td class="actions-cell">
                 <button class="btn-action" onclick="openMessageModal('${lead.id || ''}', '${escapeHtml(lead.name)}', '${escapeHtml(lead.phone)}', '${escapeHtml(lead.niche)}', '${escapeHtml(lead.address || '')}')"><i class="fab fa-whatsapp"></i></button>
-                ${displayingSaved ? `<button class="btn-action" onclick="openEditLeadModal('${lead.id}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteLead('${lead.id}')"><i class="fas fa-trash"></i></button>` : ''}
+                ${(displayingSaved || lead.isMock) ? `<button class="btn-action" onclick="openEditLeadModal('${lead.id || ''}', ${!!lead.isMock})"><i class="fas fa-edit"></i></button>` : ''}
+                ${displayingSaved ? `<button class="btn-delete" onclick="deleteLead('${lead.id}')"><i class="fas fa-trash"></i></button>` : ''}
             </td>
         `;
         leadsBody.appendChild(row);
@@ -433,7 +433,11 @@ function openMessageModal(leadId, name, phone, niche, address) {
     modal.classList.remove('hidden');
 }
 
-function openEditLeadModal(leadId) {
+function openEditLeadModal(leadId, isMock = false) {
+    if (isMock) {
+        alert("Este lead é fictício e não pode ser editado. Salve os leads reais para poder editá-los.");
+        return;
+    }
     const lead = currentLeads.find(l => l.id === leadId);
     if (!lead) return;
     editingLeadId = leadId;
