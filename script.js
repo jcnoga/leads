@@ -1,5 +1,6 @@
 // Configuração do Firebase - SUBSTITUA PELOS DADOS DO SEU PROJETO
 
+// Configuração do Firebase - verifique se os dados estão corretos
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -9,7 +10,6 @@ const firebaseConfig = {
   messagingSenderId: "17213040146",
   appId: "1:17213040146:web:d064ccc567e0b4dfd31acb",
   measurementId: "G-QSGNSDGJML"
-};rementId: "G-QSGNSDGJML"
 };
 
 firebase.initializeApp(firebaseConfig);
