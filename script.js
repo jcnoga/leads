@@ -27,7 +27,7 @@ let currentUserProfile = null;
 let currentLeads = [];
 let displayingSaved = true;
 let currentPage = 1;
-let itemsPerPage = 100;
+let itemsPerPage = 150;
 let filterText = "", filterStatus = "", filterNiche = "", filterNeighborhood = "";
 let editingLeadId = null;
 
@@ -266,7 +266,7 @@ async function searchLeads(event) {
 
     // Verifica se não há créditos
     if (currentUserProfile.credits <= 0) {
-        const mockLimit = Math.min(limit, 10);
+        const mockLimit = Math.min(limit, 150);
         alert(`⚠️ Você não tem créditos. Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
         const leads = generateMockLeads(niche, city, state, mockLimit, neighborhood);
         currentLeads = leads;
@@ -281,7 +281,7 @@ async function searchLeads(event) {
 
     // Se créditos insuficientes para o limite solicitado
     if (currentUserProfile.credits < limit) {
-        const mockLimit = Math.min(limit, 10);
+        const mockLimit = Math.min(limit, 150);
         alert(`Créditos insuficientes (você tem ${currentUserProfile.credits}). Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
         const leads = generateMockLeads(niche, city, state, mockLimit, neighborhood);
         currentLeads = leads;
@@ -655,7 +655,7 @@ function setupEventListeners() {
         document.getElementById('new-template-content').value = '';
     });
 
-    document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(10));
+    document.getElementById('btn-admin-add-self-leads').addEventListener('click', () => addSelfCredits(150));
     document.getElementById('btn-admin-reset-self-balance').addEventListener('click', resetSelfBalance);
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
         const email = document.getElementById('admin-user-email').value.trim();
