@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LeadScraper Pro | Seguro com Firebase</title>
+    <title>LeadScraper Pro | Premium</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -14,8 +15,11 @@
     <section id="auth-section">
         <div class="auth-container">
             <div class="auth-box" id="login-box">
-                <h2>LeadScraper Pro</h2>
-                <p>Seguro, na nuvem</p>
+                <div class="auth-logo">
+                    <i class="fas fa-rocket"></i>
+                    <h2>LeadScraper Pro</h2>
+                </div>
+                <p class="auth-subtitle">Seguro, na nuvem, premium</p>
                 <form id="login-form">
                     <input type="email" id="login-email" placeholder="E-mail" required>
                     <input type="password" id="login-password" placeholder="Senha" required>
@@ -57,8 +61,13 @@
     <section id="app-section" class="hidden">
         <header>
             <div class="header-content">
+                <div class="brand">
+                    <i class="fas fa-rocket"></i>
+                    <span>LeadScraper Pro</span>
+                </div>
                 <div class="user-info">
-                    <span>Olá, <strong id="user-name-display"></strong> (saldo: <span id="leads-balance-display">0</span> leads)</span>
+                    <span>Olá, <strong id="user-name-display"></strong></span>
+                    <span class="credits-badge"><i class="fas fa-coins"></i> <span id="leads-balance-display">0</span> créditos</span>
                 </div>
                 <div class="header-actions">
                     <button id="btn-refresh-leads" class="btn-outline"><i class="fas fa-sync-alt"></i> Meus Leads</button>
@@ -71,7 +80,7 @@
         <main>
             <!-- Painel de Busca -->
             <div class="search-panel">
-                <h1>Pesquisar Leads (ICP)</h1>
+                <h1><i class="fas fa-search"></i> Pesquisar Leads (ICP)</h1>
                 <form id="lead-search-form">
                     <div class="form-grid">
                         <div class="form-group">
@@ -96,8 +105,8 @@
                             <input type="text" id="neighborhood" placeholder="Ex: Centro, Jardins...">
                         </div>
                         <div class="form-group">
-                            <label>Quantidade (máx 100)</label>
-                            <input type="number" id="limit" value="50" min="1" max="100">
+                            <label>Quantidade (máx 150)</label>
+                            <input type="number" id="limit" value="150" min="1" max="150">
                         </div>
                     </div>
                     <button type="submit" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
@@ -111,8 +120,8 @@
                 <div class="results-header">
                     <h2>Resultados: <span id="result-count">0</span></h2>
                     <div class="export-buttons">
-                        <button id="btn-export-csv" class="btn-outline btn-sm">CSV</button>
-                        <button id="btn-export-xlsx" class="btn-outline btn-sm">Excel</button>
+                        <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> CSV</button>
+                        <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Excel</button>
                     </div>
                 </div>
                 <div class="filters-container">
@@ -154,7 +163,7 @@
             </div>
         </main>
 
-        <!-- Modal de Configuração (sem chave de API) -->
+        <!-- Modal de Configuração -->
         <div id="config-modal" class="modal hidden">
             <div class="modal-content large-modal">
                 <span class="close-modal">&times;</span>
@@ -178,7 +187,7 @@
                     <div class="admin-card">
                         <p><strong>Meu saldo</strong></p>
                         <div class="button-group">
-                            <button id="btn-admin-add-self-leads" class="btn-success"><i class="fas fa-plus-circle"></i> +10 leads (meu saldo)</button>
+                            <button id="btn-admin-add-self-leads" class="btn-success"><i class="fas fa-plus-circle"></i> +150 leads (meu saldo)</button>
                             <button id="btn-admin-reset-self-balance" class="btn-outline"><i class="fas fa-trash-alt"></i> Zerar meu saldo</button>
                         </div>
                     </div>
@@ -190,6 +199,7 @@
                             <input type="number" id="admin-credits-qty" placeholder="Quantidade">
                             <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
                         </div>
+                        <div id="admin-credits-msg" class="validation-msg"></div>
                     </div>
 
                     <div class="admin-card">

@@ -1,4 +1,4 @@
-// Configuração do Firebase - VERIFICADA E CORRIGIDA
+// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDIQdzfnMBQ9Q6docuSPPbVyJ8PLoKD1AQ",
   authDomain: "leads-e5ae1.firebaseapp.com",
@@ -27,7 +27,7 @@ let currentUserProfile = null;
 let currentLeads = [];
 let displayingSaved = true;
 let currentPage = 1;
-let itemsPerPage = 150;
+let itemsPerPage = 4; // ALTERADO PARA 4
 let filterText = "", filterStatus = "", filterNiche = "", filterNeighborhood = "";
 let editingLeadId = null;
 
@@ -184,18 +184,31 @@ async function consumeCredits(amount) {
     return false;
 }
 
+// CORREÇÃO: Adição de créditos com validação reforçada
 async function addCreditsToUser(email, qty, isAdminAction = true) {
-    if (isAdminAction && !currentUserProfile.isAdmin) return alert("Apenas administradores podem adicionar créditos a outros.");
+    if (isAdminAction && !currentUserProfile?.isAdmin) {
+        alert("Apenas administradores podem adicionar créditos a outros.");
+        return;
+    }
+    if (!email || !qty || qty <= 0) {
+        alert("Preencha e-mail e quantidade válida.");
+        return;
+    }
     const userQuery = await db.collection('users').where('email', '==', email).get();
-    if (userQuery.empty) return alert("Usuário não encontrado.");
+    if (userQuery.empty) {
+        document.getElementById('admin-credits-msg').innerText = "❌ Usuário não encontrado. Verifique o e-mail.";
+        return;
+    }
     const userDoc = userQuery.docs[0];
     const oldCredits = userDoc.data().credits || 0;
     await userDoc.ref.update({ credits: oldCredits + qty });
+    // Atualiza o saldo local se for o próprio usuário
     if (email === currentUserProfile.email) {
         currentUserProfile.credits = oldCredits + qty;
         leadsBalanceDisplay.innerText = currentUserProfile.credits;
     }
-    alert(`Adicionado ${qty} créditos a ${email}.`);
+    document.getElementById('admin-credits-msg').innerText = `✅ ${qty} créditos adicionados a ${email}. Novo saldo: ${oldCredits + qty}`;
+    setTimeout(() => document.getElementById('admin-credits-msg').innerText = '', 5000);
 }
 
 async function addSelfCredits(amount) {
@@ -235,7 +248,6 @@ async function fetchSerperLeads(query, limit) {
     }));
 }
 
-// Função melhorada para gerar leads fictícios COM BAIRRO
 function generateMockLeads(niche, city, state, limit, neighborhood = '') {
     const leads = [];
     const bairro = neighborhood || 'Centro';
@@ -262,9 +274,10 @@ async function searchLeads(event) {
     const state = document.getElementById('state').value;
     const neighborhood = document.getElementById('neighborhood').value.trim();
     let limit = parseInt(document.getElementById('limit').value);
+    if (isNaN(limit) || limit < 1) limit = 1;
+    if (limit > 150) limit = 150;
     if (!niche) return alert("Preencha o nicho.");
 
-    // Verifica se não há créditos
     if (currentUserProfile.credits <= 0) {
         const mockLimit = Math.min(limit, 150);
         alert(`⚠️ Você não tem créditos. Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
@@ -279,7 +292,6 @@ async function searchLeads(event) {
         return;
     }
 
-    // Se créditos insuficientes para o limite solicitado
     if (currentUserProfile.credits < limit) {
         const mockLimit = Math.min(limit, 150);
         alert(`Créditos insuficientes (você tem ${currentUserProfile.credits}). Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
@@ -294,14 +306,13 @@ async function searchLeads(event) {
         return;
     }
 
-    // Fluxo normal: tenta buscar leads reais
+    // Fluxo normal
     leadsBody.innerHTML = '<tr><td colspan="4">Buscando leads... <i class="fas fa-spinner fa-spin"></i></td></tr>';
     resultsPanel.classList.remove('hidden');
     displayingSaved = false;
     let leads = [];
     let isReal = false;
     try {
-        // Monta a query incluindo bairro
         let query = niche;
         if (neighborhood) query += ` no bairro ${neighborhood}`;
         if (city) query += ` em ${city}`;
@@ -337,8 +348,7 @@ async function saveCurrentLeads() {
     await loadMyLeads();
 }
 
-// ==================== FILTROS E RENDERIZAÇÃO (CORRIGIDO) ====================
-// Função auxiliar para normalizar texto (remove acentos e caixa)
+// ==================== FILTROS E RENDERIZAÇÃO ====================
 function normalizeString(str) {
     if (!str) return '';
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -346,8 +356,6 @@ function normalizeString(str) {
 
 function applyFiltersAndRender() {
     let filtered = [...currentLeads];
-    
-    // Filtro de texto (nome ou endereço)
     if (filterText) {
         const normalizedFilter = normalizeString(filterText);
         filtered = filtered.filter(l => 
@@ -355,58 +363,34 @@ function applyFiltersAndRender() {
             normalizeString(l.address).includes(normalizedFilter)
         );
     }
-    
-    // Filtro de bairro (agora mais robusto)
     if (filterNeighborhood) {
         const normalizedBairro = normalizeString(filterNeighborhood);
-        filtered = filtered.filter(l => {
-            const address = l.address || '';
-            return normalizeString(address).includes(normalizedBairro);
-        });
-        console.log(`Filtro bairro "${filterNeighborhood}" -> restaram ${filtered.length} leads`);
+        filtered = filtered.filter(l => normalizeString(l.address).includes(normalizedBairro));
     }
-    
-    // Filtro de status
     if (filterStatus) {
         filtered = filtered.filter(l => l.leadStatus === filterStatus);
     }
-    
-    // Filtro de nicho
     if (filterNiche) {
         filtered = filtered.filter(l => l.niche === filterNiche);
     }
-    
     resultCountSpan.innerText = filtered.length;
-    
-    // Se não houver resultados e o filtro de bairro estiver ativo, exibe aviso amigável
-    if (filtered.length === 0 && filterNeighborhood) {
-        const msgDiv = document.getElementById('no-results-warning') || (() => {
-            const div = document.createElement('div');
-            div.id = 'no-results-warning';
-            div.style.cssText = 'background:#fff3cd; color:#856404; padding:10px; border-radius:6px; margin-bottom:15px; text-align:center;';
-            resultsPanel.insertBefore(div, resultsPanel.firstChild);
-            return div;
-        })();
-        msgDiv.innerHTML = `⚠️ Nenhum lead encontrado para o bairro "${filterNeighborhood}". Verifique se o endereço dos leads contém este bairro.`;
-        msgDiv.classList.remove('hidden');
-    } else {
-        const msgDiv = document.getElementById('no-results-warning');
-        if (msgDiv) msgDiv.classList.add('hidden');
-    }
-    
+
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
     const start = (currentPage-1)*itemsPerPage;
     const paginated = filtered.slice(start, start+itemsPerPage);
     renderLeadsTable(paginated);
     renderPagination(totalPages);
-    
-    // Atualiza opções de filtro de nicho
+
     const niches = [...new Set(currentLeads.map(l => l.niche).filter(Boolean))];
     filterNicheSelect.innerHTML = '<option value="">Todos</option>' + niches.map(n => `<option value="${n}">${n}</option>`).join('');
 }
 
 function renderLeadsTable(leads) {
     leadsBody.innerHTML = '';
+    if (leads.length === 0) {
+        leadsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:2rem;">Nenhum lead encontrado.</td></tr>';
+        return;
+    }
     leads.forEach(lead => {
         const statusClass = getStatusClass(lead.leadStatus);
         const row = document.createElement('tr');
@@ -458,6 +442,7 @@ function getStatusClass(status) {
 
 function escapeHtml(str) { return str?.replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])) || ''; }
 
+// ==================== MODAIS ====================
 function openMessageModal(leadId, name, phone, niche, address) {
     const modal = document.getElementById('message-modal');
     const select = document.getElementById('modal-template-select');
@@ -518,6 +503,7 @@ async function saveLeadDetails() {
 function renderTemplatesList() {
     if (!templatesList) return;
     templatesList.innerHTML = '';
+    if (!currentUserProfile.templates) return;
     currentUserProfile.templates.forEach((tpl, idx) => {
         const li = document.createElement('li');
         li.className = 'template-item';
@@ -534,7 +520,7 @@ function renderTemplatesList() {
 
 async function addTemplate(name, content) {
     if (!name || !content) return alert("Preencha nome e conteúdo.");
-    const newTemplates = [...currentUserProfile.templates, { name, content }];
+    const newTemplates = [...(currentUserProfile.templates || []), { name, content }];
     await db.collection('users').doc(currentUser.uid).update({ templates: newTemplates });
     currentUserProfile.templates = newTemplates;
     renderTemplatesList();
@@ -562,7 +548,7 @@ async function promoteToAdmin() {
     const usersRef = db.collection('users');
     const querySnapshot = await usersRef.where('email', '==', email).get();
     if (querySnapshot.empty) {
-        document.getElementById('admin-promote-msg').innerText = "Usuário não encontrado.";
+        document.getElementById('admin-promote-msg').innerText = "❌ Usuário não encontrado.";
         return;
     }
     const userDoc = querySnapshot.docs[0];
@@ -573,6 +559,7 @@ async function promoteToAdmin() {
     await userDoc.ref.update({ isAdmin: true });
     document.getElementById('admin-promote-msg').innerText = `✅ ${email} agora é super administrador!`;
     document.getElementById('admin-promote-email').value = '';
+    setTimeout(() => document.getElementById('admin-promote-msg').innerText = '', 5000);
 }
 
 function exportToCSV() {
@@ -633,7 +620,6 @@ function setupEventListeners() {
     document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
     document.getElementById('btn-export-xlsx').addEventListener('click', exportToXLSX);
 
-    // Filtros com normalização
     filterTextInput.addEventListener('input', () => { filterText = filterTextInput.value; currentPage = 1; applyFiltersAndRender(); });
     filterNeighborhoodInput.addEventListener('input', () => { filterNeighborhood = filterNeighborhoodInput.value; currentPage = 1; applyFiltersAndRender(); });
     filterStatusSelect.addEventListener('change', () => { filterStatus = filterStatusSelect.value; currentPage = 1; applyFiltersAndRender(); });
@@ -648,7 +634,7 @@ function setupEventListeners() {
         document.getElementById('config-modal').classList.remove('hidden');
     });
     document.querySelector('.close-modal').addEventListener('click', () => document.getElementById('config-modal').classList.add('hidden'));
-    
+
     document.getElementById('btn-save-template').addEventListener('click', () => {
         addTemplate(document.getElementById('new-template-name').value, document.getElementById('new-template-content').value);
         document.getElementById('new-template-name').value = '';
@@ -660,7 +646,6 @@ function setupEventListeners() {
     document.getElementById('btn-admin-add-credits').addEventListener('click', () => {
         const email = document.getElementById('admin-user-email').value.trim();
         const qty = parseInt(document.getElementById('admin-credits-qty').value);
-        if (!email || isNaN(qty)) return alert("Preencha e-mail e quantidade.");
         addCreditsToUser(email, qty, true);
     });
     document.getElementById('btn-promote-to-admin').addEventListener('click', promoteToAdmin);
