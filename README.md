@@ -1,3 +1,7 @@
+PODE RODAR COM ESSA RUL:  https://leadscraperpro.web.app
+
+
+
 # LeadScraper Pro
 
 Prospecção de leads (Google Maps via Serper API) com gestão de créditos, qualificação automática, mensagens de WhatsApp e painel administrativo — rodando inteiramente em planos gratuitos: **Firebase Spark** (Auth + Firestore + Hosting) e **Cloudflare Workers** (proxy que esconde a chave da API de busca).
