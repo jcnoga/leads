@@ -215,7 +215,8 @@ async function resetSelfBalance() {
 
 // Busca real via Serper
 async function fetchSerperLeads(query, limit) {
-    const apiKey = API_KEYS.KEY_1;
+ // const apiKey = API_KEYS.KEY_1;
+	const apiKey = d97256e83e8533e1c41d314bd147dfd72dde024a;
     const response = await fetch('https://google.serper.dev/places', {
         method: 'POST',
         headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
