@@ -69,12 +69,12 @@ async function handleRegister(name, email, password) {
         await db.collection('users').doc(cred.user.uid).set({
             name: name,
             email: email,
-            credits: 500,
+            credits: 50,
             isAdmin: (email === ADMIN_EMAIL),
             templates: [{ name: "Padrão", content: DEFAULT_TEMPLATE }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert("Conta criada com sucesso! Você recebeu 500 créditos grátis.");
+        alert("Conta criada com sucesso! Você recebeu 50 créditos grátis.");
     } catch (err) {
         alert("Erro no cadastro: " + err.message);
     }
@@ -215,8 +215,7 @@ async function resetSelfBalance() {
 
 // Busca real via Serper
 async function fetchSerperLeads(query, limit) {
- // const apiKey = API_KEYS.KEY_1;
-	const apiKey = d97256e83e8533e1c41d314bd147dfd72dde024a;
+    const apiKey = API_KEYS.KEY_1;
     const response = await fetch('https://google.serper.dev/places', {
         method: 'POST',
         headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
