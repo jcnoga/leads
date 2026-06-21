@@ -3,262 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZenSalon Prospect | CRM SaaS Premium</title>
+    <title>LeadScraper Pro | Seguro com Firebase</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
+    <!-- TELA DE AUTENTICAÇÃO -->
     <section id="auth-section">
-        <div class="auth-wrapper">
-            <div class="auth-brand">
-                <h1>ZenSalon</h1>
-                <p>Prospecção Inteligente & CRM</p>
-            </div>
+        <div class="auth-container">
             <div class="auth-box" id="login-box">
-                <h2>Acesse sua conta</h2>
+                <h2>LeadScraper Pro</h2>
+                <p>Seguro, na nuvem</p>
                 <form id="login-form">
-                    <div class="input-group">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="login-email" placeholder="E-mail corporativo" required>
-                    </div>
-                    <div class="input-group">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="login-password" placeholder="Sua senha" required>
-                    </div>
-                    <button type="submit" class="btn-primary full-width">Entrar no Dashboard</button>
+                    <input type="email" id="login-email" placeholder="E-mail" required>
+                    <input type="password" id="login-password" placeholder="Senha" required>
+                    <button type="submit" class="btn-primary">Entrar</button>
                 </form>
                 <div class="auth-links">
-                    <a href="#" id="link-register">Criar nova conta</a>
-                    <a href="#" id="link-forgot">Recuperar senha</a>
+                    <a href="#" id="link-register">Criar conta</a> | 
+                    <a href="#" id="link-forgot">Esqueci minha senha</a>
                 </div>
             </div>
 
             <div class="auth-box hidden" id="register-box">
-                <h2>Nova Conta</h2>
+                <h2>Criar Conta</h2>
                 <form id="register-form">
-                    <div class="input-group"><i class="fas fa-user"></i><input type="text" id="reg-name" placeholder="Nome completo" required></div>
-                    <div class="input-group"><i class="fas fa-envelope"></i><input type="email" id="reg-email" placeholder="E-mail" required></div>
-                    <div class="input-group"><i class="fas fa-lock"></i><input type="password" id="reg-password" placeholder="Senha (mínimo 6 caracteres)" required></div>
-                    <button type="submit" class="btn-primary full-width">Cadastrar</button>
+                    <input type="text" id="reg-name" placeholder="Nome completo" required>
+                    <input type="email" id="reg-email" placeholder="E-mail" required>
+                    <input type="password" id="reg-password" placeholder="Senha (mínimo 6 caracteres)" required>
+                    <button type="submit" class="btn-primary">Cadastrar</button>
                 </form>
-                <div class="auth-links"><a href="#" id="link-login-reg">Voltar ao Login</a></div>
+                <div class="auth-links">
+                    <a href="#" id="link-login-reg">Voltar para Login</a>
+                </div>
             </div>
 
             <div class="auth-box hidden" id="forgot-box">
-                <h2>Recuperar Acesso</h2>
+                <h2>Recuperar Senha</h2>
                 <form id="forgot-form">
-                    <div class="input-group"><i class="fas fa-envelope"></i><input type="email" id="forgot-email" placeholder="E-mail cadastrado" required></div>
-                    <button type="submit" class="btn-primary full-width">Enviar Link</button>
+                    <input type="email" id="forgot-email" placeholder="E-mail cadastrado" required>
+                    <button type="submit" class="btn-primary">Enviar e-mail</button>
                 </form>
-                <div class="auth-links"><a href="#" id="link-login-forgot">Voltar ao Login</a></div>
+                <div class="auth-links">
+                    <a href="#" id="link-login-forgot">Voltar</a>
+                </div>
             </div>
         </div>
     </section>
 
-    <section id="app-section" class="hidden layout-dashboard">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>ZenSalon</h2>
-            </div>
-            <nav class="sidebar-nav">
-                <a href="#" class="active"><i class="fas fa-home"></i> Dashboard</a>
-                <a href="#" id="btn-refresh-leads"><i class="fas fa-users"></i> Meus Leads</a>
-                <a href="#" id="btn-config"><i class="fas fa-cog"></i> Configurações</a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="theme-toggle" class="btn-icon" title="Alternar Tema"><i class="fas fa-moon"></i></button>
-                <button id="btn-logout" class="btn-outline-danger full-width"><i class="fas fa-sign-out-alt"></i> Sair</button>
-            </div>
-        </aside>
-
-        <main class="main-content">
-            <header class="topbar">
-                <div class="greeting">
-                    <h3>Olá, <span id="user-name-display"></span></h3>
-                    <p>Bem-vindo ao seu funil de prospecção.</p>
+    <!-- PAINEL PRINCIPAL -->
+    <section id="app-section" class="hidden">
+        <header>
+            <div class="header-content">
+                <div class="user-info">
+                    <span>Olá, <strong id="user-name-display"></strong> (saldo: <span id="leads-balance-display">0</span> leads)</span>
                 </div>
-            </header>
-
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-icon"><i class="fas fa-coins"></i></div>
-                    <div class="metric-data">
-                        <h4>Saldo de Buscas</h4>
-                        <span class="metric-value" id="leads-balance-display">0</span>
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-icon bg-success"><i class="fas fa-database"></i></div>
-                    <div class="metric-data">
-                        <h4>Leads em Base</h4>
-                        <span class="metric-value" id="total-leads-metric">0</span>
-                    </div>
+                <div class="header-actions">
+                    <button id="btn-refresh-leads" class="btn-outline"><i class="fas fa-sync-alt"></i> Meus Leads</button>
+                    <button id="btn-config" class="btn-outline"><i class="fas fa-cog"></i> Configurações</button>
+                    <button id="btn-logout" class="btn-outline">Sair</button>
                 </div>
             </div>
+        </header>
 
-            <div class="panel">
-                <div class="panel-header">
-                    <h2><i class="fas fa-search"></i> Prospecção Ativa (ICP)</h2>
-                </div>
-                <form id="lead-search-form" class="prospect-form">
-                    <div class="form-row">
-                        <div class="form-group flex-2">
-                            <label>Nicho Estratégico</label>
-                            <select id="niche" required>
-                                <option value="">Selecione um nicho...</option>
-                                <option value="Salões de Beleza">Salões de Beleza</option>
-                                <option value="Barbearias">Barbearias</option>
-                                <option value="Clínicas de Estética">Clínicas de Estética</option>
-                                <option value="Pet Shops">Pet Shops</option>
-                                <option value="Clínicas Odontológicas">Clínicas Odontológicas</option>
-                                <option value="Escritórios de Advocacia">Escritórios de Advocacia</option>
-                                <option value="Clínicas Médicas">Clínicas Médicas</option>
-                                <option value="Contabilidade">Escritórios de Contabilidade</option>
-                                <option value="Oficinas Mecânicas">Oficinas Mecânicas</option>
+        <main>
+            <!-- Painel de Busca -->
+            <div class="search-panel">
+                <h1>Pesquisar Leads (ICP)</h1>
+                <form id="lead-search-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nicho / Profissão</label>
+                            <input type="text" id="niche" placeholder="Ex: Restaurantes, Advogados..." required>
+                        </div>
+                        <div class="form-group">
+                            <label>Cidade</label>
+                            <input type="text" id="city" placeholder="Ex: São Paulo">
+                        </div>
+                        <div class="form-group">
+                            <label>Estado (UF)</label>
+                            <select id="state">
+                                <option value="">Todos</option>
+                                <option value="SP">São Paulo</option>
+                                <option value="RJ">Rio de Janeiro</option>
+                                <option value="MG">Minas Gerais</option>
                             </select>
                         </div>
-                        <div class="form-group flex-2">
-                            <label>Cidade / Região</label>
-                            <input type="text" id="city" placeholder="Ex: São Paulo" required>
+                        <div class="form-group">
+                            <label>Bairro (opcional)</label>
+                            <input type="text" id="neighborhood" placeholder="Ex: Centro, Jardins...">
                         </div>
-                        <div class="form-group flex-1">
-                            <label>Estado</label>
-                            <select id="state">
-                                <option value="">UF</option>
-                                <option value="SP">SP</option><option value="RJ">RJ</option><option value="MG">MG</option>
-                                </select>
+                        <div class="form-group">
+                            <label>Quantidade (máx 100)</label>
+                            <input type="number" id="limit" value="50" min="1" max="100">
                         </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group flex-2">
-                            <label>Termo Extra (Ex: "Luxo", "Centro")</label>
-                            <input type="text" id="keyword" placeholder="Palavras-chave opcionais">
-                        </div>
-                        <div class="form-group flex-1">
-                            <label>Avaliação Mín. (Estrelas)</label>
-                            <input type="number" id="min-rating" min="0" max="5" step="0.5" value="0">
-                        </div>
-                        <div class="form-group flex-1">
-                            <label>Qtd. Máxima</label>
-                            <input type="number" id="limit" value="150" min="1" max="150">
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" class="btn-primary"><i class="fas fa-radar"></i> Localizar Oportunidades</button>
-                        <button type="button" id="btn-save-leads" class="btn-success"><i class="fas fa-cloud-upload-alt"></i> Salvar no CRM</button>
-                    </div>
+                    <button type="submit" class="btn-primary full-width"><i class="fas fa-search"></i> Buscar Leads</button>
+                    <button type="button" id="btn-save-leads" class="btn-success full-width" style="margin-top:10px;"><i class="fas fa-save"></i> Salvar Leads no Banco</button>
                 </form>
-                <div id="api-status-box" class="alert hidden"></div>
+                <div id="api-status-box" class="info-box hidden"></div>
             </div>
 
-            <div id="results-panel" class="panel hidden">
-                <div class="panel-header flex-between">
-                    <h2><i class="fas fa-list"></i> Funil de Oportunidades (<span id="result-count">0</span>)</h2>
-                    <div class="export-tools">
-                        <button id="btn-export-csv" class="btn-outline btn-sm"><i class="fas fa-file-csv"></i> CSV</button>
-                        <button id="btn-export-xlsx" class="btn-outline btn-sm"><i class="fas fa-file-excel"></i> Excel</button>
+            <!-- Resultados -->
+            <div id="results-panel" class="results-panel hidden">
+                <div class="results-header">
+                    <h2>Resultados: <span id="result-count">0</span></h2>
+                    <div class="export-buttons">
+                        <button id="btn-export-csv" class="btn-outline btn-sm">CSV</button>
+                        <button id="btn-export-xlsx" class="btn-outline btn-sm">Excel</button>
                     </div>
                 </div>
-                
-                <div class="crm-filters">
-                    <input type="text" id="filter-text" placeholder="Buscar na tabela...">
-                    <select id="filter-status">
-                        <option value="">Funil: Todos</option>
-                        <option value="Novo">Novo</option>
-                        <option value="Contatado">Contatado</option>
-                        <option value="Interessado">Interessado</option>
-                        <option value="Negociação">Negociação</option>
-                        <option value="Convertido">Convertido</option>
-                    </select>
-                    <select id="filter-temp">
-                        <option value="">Termômetro: Todos</option>
-                        <option value="Quente">🔥 Quente</option>
-                        <option value="Morno">🟡 Morno</option>
-                        <option value="Frio">❄️ Frio</option>
-                    </select>
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label>Buscar texto (nome/endereço)</label>
+                        <input type="text" id="filter-text" placeholder="Nome, endereço...">
+                    </div>
+                    <div class="filter-group">
+                        <label>Bairro</label>
+                        <input type="text" id="filter-neighborhood" placeholder="Filtrar por bairro">
+                    </div>
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filter-status">
+                            <option value="">Todos</option>
+                            <option value="Novo">Novo</option>
+                            <option value="Contatado">Contatado</option>
+                            <option value="Interessado">Interessado</option>
+                            <option value="Negociação">Negociação</option>
+                            <option value="Convertido">Convertido</option>
+                            <option value="Não interessado">Não interessado</option>
+                            <option value="Telefone sem WhatsApp">Telefone sem WhatsApp</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Nicho</label>
+                        <select id="filter-niche"></select>
+                    </div>
                 </div>
-
-                <div class="table-container">
-                    <table class="saas-table">
+                <div class="table-responsive">
+                    <table id="leads-table">
                         <thead>
-                            <tr>
-                                <th>Empresa & Qualificação</th>
-                                <th>Localização</th>
-                                <th>Contato / Links</th>
-                                <th>Funil</th>
-                                <th>Ações</th>
-                            </tr>
+                            <tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr>
                         </thead>
                         <tbody id="leads-body"></tbody>
                     </table>
                 </div>
-                <div id="pagination-controls" class="pagination hidden"></div>
+                <div id="pagination-controls" class="pagination-container hidden"></div>
             </div>
         </main>
+
+        <!-- Modal de Configuração (sem chave de API) -->
+        <div id="config-modal" class="modal hidden">
+            <div class="modal-content large-modal">
+                <span class="close-modal">&times;</span>
+                <h3><i class="fas fa-sliders-h"></i> Configurações</h3>
+                
+                <!-- Seção de Modelos de Mensagem -->
+                <div class="config-section">
+                    <h4><i class="fas fa-comment-dots"></i> Modelos de Mensagem</h4>
+                    <div class="new-template-form">
+                        <input type="text" id="new-template-name" placeholder="Nome do modelo (ex: Formal, Amigável)" class="template-name-input">
+                        <textarea id="new-template-content" rows="3" placeholder="Conteúdo do modelo. Use variáveis: {nicho}, {cidade}"></textarea>
+                        <button id="btn-save-template" class="btn-secondary"><i class="fas fa-plus"></i> Adicionar</button>
+                    </div>
+                    <ul id="templates-list" class="templates-list"></ul>
+                </div>
+
+                <!-- Seção de Administração (visível apenas para superusuário) -->
+                <div id="admin-section" class="config-section" style="display:none;">
+                    <h4><i class="fas fa-shield-alt"></i> Administração (Superusuário)</h4>
+                    
+                    <div class="admin-card">
+                        <p><strong>Meu saldo</strong></p>
+                        <div class="button-group">
+                            <button id="btn-admin-add-self-leads" class="btn-success"><i class="fas fa-plus-circle"></i> +10 leads (meu saldo)</button>
+                            <button id="btn-admin-reset-self-balance" class="btn-outline"><i class="fas fa-trash-alt"></i> Zerar meu saldo</button>
+                        </div>
+                    </div>
+
+                    <div class="admin-card">
+                        <p><strong>Adicionar créditos a outro usuário</strong></p>
+                        <div class="flex-row">
+                            <input type="email" id="admin-user-email" placeholder="E-mail do usuário">
+                            <input type="number" id="admin-credits-qty" placeholder="Quantidade">
+                            <button id="btn-admin-add-credits" class="btn-primary">Adicionar</button>
+                        </div>
+                    </div>
+
+                    <div class="admin-card">
+                        <p><strong>Promover usuário a superadministrador</strong></p>
+                        <div class="flex-row">
+                            <input type="email" id="admin-promote-email" placeholder="E-mail do usuário">
+                            <button id="btn-promote-to-admin" class="btn-primary">Tornar Admin</button>
+                        </div>
+                        <div id="admin-promote-msg" class="validation-msg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de edição de lead -->
+        <div id="lead-details-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal-details">&times;</span>
+                <h3>Editar Lead</h3>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="detail-status"></select>
+                </div>
+                <div class="form-group">
+                    <label>Notas</label>
+                    <textarea id="detail-notes" rows="4"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button id="btn-save-details" class="btn-primary">Salvar</button>
+                    <button id="btn-cancel-details" class="btn-outline">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de mensagem WhatsApp -->
+        <div id="message-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal-msg">&times;</span>
+                <h3>Gerar abordagem</h3>
+                <select id="modal-template-select" class="modal-template-selector"></select>
+                <textarea id="generated-message" rows="6" readonly></textarea>
+                <button id="copy-message" class="btn-secondary">Copiar</button>
+                <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp-action">Enviar WhatsApp</a>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2025 LeadScraper Pro – Dados seguros na nuvem</p>
+        </footer>
     </section>
-
-    <div id="config-modal" class="modal hidden">
-        <div class="modal-card modal-lg">
-            <header class="modal-header">
-                <h3>Configurações do Sistema</h3>
-                <button class="btn-close close-modal"><i class="fas fa-times"></i></button>
-            </header>
-            <div class="modal-body">
-                <div class="config-grid">
-                    <div class="config-block">
-                        <h4>Modelos de Mensagem (WhatsApp)</h4>
-                        <div class="form-group">
-                            <input type="text" id="new-template-name" placeholder="Ex: Abordagem Estética">
-                            <textarea id="new-template-content" rows="3" placeholder="Use {nicho} e {cidade} como variáveis dinâmicas."></textarea>
-                            <button id="btn-save-template" class="btn-secondary mt-2">Salvar Modelo</button>
-                        </div>
-                        <ul id="templates-list" class="item-list"></ul>
-                    </div>
-
-                    <div id="admin-section" class="config-block admin-block" style="display:none;">
-                        <h4><i class="fas fa-shield-alt"></i> Painel Superusuário</h4>
-                        
-                        <div class="admin-action-row">
-                            <span>Meu Saldo</span>
-                            <div>
-                                <button id="btn-admin-add-self-leads" class="btn-success btn-sm">+10 Créditos</button>
-                                <button id="btn-admin-reset-self-balance" class="btn-outline-danger btn-sm">Zerar</button>
-                            </div>
-                        </div>
-
-                        <div class="admin-action-row column">
-                            <span>Transferir Créditos</span>
-                            <div class="flex-row">
-                                <input type="email" id="admin-user-email" placeholder="E-mail destino">
-                                <input type="number" id="admin-credits-qty" placeholder="Qtd">
-                                <button id="btn-admin-add-credits" class="btn-primary">Enviar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="message-modal" class="modal hidden">
-        <div class="modal-card">
-            <header class="modal-header">
-                <h3>Gerar Abordagem</h3>
-                <button class="btn-close close-modal-msg"><i class="fas fa-times"></i></button>
-            </header>
-            <div class="modal-body">
-                <label>Selecione o Modelo</label>
-                <select id="modal-template-select" class="form-control mb-3"></select>
-                <textarea id="generated-message" rows="5" class="form-control mb-3" readonly></textarea>
-                <div class="flex-between">
-                    <button id="copy-message" class="btn-outline"><i class="fas fa-copy"></i> Copiar Texto</button>
-                    <a id="btn-send-whatsapp" href="#" target="_blank" class="btn-whatsapp"><i class="fab fa-whatsapp"></i> Abrir WhatsApp</a>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
