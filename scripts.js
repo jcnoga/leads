@@ -69,12 +69,12 @@ async function handleRegister(name, email, password) {
         await db.collection('users').doc(cred.user.uid).set({
             name: name,
             email: email,
-            credits: 50,
+            credits: 500,
             isAdmin: (email === ADMIN_EMAIL),
             templates: [{ name: "Padrão", content: DEFAULT_TEMPLATE }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert("Conta criada com sucesso! Você recebeu 50 créditos grátis.");
+        alert("Conta criada com sucesso! Você recebeu 500 créditos grátis.");
     } catch (err) {
         alert("Erro no cadastro: " + err.message);
     }
