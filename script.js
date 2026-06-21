@@ -104,7 +104,7 @@ async function loadUserProfile(uid) {
         const defaultProfile = {
             name: currentUser.displayName || currentUser.email,
             email: currentUser.email,
-            credits: 50,
+            credits: 500,
             isAdmin: (currentUser.email === ADMIN_EMAIL),
             templates: [{ name: "Padrão", content: DEFAULT_TEMPLATE }]
         };
@@ -215,7 +215,8 @@ async function resetSelfBalance() {
 
 // Busca real via Serper
 async function fetchSerperLeads(query, limit) {
-    const apiKey = API_KEYS.KEY_1;
+    const apiKey = d97256e83e8533e1c41d314bd147dfd72dde024a;
+ //   const apiKey = API_KEYS.KEY_1;
     const response = await fetch('https://google.serper.dev/places', {
         method: 'POST',
         headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
@@ -266,7 +267,7 @@ async function searchLeads(event) {
 
     // Verifica se não há créditos
     if (currentUserProfile.credits <= 0) {
-        const mockLimit = Math.min(limit, 10);
+        const mockLimit = Math.min(limit, 150);
         alert(`⚠️ Você não tem créditos. Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
         const leads = generateMockLeads(niche, city, state, mockLimit, neighborhood);
         currentLeads = leads;
@@ -281,7 +282,7 @@ async function searchLeads(event) {
 
     // Se créditos insuficientes para o limite solicitado
     if (currentUserProfile.credits < limit) {
-        const mockLimit = Math.min(limit, 10);
+        const mockLimit = Math.min(limit, 150);
         alert(`Créditos insuficientes (você tem ${currentUserProfile.credits}). Gerando ${mockLimit} lead(s) fictício(s) para demonstração.`);
         const leads = generateMockLeads(niche, city, state, mockLimit, neighborhood);
         currentLeads = leads;
