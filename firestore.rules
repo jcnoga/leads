@@ -1,0 +1,127 @@
+rules_version = '2';
+
+// =============================================================================
+// LeadScraper Pro — Regras de segurança do Firestore (versão sem Cloud Functions)
+// -----------------------------------------------------------------------------
+// Esta versão roda 100% no plano gratuito (Spark) do Firebase. Sem Cloud
+// Functions, não existe mais um "Admin SDK" no meio do caminho ignorando as
+// regras — então é ESTA camada (que roda nos servidores do Firebase, não no
+// navegador) que precisa garantir sozinha que:
+//   1. um usuário comum nunca consiga AUMENTAR o próprio saldo de créditos
+//      ou se autopromover a administrador;
+//   2. um usuário comum só consiga DIMINUIR o próprio saldo (consumo de
+//      busca), nunca abaixo de zero;
+//   3. somente quem já é administrador (verificado lendo o PRÓPRIO
+//      documento do autor da requisição, não o que ele está tentando
+//      editar) consiga conceder créditos a terceiros, promover novos
+//      admins ou alterar a configuração global;
+//   4. a trilha de auditoria não possa ser forjada em nome de outra pessoa.
+// =============================================================================
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function isOwner(uid) {
+  return isSignedIn() && request.auth.uid == uid;
+}
+
+// Verifica o campo isAdmin do PRÓPRIO documento de quem está fazendo a
+// requisição — nunca do documento-alvo. É isso que permite, com segurança,
+// que um admin escreva credits/isAdmin no documento de outro usuário.
+function isAdmin() {
+  return isSignedIn() &&
+    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+}
+
+// Quantidade de créditos dada a toda conta nova. Precisa bater exatamente
+// com DEFAULT_SIGNUP_CREDITS em script.js — como regras do Firestore não
+// importam constantes de fora, o valor é duplicado aqui de propósito.
+function defaultSignupCredits() {
+  return 10;
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------------
+    // users/{uid}
+    // ---------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Criação do perfil: feita pelo cliente logo após o cadastro (não há
+      // mais gatilho de servidor). As regras obrigam os valores padrão —
+      // mesmo que alguém manipule o payload no console do navegador, um
+      // isAdmin:true ou credits:99999 no cadastro é rejeitado aqui.
+      allow create: if isOwner(uid)
+        && request.resource.data.isAdmin == false
+        && request.resource.data.credits == defaultSignupCredits()
+        && request.resource.data.keys().hasAll(['name','email','credits','isAdmin','templates','theme','createdAt']);
+
+      // Atualização: dois caminhos possíveis.
+      //   (a) Administrador: pode alterar qualquer campo de qualquer
+      //       usuário (conceder créditos, promover a admin, zerar saldo).
+      //   (b) Dono da conta, SEM ser admin: pode editar livremente nome,
+      //       templates e tema — mas isAdmin/email precisam permanecer
+      //       iguais, e credits só pode FICAR IGUAL OU DIMINUIR (gasto de
+      //       créditos ao realizar uma busca), nunca abaixo de zero. Isso
+      //       fecha a falha original que permitia a um usuário comum se
+      //       autopromover ou inflar o próprio saldo escrevendo direto no
+      //       Firestore pelo console do navegador.
+      allow update: if isAdmin()
+        || (
+          isOwner(uid)
+          && request.resource.data.isAdmin == resource.data.isAdmin
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.credits <= resource.data.credits
+          && request.resource.data.credits >= 0
+        );
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // leads/{leadId} — cada lead pertence a um único usuário (ownerUid).
+    // ---------------------------------------------------------------------
+    match /leads/{leadId} {
+      allow read, update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------------
+    // messageLog/{id} — histórico de abordagens enviadas.
+    // ---------------------------------------------------------------------
+    match /messageLog/{id} {
+      allow read, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // config/global — limite de leads por busca etc. Leitura liberada a
+    // qualquer usuário autenticado; escrita somente por administradores.
+    // ---------------------------------------------------------------------
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // auditLog/{id} — trilha de auditoria de créditos e ações administrativas.
+    // Qualquer usuário autenticado pode registrar uma ação que ELE MESMO
+    // executou (inclusive o consumo de créditos numa busca) — mas nunca em
+    // nome de outra pessoa. Leitura restrita a administradores.
+    // ---------------------------------------------------------------------
+    match /auditLog/{id} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.performedByUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Bloqueio padrão para qualquer coleção não listada explicitamente acima.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

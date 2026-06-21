@@ -1,0 +1,30 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "cloudflare-proxy/**",
+      "README.md",
+      "AUDITORIA.md",
+      "PLANO-GRATUITO.md"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(jpg|jpeg|png|gif|svg|webp)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
