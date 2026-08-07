@@ -28,4 +28,4 @@ firebase.initializeApp(firebaseConfig);
 // URL do Cloudflare Worker que faz a busca de leads sem expor a chave da
 // Serper API no navegador (ver cloudflare-proxy/README — ou a seção
 // correspondente no README principal). Preencha após o deploy do worker.
-const LEAD_SEARCH_PROXY_URL = "https://leadscraper-proxy.SEU-USUARIO.workers.dev";
+const LEAD_SEARCH_PROXY_URL = "https://leadscraper-proxy.jcnvap.workers.dev";
