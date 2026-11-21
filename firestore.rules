@@ -16,33 +16,44 @@ rules_version = '2';
 //      editar) consiga conceder créditos a terceiros, promover novos
 //      admins ou alterar a configuração global;
 //   4. a trilha de auditoria não possa ser forjada em nome de outra pessoa.
+//
+// IMPORTANTE: as funções auxiliares (isSignedIn, isOwner, isAdmin,
+// defaultSignupCredits) precisam ficar DENTRO do bloco
+// `match /databases/{database}/documents { ... }` — é esse bloco que declara
+// a variável `database`, usada por isAdmin() para montar o caminho do
+// documento. Se as funções ficarem fora desse bloco, `database` não existe
+// nesse escopo e a checagem de admin nunca funciona (o Firebase só avisa com
+// um "[W] Invalid variable name: database" no deploy, não bloqueia — então o
+// bug passa despercebido até alguém tentar uma ação de admin de verdade).
 // =============================================================================
-
-function isSignedIn() {
-  return request.auth != null;
-}
-
-function isOwner(uid) {
-  return isSignedIn() && request.auth.uid == uid;
-}
-
-// Verifica o campo isAdmin do PRÓPRIO documento de quem está fazendo a
-// requisição — nunca do documento-alvo. É isso que permite, com segurança,
-// que um admin escreva credits/isAdmin no documento de outro usuário.
-function isAdmin() {
-  return isSignedIn() &&
-    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-}
-
-// Quantidade de créditos dada a toda conta nova. Precisa bater exatamente
-// com DEFAULT_SIGNUP_CREDITS em script.js — como regras do Firestore não
-// importam constantes de fora, o valor é duplicado aqui de propósito.
-function defaultSignupCredits() {
-  return 10;
-}
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Verifica o campo isAdmin do PRÓPRIO documento de quem está fazendo a
+    // requisição — nunca do documento-alvo. É isso que permite, com
+    // segurança, que um admin escreva credits/isAdmin no documento de outro
+    // usuário.
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Quantidade de créditos dada a toda conta nova. Precisa bater
+    // exatamente com DEFAULT_SIGNUP_CREDITS em script.js — como regras do
+    // Firestore não importam constantes de fora, o valor é duplicado aqui
+    // de propósito.
+    function defaultSignupCredits() {
+      return 10;
+    }
 
     // ---------------------------------------------------------------------
     // users/{uid}
@@ -95,6 +106,20 @@ service cloud.firestore {
     match /messageLog/{id} {
       allow read, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // templateImages/{id} — imagens dos modelos de mensagem, guardadas como
+    // data URL comprimida (o Storage exige plano pago). Cada imagem pertence
+    // a um único usuário; o limite de tamanho fica abaixo do 1 MiB por documento.
+    // ---------------------------------------------------------------------
+    match /templateImages/{id} {
+      allow read, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl.size() < 1000000;
       allow update: if false;
     }
 

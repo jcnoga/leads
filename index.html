@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261114c">
 </head>
 <body>
 
@@ -285,7 +285,23 @@
       <div class="panel">
         <div class="panel-header">
           <h3>Minha carteira de leads</h3>
-          <span class="muted" id="wallet-count-label">0 leads</span>
+          <div class="panel-header-actions">
+            <div class="view-toggle" id="wallet-view-toggle">
+              <button type="button" class="view-toggle-btn active" data-wallet-view="list"><i class="fa-solid fa-list"></i> Lista</button>
+              <button type="button" class="view-toggle-btn" data-wallet-view="kanban"><i class="fa-solid fa-table-columns"></i> Kanban</button>
+            </div>
+            <button type="button" id="btn-import-xlsx" class="btn-outline btn-sm">
+              <span class="btn-label"><i class="fa-solid fa-file-import"></i> Importar XLSX</span>
+              <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Importando...</span>
+            </button>
+            <input type="file" id="import-xlsx-input" accept=".xlsx,.xls" class="hidden">
+            <button type="button" id="btn-dedup-leads" class="btn-outline btn-sm" title="Remover duplicatas por telefone">
+              <span class="btn-label"><i class="fa-solid fa-broom"></i> Remover duplicatas</span>
+              <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Removendo...</span>
+            </button>
+
+            <span class="muted" id="wallet-count-label">0 leads</span>
+          </div>
         </div>
 
         <div class="filters-bar">
@@ -334,25 +350,29 @@
           </div>
         </div>
 
-        <div class="table-responsive">
-          <table class="data-table" id="leads-table">
-            <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr></thead>
-            <tbody id="leads-body"></tbody>
-          </table>
+        <div id="wallet-list-view">
+          <div class="table-responsive">
+            <table class="data-table" id="leads-table">
+              <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr></thead>
+              <tbody id="leads-body"></tbody>
+            </table>
+          </div>
+
+          <div class="pagination-bar">
+            <div class="page-size-control">
+              <label for="page-size-select">Por página</label>
+              <select id="page-size-select">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="150">150</option>
+              </select>
+            </div>
+            <div id="pagination-controls" class="pagination-container"></div>
+          </div>
         </div>
 
-        <div class="pagination-bar">
-          <div class="page-size-control">
-            <label for="page-size-select">Por página</label>
-            <select id="page-size-select">
-              <option value="25">25</option>
-              <option value="50" selected>50</option>
-              <option value="100">100</option>
-              <option value="150">150</option>
-            </select>
-          </div>
-          <div id="pagination-controls" class="pagination-container"></div>
-        </div>
+        <div id="wallet-kanban-view" class="kanban-board hidden"></div>
       </div>
     </section>
 
@@ -408,6 +428,11 @@
         <div class="new-template-form">
           <input type="text" id="new-template-name" placeholder="Nome do modelo (ex: Formal, Amigável)" class="template-name-input">
           <textarea id="new-template-content" rows="3" placeholder="Conteúdo do modelo. Use variáveis: {empresa}, {nicho}, {cidade}, {bairro}"></textarea>
+          <label class="template-images-picker">
+            <i class="fa-regular fa-image"></i> Imagens (opcional, até 3)
+            <input type="file" id="new-template-images" accept="image/*" multiple>
+          </label>
+          <div id="new-template-images-preview" class="tpl-thumbs"></div>
           <button id="btn-save-template" class="btn-secondary"><i class="fa-solid fa-plus"></i> Adicionar modelo</button>
         </div>
         <ul id="templates-list" class="templates-list"></ul>
@@ -509,9 +534,15 @@
         <label for="generated-message">Mensagem</label>
         <textarea id="generated-message" rows="6"></textarea>
       </div>
+      <div id="message-images-box" class="field hidden">
+        <label>Imagens deste modelo</label>
+        <div id="message-images" class="msg-images"></div>
+        <ol id="message-images-help" class="msg-images-help"></ol>
+      </div>
       <div class="modal-actions">
         <button id="copy-message" class="btn-secondary"><i class="fa-regular fa-copy"></i> Copiar</button>
         <a id="btn-send-whatsapp" href="#" target="_blank" rel="noopener" class="btn-whatsapp-action"><i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp</a>
+        <button id="btn-send-images" class="btn-whatsapp-action hidden"><i class="fa-regular fa-images"></i> Enviar imagens</button>
       </div>
     </div>
   </div>
@@ -538,6 +569,6 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="firebase-config.js"></script>
-<script src="script.js"></script>
+<script src="script.js?v=20261114c"></script>
 </body>
 </html>

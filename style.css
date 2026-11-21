@@ -1,4 +1,4 @@
-/* =============================================================================
+﻿/* =============================================================================
    LeadScraper Pro — Design System "Radar de Sinal"
    Paleta: tinta naval profunda + latão dourado + sinal teal (prospecção/radar)
    Tipografia: Fraunces (display) + Inter (UI) + JetBrains Mono (dados)
@@ -363,12 +363,93 @@ input:focus, select:focus, textarea:focus {
   text-decoration: none; padding: 12px 22px; border-radius: var(--radius-sm); font-weight: 700;
 }
 .btn-whatsapp-action:hover { filter: brightness(1.06); }
+button.btn-whatsapp-action { border: none; font-size: inherit; cursor: pointer; }
+
+/* Imagens dos modelos de mensagem */
+.template-images-picker {
+  display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+  padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--text-primary);
+}
+.template-images-picker input { display: none; }
+.tpl-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tpl-thumbs:empty { display: none; }
+.tpl-thumb { position: relative; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-input); }
+.tpl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tpl-thumb .tpl-thumb-del {
+  position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: none;
+  background: rgba(0,0,0,0.65); color: #fff; font-size: 0.8rem; line-height: 22px; padding: 0; cursor: pointer; margin: 0;
+}
+.tpl-add-img { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border: 1px dashed var(--line); border-radius: 8px; cursor: pointer; color: var(--text-muted); font-size: 0.72rem; text-align: center; }
+.tpl-add-img input { display: none; }
+.template-item > div:first-child { min-width: 0; }
+.templates-list { max-height: 460px; }
+.template-item.editing { display: block; border-color: var(--whatsapp); }
+.tpl-edit { display: flex; flex-direction: column; gap: 8px; }
+.tpl-edit-label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-top: 4px; }
+.tpl-edit textarea { width: 100%; resize: vertical; }
+.tpl-edit-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.template-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.template-actions button { margin-left: 0; }
+.template-item .tpl-thumbs { margin-top: 8px; }
+.msg-images { display: flex; flex-wrap: wrap; gap: 12px; }
+.msg-image { display: flex; flex-direction: column; gap: 6px; align-items: center; width: 120px; }
+.msg-image img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.msg-image button { width: 100%; padding: 8px 6px; font-size: 0.82rem; }
+.msg-images-help { margin: 10px 0 0 1.2rem; font-size: 0.85rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
 
 /* =============================== PAGINAÇÃO =============================== */
 
 .pagination-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .page-size-control { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted); }
 .page-size-control select { width: auto; padding: 6px 10px; }
+
+/* ============================== KANBAM (CARTEIRA) ============================== */
+.panel-header-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.view-toggle { display: flex; gap: 4px; background: var(--surface-input); padding: 4px; border-radius: 10px; }
+.view-toggle-btn {
+  background: transparent; border: none; color: var(--text-muted); padding: 7px 14px; border-radius: 7px;
+  font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: background 0.15s, color 0.15s;
+}
+.view-toggle-btn.active { background: var(--surface-raised); color: var(--gold-400); box-shadow: var(--shadow-card); }
+.view-toggle-btn:not(.active):hover { color: var(--text-primary); }
+
+.kanban-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 10px; align-items: flex-start; }
+.kanban-board.hidden { display: none; }
+
+.kanban-column {
+  flex: 0 0 290px; background: var(--surface-input); border: 1px solid var(--line); border-radius: var(--radius-md);
+  display: flex; flex-direction: column; max-height: 74vh; transition: background 0.15s;
+}
+.kanban-column.drag-over { background: var(--line-soft); }
+.kanban-column-header {
+  padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+}
+.kanban-column-title { font-weight: 700; font-size: 0.83rem; display: flex; align-items: center; gap: 8px; }
+.kanban-column-title .badge-dot { width: 9px; height: 9px; }
+.kanban-column-count {
+  background: var(--surface-raised); color: var(--text-muted); font-size: 0.72rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px; min-width: 22px; text-align: center;
+}
+.kanban-cards { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; min-height: 70px; }
+.kanban-empty { color: var(--text-muted); font-size: 0.76rem; text-align: center; padding: 22px 8px; border: 1px dashed var(--line); border-radius: 8px; }
+
+.kanban-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+  box-shadow: var(--shadow-card); cursor: grab; user-select: none;
+}
+.kanban-card:active { cursor: grabbing; }
+.kanban-card.dragging { opacity: 0.35; }
+.kanban-card-name { font-weight: 700; font-size: 0.86rem; margin-bottom: 2px; }
+.kanban-card-niche { color: var(--gold-400); font-size: 0.74rem; font-weight: 600; margin-bottom: 5px; }
+.kanban-card-meta { color: var(--text-muted); font-size: 0.75rem; margin-bottom: 9px; line-height: 1.4; }
+.kanban-card-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.kanban-card-actions { display: flex; gap: 6px; }
+.kanban-card-actions button {
+  width: 27px; height: 27px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface-input);
+  color: var(--text-primary); display: flex; align-items: center; justify-content: center; font-size: 0.72rem;
+}
+.kanban-card-actions button.whatsapp { color: var(--whatsapp); }
+.kanban-card-actions button:hover { background: var(--line-soft); }
 .pagination-container { display: flex; gap: 6px; flex-wrap: wrap; }
 .page-btn { background: var(--surface-input); border: 1px solid var(--line); color: var(--text-primary); padding: 7px 13px; border-radius: 7px; font-size: 0.85rem; }
 .page-btn:hover { background: var(--line-soft); }
