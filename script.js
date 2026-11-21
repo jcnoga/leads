@@ -1240,7 +1240,7 @@ function openMessageModalFor(lead, savedLeadId) {
   const WHATS_LABEL = '<i class="fa-brands fa-whatsapp"></i> Enviar WhatsApp';
   const whatsHref = () => `https://wa.me/55${cleanPhone(lead.phone)}?text=${encodeURIComponent(textarea.value)}`;
 
-  const templates = (currentUserProfile?.templates || []);
+  const templates = sortTemplatesByName(currentUserProfile?.templates || []);
   select.innerHTML = templates.map((t, i) => `<option value="${i}">${escapeHtml(t.name)}</option>`).join("");
 
   const buildMessage = () => {
@@ -1457,9 +1457,15 @@ function captureEditingDraft() {
   if (nameEl && contentEl) editingDraft = { name: nameEl.value, content: contentEl.value };
 }
 
+// Modelos em ordem alfabética pelo título (Pet-02 antes de Pet-10; ignora maiúsculas e acentos).
+function sortTemplatesByName(list) {
+  return [...list].sort((a, b) =>
+    String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { numeric: true, sensitivity: "base" }));
+}
+
 function renderTemplatesList() {
   if (!currentUserProfile) return;
-  const templates = currentUserProfile.templates || [];
+  const templates = sortTemplatesByName(currentUserProfile.templates || []);
   captureEditingDraft();
   if (editingTemplateId && !templates.some((t) => t.id === editingTemplateId)) {
     editingTemplateId = null;
