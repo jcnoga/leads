@@ -848,7 +848,8 @@ async function handleImportXlsxFile(file) {
 // ============================== CARTEIRA DE LEADS ==============================
 
 function updateNicheFilterOptions() {
-  const niches = [...new Set(walletLeads.map((l) => l.niche).filter(Boolean))].sort();
+  const niches = [...new Set(walletLeads.map((l) => l.niche).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
   const current = filterNicheSelect.value;
   filterNicheSelect.innerHTML = '<option value="">Todos</option>' + niches.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
   if (niches.includes(current)) filterNicheSelect.value = current;
