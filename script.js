@@ -1947,6 +1947,31 @@ function exportSearchResultsToXLSX() {
   XLSX.writeFile(wb, `leads_${Date.now()}.xlsx`);
 }
 
+// Exporta a carteira com os filtros da tela (busca, bairro, status, score, nicho, avaliação).
+function exportWalletToXLSX() {
+  const list = getFilteredWallet();
+  if (list.length === 0) return showToast("Nenhum lead na carteira com esses filtros.", "error");
+  const fmtData = (v) => {
+    const d = v && typeof v.toDate === "function" ? v.toDate() : (v ? new Date(v) : null);
+    return d && !isNaN(d) ? d.toLocaleDateString("pt-BR") : "";
+  };
+  const data = list.map((l) => ({
+    Nome: l.name || "", Nicho: l.niche || "", Cidade: l.city || "", Estado: l.state || "",
+    Bairro: l.neighborhood || "", Endereço: l.address || "", Telefone: l.phone || "",
+    "E-mail": l.email || "", Site: l.website || "", Avaliação: l.rating ?? "",
+    Avaliações: l.reviewCount || 0, Score: l.score || "", Status: l.status || "",
+    Observações: l.notes || "", "Último contato": fmtData(l.lastContactAt),
+    "Link Google Maps": l.cid ? `https://maps.google.com/?cid=${l.cid}` : "",
+    Origem: l.source || "", "Data de entrada": fmtData(l.createdAt),
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Leads");
+  const hoje = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `carteira_leads_${hoje}.xlsx`);
+  showToast(`${list.length} lead(s) exportado(s).`, "success");
+}
+
 // ============================== EVENT LISTENERS ==============================
 
 function setupEventListeners() {
@@ -2065,6 +2090,7 @@ async function deduplicateLeadsByPhone() {
 
   $("btn-dedup-leads").addEventListener("click", deduplicateLeadsByPhone);
   $("btn-import-xlsx").addEventListener("click", () => $("import-xlsx-input").click());
+  $("btn-export-wallet-xlsx").addEventListener("click", exportWalletToXLSX);
   $("import-xlsx-input").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
