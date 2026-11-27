@@ -540,11 +540,14 @@ async function handleSearchSubmit(e) {
     // Débito de créditos: transação no próprio cliente, protegida pelas
     // firestore.rules (um usuário comum só pode DIMINUIR o próprio saldo,
     // nunca abaixo de zero — ver regra de users/{uid}).
+    // Cobra só as empresas NOVAS (fora da carteira) e da cidade pedida.
+    const { billable, dupCount, outCount } = classifySearchLeads(leads, city);
+    renderSearchResults(leads);
     const userRef = db.collection("users").doc(currentUser.uid);
     const newBalance = await db.runTransaction(async (tx) => {
       const snap = await tx.get(userRef);
       const current = snap.data().credits || 0;
-      const toConsume = Math.min(current, leads.length);
+      const toConsume = Math.min(current, billable);
       if (toConsume <= 0) return current;
       const updated = current - toConsume;
       tx.update(userRef, { credits: updated });
@@ -558,14 +561,18 @@ async function handleSearchSubmit(e) {
       targetEmail: currentUserProfile?.email,
       amount: -consumed,
       balanceAfter: newBalance,
-      details: { niche, city, state, neighborhood, returned: leads.length },
+      details: { niche, city, state, neighborhood, returned: leads.length, billable, alreadyInWallet: dupCount, otherCity: outCount },
     });
 
     const debugLine = debug
       ? `<br><span class="muted small">Diagnóstico: ${debug.pagesQueried} página(s) consultada(s) na Serper, ${debug.rawResultsTotal} resultado(s) brutos, última página trouxe ${debug.lastPageSize}. Query: "${escapeHtml(debug.query)}" · Local: "${escapeHtml(debug.location)}"</span>`
       : "";
     apiStatusBox.className = "info-box success";
-    apiStatusBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${leads.length} lead(s) encontrados. Créditos consumidos: ${consumed}. Saldo atual: ${newBalance}.${debugLine}`;
+    const freeParts = [];
+    if (dupCount) freeParts.push(`${dupCount} já na carteira`);
+    if (outCount) freeParts.push(`${outCount} de outra cidade`);
+    const freeTxt = freeParts.length ? ` Sem cobrança: ${freeParts.join(" e ")}.` : "";
+    apiStatusBox.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${leads.length} lead(s) encontrados, ${billable} novo(s) da cidade.${freeTxt} Créditos consumidos: ${consumed}. Saldo atual: ${newBalance}.${debugLine}`;
     apiStatusBox.classList.remove("hidden");
   } catch (err) {
     if (err.code === "unauthenticated") {
@@ -581,6 +588,26 @@ async function handleSearchSubmit(e) {
   }
 }
 
+// Marca cada lead da busca: _dup = já está na carteira (cid, nome+endereço ou telefone);
+// _outCity = a cidade foi informada e o endereço não a contém. Devolve quantos cobrar.
+function classifySearchLeads(leads, city) {
+  const keyOf = (l) => l.cid || `${normalizeString(l.name)}|${normalizeString(l.address)}`;
+  const keys = new Set(walletLeads.map(keyOf));
+  const phones = new Set(walletLeads.map((l) => cleanPhone(l.phone)).filter((p) => p && p.length >= 8));
+  const cityN = normalizeString(city || "").trim();
+  let billable = 0, dupCount = 0, outCount = 0;
+  for (const l of leads) {
+    const p = cleanPhone(l.phone);
+    l._dup = keys.has(keyOf(l)) || (!!p && p.length >= 8 && phones.has(p));
+    const addr = normalizeString(l.address || "");
+    l._outCity = !l._dup && !!cityN && !!addr && !addr.includes(cityN);
+    if (l._dup) dupCount++;
+    else if (l._outCity) outCount++;
+    else billable++;
+  }
+  return { billable, dupCount, outCount };
+}
+
 function renderSearchResults(leads) {
   resultCountSpan.textContent = leads.length;
   if (leads.length === 0) {
@@ -593,7 +620,7 @@ function renderSearchResults(leads) {
     const phone = cleanPhone(lead.phone);
     return `
       <tr>
-        <td><span class="lead-name">${escapeHtml(lead.name)}</span><div class="lead-meta">${escapeHtml(lead.niche || "")}</div></td>
+        <td><span class="lead-name">${escapeHtml(lead.name)}</span><div class="lead-meta">${escapeHtml(lead.niche || "")}${lead._dup ? " · <b>já na carteira (grátis)</b>" : lead._outCity ? " · <b>outra cidade (grátis)</b>" : ""}</div></td>
         <td><span class="score-pill score-${lead.score}">${sc.emoji} ${sc.label}</span></td>
         <td>${escapeHtml(ratingTxt)}</td>
         <td class="lead-meta">${escapeHtml(lead.address || "")}</td>
@@ -622,13 +649,14 @@ async function handleSaveLeads() {
     walletLeads.map((l) => l.cid || `${normalizeString(l.name)}|${normalizeString(l.address)}`)
   );
   const toSave = currentSearchLeads.filter((l) => {
+    if (l._outCity || l._dup) return false; // outra cidade ou já na carteira (inclui mesmo telefone)
     const key = l.cid || `${normalizeString(l.name)}|${normalizeString(l.address)}`;
     return !existingKeys.has(key);
   });
   const skipped = currentSearchLeads.length - toSave.length;
 
   if (toSave.length === 0) {
-    showToast("Todos esses leads já estão na sua carteira.", "info");
+    showToast("Nada novo para salvar: esses leads já estão na carteira ou são de outra cidade.", "info");
     return;
   }
 
@@ -656,7 +684,7 @@ async function handleSaveLeads() {
 
     showToast(
       skipped > 0
-        ? `${toSave.length} lead(s) salvos na carteira (${skipped} já existiam e foram ignorados).`
+        ? `${toSave.length} lead(s) salvos na carteira (${skipped} já existiam ou eram de outra cidade e foram ignorados).`
         : `${toSave.length} lead(s) salvos na carteira.`,
       "success"
     );
