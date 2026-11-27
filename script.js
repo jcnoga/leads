@@ -565,7 +565,7 @@ async function handleSearchSubmit(e) {
     });
 
     const debugLine = debug
-      ? `<br><span class="muted small">Diagnóstico: ${debug.pagesQueried} página(s) consultada(s) na Serper, ${debug.rawResultsTotal} resultado(s) brutos, última página trouxe ${debug.lastPageSize}. Query: "${escapeHtml(debug.query)}" · Local: "${escapeHtml(debug.location)}"</span>`
+      ? `<br><span class="muted small">Diagnóstico: ${debug.pagesQueried} página(s) consultada(s) ${debug.provider === "google" ? "no Google" : "na Serper"}, ${debug.rawResultsTotal} resultado(s) brutos, última página trouxe ${debug.lastPageSize}. Query: "${escapeHtml(debug.query)}" · Local: "${escapeHtml(debug.location)}"</span>`
       : "";
     apiStatusBox.className = "info-box success";
     const freeParts = [];
