@@ -850,9 +850,178 @@ async function handleImportXlsxFile(file) {
 function updateNicheFilterOptions() {
   const niches = [...new Set(walletLeads.map((l) => l.niche).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
-  const current = filterNicheSelect.value;
+  const current = filters.niche || filterNicheSelect.value;
   filterNicheSelect.innerHTML = '<option value="">Todos</option>' + niches.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
   if (niches.includes(current)) filterNicheSelect.value = current;
+  else { filterNicheSelect.value = ""; filters.niche = ""; }
+  if (!$("niches-modal").classList.contains("hidden")) renderNichesModal();
+}
+
+// ============================== GERENCIAR NICHOS ==============================
+// Renomear, unificar e excluir nichos. Tudo é feito direto nos documentos da
+// coleção "leads" do próprio usuário (as firestore.rules já permitem update e
+// delete pelo dono).
+
+function getNicheSummary() {
+  const map = new Map();
+  for (const l of walletLeads) {
+    const n = l.niche || "";
+    if (!n) continue;
+    if (!map.has(n)) map.set(n, { name: n, count: 0, cities: new Map() });
+    const item = map.get(n);
+    item.count++;
+    const city = (l.city || "").trim();
+    if (city) item.cities.set(city, (item.cities.get(city) || 0) + 1);
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+}
+
+function leadIdsOfNiche(niche) {
+  return walletLeads.filter((l) => (l.niche || "") === niche).map((l) => l.id);
+}
+
+async function commitInBatches(ids, apply) {
+  const leadsRef = db.collection("leads");
+  let batch = db.batch();
+  let ops = 0;
+  for (const id of ids) {
+    apply(batch, leadsRef.doc(id));
+    ops++;
+    if (ops === 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+  }
+  if (ops > 0) await batch.commit();
+}
+
+function renderNichesModal() {
+  const list = getNicheSummary();
+  const body = $("niches-table-body");
+  if (list.length === 0) {
+    body.innerHTML = `<tr><td colspan="3" class="empty-row">Nenhum nicho na carteira.</td></tr>`;
+  } else {
+    body.innerHTML = list.map((n) => {
+      const cities = [...n.cities.entries()].sort((a, b) => b[1] - a[1]);
+      const cityTxt = cities.length === 0 ? "—"
+        : cities.map(([c, q]) => cities.length > 1 ? `${c} (${q})` : c).join(", ");
+      return `<tr><td>${escapeHtml(n.name)}</td><td>${escapeHtml(cityTxt)}</td><td>${n.count}</td></tr>`;
+    }).join("");
+  }
+  const opts = list.map((n) => `<option value="${escapeHtml(n.name)}">${escapeHtml(n.name)} (${n.count})</option>`).join("");
+  const empty = '<option value="">— escolha —</option>';
+  ["niche-rename-from", "niche-merge-from", "niche-merge-to", "niche-delete"].forEach((id) => {
+    const sel = $(id);
+    const keep = sel.value;
+    sel.innerHTML = empty + opts;
+    if (list.some((n) => n.name === keep)) sel.value = keep;
+  });
+}
+
+function openNichesModal() {
+  renderNichesModal();
+  openModal($("niches-modal"));
+}
+
+async function handleNicheRename() {
+  const from = $("niche-rename-from").value;
+  const to = $("niche-rename-to").value.trim();
+  if (!from) return showToast("Escolha o nicho atual.", "error");
+  if (!to) return showToast("Informe o novo nome.", "error");
+  if (to === from) return showToast("O novo nome é igual ao atual.", "error");
+  const ids = leadIdsOfNiche(from);
+  const exists = getNicheSummary().find((n) => n.name === to);
+  const msg = exists
+    ? `Já existe o nicho "${to}". Os ${ids.length} lead(s) de "${from}" vão para ele (os dois viram um só). Continuar?`
+    : `Alterar "${from}" para "${to}" em ${ids.length} lead(s)?`;
+  if (!(await confirmDialog("Alterar nome do nicho", msg))) return;
+  const btn = $("btn-niche-rename");
+  btn.disabled = true;
+  try {
+    await commitInBatches(ids, (b, ref) => b.update(ref, { niche: to }));
+    if (filters.niche === from) { filters.niche = to; }
+    $("niche-rename-to").value = "";
+    showToast(`Nicho alterado: ${ids.length} lead(s) agora em "${to}".`, "success");
+    writeAuditLog({ action: "niche_rename", performedByEmail: currentUserProfile?.email, targetUid: currentUser.uid,
+      targetEmail: currentUserProfile?.email, amount: ids.length, balanceAfter: null, details: { from, to } });
+  } catch (err) {
+    showToast("Erro ao alterar o nicho: " + translateFirebaseError(err), "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleNicheMerge() {
+  const from = $("niche-merge-from").value;
+  const to = $("niche-merge-to").value;
+  if (!from || !to) return showToast("Escolha os dois nichos.", "error");
+  if (from === to) return showToast("Escolha dois nichos diferentes.", "error");
+  const ids = leadIdsOfNiche(from);
+  const ok = await confirmDialog("Unificar nichos",
+    `Os ${ids.length} lead(s) de "${from}" vão para "${to}" e o nicho "${from}" deixa de existir. Continuar?`);
+  if (!ok) return;
+  const btn = $("btn-niche-merge");
+  btn.disabled = true;
+  try {
+    await commitInBatches(ids, (b, ref) => b.update(ref, { niche: to }));
+    if (filters.niche === from) { filters.niche = to; }
+    showToast(`Unificado: ${ids.length} lead(s) passaram para "${to}".`, "success");
+    writeAuditLog({ action: "niche_merge", performedByEmail: currentUserProfile?.email, targetUid: currentUser.uid,
+      targetEmail: currentUserProfile?.email, amount: ids.length, balanceAfter: null, details: { from, to } });
+  } catch (err) {
+    showToast("Erro ao unificar: " + translateFirebaseError(err), "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleNicheDelete() {
+  const niche = $("niche-delete").value;
+  if (!niche) return showToast("Escolha o nicho.", "error");
+  const ids = leadIdsOfNiche(niche);
+  const ok = await confirmDialog("Excluir nicho inteiro",
+    `Apagar o nicho "${niche}" e os ${ids.length} lead(s) dele? Não tem como desfazer.`);
+  if (!ok) return;
+  const btn = $("btn-niche-delete");
+  btn.disabled = true;
+  try {
+    await commitInBatches(ids, (b, ref) => b.delete(ref));
+    if (filters.niche === niche) { filters.niche = ""; }
+    showToast(`Nicho "${niche}" excluído (${ids.length} lead(s)).`, "success");
+    writeAuditLog({ action: "niche_delete", performedByEmail: currentUserProfile?.email, targetUid: currentUser.uid,
+      targetEmail: currentUserProfile?.email, amount: ids.length, balanceAfter: null, details: { niche } });
+  } catch (err) {
+    showToast("Erro ao excluir o nicho: " + translateFirebaseError(err), "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ============================== VOLTAR À TELA INICIAL (logo) ==============================
+// Deixa tudo como logo depois do login: Painel, formulário de busca limpo,
+// sem resultados na tela, filtros da carteira zerados e modais fechados.
+function goHome() {
+  document.querySelectorAll(".modal:not(.hidden)").forEach((m) => closeModal(m));
+  $("user-dropdown").classList.add("hidden");
+
+  $("lead-search-form").reset();
+  $("limit").value = 50;
+  currentSearchLeads = [];
+  searchResultsBody.innerHTML = "";
+  resultCountSpan.textContent = "0";
+  resultsPanel.classList.add("hidden");
+  apiStatusBox.classList.add("hidden");
+  apiStatusBox.innerHTML = "";
+  btnSaveLeads.disabled = true;
+
+  Object.assign(filters, { text: "", neighborhood: "", status: "", score: "", niche: "", minRating: 0 });
+  ["filter-text", "filter-neighborhood"].forEach((id) => { $(id).value = ""; });
+  ["filter-status", "filter-score", "filter-niche"].forEach((id) => { $(id).value = ""; });
+  $("filter-min-rating").value = "0";
+  currentPage = 1;
+  if (walletView !== "list") setWalletView("list");
+  else applyWalletFiltersAndRender();
+
+  renderHeader();
+  showView("dashboard");
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function getFilteredWallet() {
@@ -895,7 +1064,7 @@ function renderLeadsTable(leads, filteredTotal) {
     const msg = filteredTotal === 0 && walletLeads.length > 0
       ? "Nenhum lead corresponde aos filtros aplicados."
       : "Sua carteira está vazia. Busque leads na aba Prospecção e salve os que interessarem.";
-    leadsBody.innerHTML = `<tr><td colspan="4" class="empty-row">${msg}</td></tr>`;
+    leadsBody.innerHTML = `<tr><td colspan="5" class="empty-row">${msg}</td></tr>`;
     return;
   }
   leadsBody.innerHTML = leads.map((lead) => {
@@ -910,6 +1079,7 @@ function renderLeadsTable(leads, filteredTotal) {
           <div class="lead-meta"><span class="score-pill score-${lead.score}">${sc.emoji} ${sc.label}</span></div>
         </td>
         <td>${escapeHtml(lead.niche || "")}<div class="lead-meta">${escapeHtml(lead.address || "")}</div></td>
+        <td>${escapeHtml(lead.city || "—")}${lead.state ? `<div class="lead-meta">${escapeHtml(lead.state)}</div>` : ""}</td>
         <td><span class="mono-cell">${escapeHtml(lead.phone || "—")}</span><div class="lead-meta">${lead.website ? `<a href="${escapeHtml(lead.website)}" target="_blank" rel="noopener">Site ↗</a>` : "Sem site"}</div></td>
         <td class="actions-cell">
           <button class="btn-action whatsapp" data-msg="${lead.id}" title="Gerar abordagem"><i class="fa-brands fa-whatsapp"></i></button>
@@ -1871,7 +2041,7 @@ function renderDashboardRecent() {
   const recent = walletLeads.slice(0, 5);
   const body = $("dashboard-recent-body");
   if (recent.length === 0) {
-    body.innerHTML = `<tr><td colspan="5" class="empty-row">Nenhum lead ainda.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="empty-row">Nenhum lead ainda.</td></tr>`;
     return;
   }
   body.innerHTML = recent.map((l) => {
@@ -1879,6 +2049,7 @@ function renderDashboardRecent() {
     return `<tr>
       <td>${escapeHtml(l.name)}</td>
       <td>${escapeHtml(l.niche || "")}</td>
+      <td>${escapeHtml(l.city || "—")}</td>
       <td><span class="score-pill score-${l.score}">${sc.emoji} ${sc.label}</span></td>
       <td><span class="badge ${statusToClass(l.status)}"><span class="badge-dot"></span>${escapeHtml(l.status || "Novo")}</span></td>
       <td class="muted small">${timeAgo(l.createdAt)}</td>
@@ -2024,6 +2195,14 @@ function setupEventListeners() {
   document.querySelectorAll(".nav-btn").forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
   document.querySelectorAll("[data-nav]").forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.nav)));
   $("btn-goto-search").addEventListener("click", () => showView("leads"));
+  $("btn-brand-home").addEventListener("click", goHome);
+  $("btn-brand-home").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goHome(); } });
+
+  $("btn-manage-niches").addEventListener("click", openNichesModal);
+  $("btn-niche-rename").addEventListener("click", handleNicheRename);
+  $("btn-niche-merge").addEventListener("click", handleNicheMerge);
+  $("btn-niche-delete").addEventListener("click", handleNicheDelete);
+  bindModalDismiss($("niches-modal"), [".close-modal-niches"]);
 
   $("lead-search-form").addEventListener("submit", handleSearchSubmit);
   $("btn-save-leads").addEventListener("click", handleSaveLeads);

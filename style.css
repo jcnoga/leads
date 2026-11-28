@@ -489,6 +489,20 @@ button.btn-whatsapp-action { border: none; font-size: inherit; cursor: pointer; 
 .admin-card p { margin-bottom: 10px; font-weight: 600; font-size: 0.9rem; }
 .button-group, .flex-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .flex-row input { flex: 1; min-width: 140px; }
+/* Gerenciar nichos */
+.niches-modal-content { max-width: 640px; }
+.close-modal-niches { position: absolute; top: 16px; right: 18px; font-size: 1.4rem; cursor: pointer; color: var(--text-muted); line-height: 1; }
+.close-modal-niches:hover { color: var(--text-primary); }
+.niches-table-wrap { max-height: 240px; overflow-y: auto; margin-bottom: 1.2rem; border: 1px solid var(--line); border-radius: 10px; }
+.niche-action-card { background: var(--surface-input); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+.niche-action-card > p { margin-bottom: 8px; }
+.niche-action-card select, .niche-action-card input { width: 100%; }
+.niche-action-danger { border-color: var(--error); }
+
+/* Logo volta à tela inicial */
+.brand-home { cursor: pointer; border-radius: 10px; }
+.brand-home:hover .brand-name, .brand-home:focus-visible .brand-name { color: var(--gold-500); }
+
 .validation-msg { margin-top: 8px; font-size: 0.82rem; min-height: 1.1em; }
 .validation-msg.success { color: var(--success); }
 .validation-msg.error { color: var(--error); }

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=20261114c">
+<link rel="stylesheet" href="style.css?v=20261128a">
 </head>
 <body>
 
@@ -105,7 +105,7 @@
 <div id="app-shell" class="hidden">
 
   <header class="topbar">
-    <div class="topbar-left">
+    <div class="topbar-left brand-home" id="btn-brand-home" role="button" tabindex="0" title="Voltar à tela inicial">
       <span class="brand-mark sm"><i class="fa-solid fa-satellite-dish"></i></span>
       <span class="brand-name">LeadScraper <strong>Pro</strong></span>
     </div>
@@ -187,8 +187,8 @@
         </div>
         <div class="table-responsive">
           <table class="data-table">
-            <thead><tr><th>Empresa</th><th>Nicho</th><th>Score</th><th>Status</th><th>Adicionado</th></tr></thead>
-            <tbody id="dashboard-recent-body"><tr><td colspan="5" class="empty-row">Nenhum lead ainda.</td></tr></tbody>
+            <thead><tr><th>Empresa</th><th>Nicho</th><th>Cidade</th><th>Score</th><th>Status</th><th>Adicionado</th></tr></thead>
+            <tbody id="dashboard-recent-body"><tr><td colspan="6" class="empty-row">Nenhum lead ainda.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -298,6 +298,9 @@
             <button type="button" id="btn-export-wallet-xlsx" class="btn-outline btn-sm" title="Exportar os leads filtrados na tela">
               <span class="btn-label"><i class="fa-solid fa-file-excel"></i> Exportar XLSX</span>
             </button>
+            <button type="button" id="btn-manage-niches" class="btn-outline btn-sm" title="Renomear, unificar ou excluir nichos">
+              <span class="btn-label"><i class="fa-solid fa-tags"></i> Gerenciar nichos</span>
+            </button>
             <button type="button" id="btn-dedup-leads" class="btn-outline btn-sm" title="Remover duplicatas por telefone">
               <span class="btn-label"><i class="fa-solid fa-broom"></i> Remover duplicatas</span>
               <span class="btn-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i> Removendo...</span>
@@ -356,7 +359,7 @@
         <div id="wallet-list-view">
           <div class="table-responsive">
             <table class="data-table" id="leads-table">
-              <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Contato</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Empresa / Status</th><th>Detalhes</th><th>Cidade</th><th>Contato</th><th>Ações</th></tr></thead>
               <tbody id="leads-body"></tbody>
             </table>
           </div>
@@ -551,6 +554,58 @@
   </div>
 
   <!-- ====================== MODAL CONFIRMAÇÃO GENÉRICA ====================== -->
+  <!-- ====================== MODAL GERENCIAR NICHOS ====================== -->
+  <div id="niches-modal" class="modal hidden">
+    <div class="modal-content niches-modal-content">
+      <span class="close-modal-niches">&times;</span>
+      <h3><i class="fa-solid fa-tags"></i> Gerenciar nichos</h3>
+
+      <div class="table-responsive niches-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Nicho</th><th>Cidade</th><th>Leads</th></tr></thead>
+          <tbody id="niches-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="niche-action-card">
+        <p><strong><i class="fa-solid fa-pen"></i> Alterar o nome</strong></p>
+        <div class="field">
+          <label for="niche-rename-from">Nicho atual</label>
+          <select id="niche-rename-from"></select>
+        </div>
+        <div class="field">
+          <label for="niche-rename-to">Novo nome</label>
+          <input type="text" id="niche-rename-to" placeholder="Ex: Imobiliária">
+        </div>
+        <button id="btn-niche-rename" class="btn-primary"><i class="fa-solid fa-check"></i> Alterar nome</button>
+      </div>
+
+      <div class="niche-action-card">
+        <p><strong><i class="fa-solid fa-object-group"></i> Unificar dois nichos</strong></p>
+        <p class="muted small">Todos os leads do primeiro passam para o segundo. Ex.: "Imobiliárias" → "Imobiliária".</p>
+        <div class="field">
+          <label for="niche-merge-from">Juntar este nicho…</label>
+          <select id="niche-merge-from"></select>
+        </div>
+        <div class="field">
+          <label for="niche-merge-to">…dentro deste (fica com o nome dele)</label>
+          <select id="niche-merge-to"></select>
+        </div>
+        <button id="btn-niche-merge" class="btn-primary"><i class="fa-solid fa-object-group"></i> Unificar</button>
+      </div>
+
+      <div class="niche-action-card niche-action-danger">
+        <p><strong><i class="fa-solid fa-trash"></i> Excluir um nicho inteiro</strong></p>
+        <p class="muted small">Apaga o nicho e TODOS os leads dele. Não tem como desfazer.</p>
+        <div class="field">
+          <label for="niche-delete">Nicho</label>
+          <select id="niche-delete"></select>
+        </div>
+        <button id="btn-niche-delete" class="btn-delete-outline"><i class="fa-solid fa-trash"></i> Excluir nicho e leads</button>
+      </div>
+    </div>
+  </div>
+
   <div id="confirm-modal" class="modal hidden">
     <div class="modal-content small-modal">
       <h3 id="confirm-title">Confirmar ação</h3>
@@ -572,6 +627,6 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="firebase-config.js"></script>
-<script src="script.js?v=20261127d"></script>
+<script src="script.js?v=20261128a"></script>
 </body>
 </html>
